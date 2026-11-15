@@ -124,7 +124,7 @@
         <label>Snapshot name<input class="input" bind:value={label} maxlength="160" placeholder="e.g. Shield Crush — early maps" disabled={busy} /></label>
         <label>Boss profile<select class="select" bind:value={boss} disabled={busy}><option value="Boss">Standard boss</option><option value="Pinnacle">Guardian / Pinnacle</option><option value="Uber">Uber Pinnacle</option></select></label>
       </div>
-      <label class="paste">PoB share code, XML or supported build URL<textarea bind:value={input} rows="3" disabled={busy} spellcheck="false" placeholder="Paste a build here. Import runs only when you press Capture." /></label>
+      <label class="paste">PoB share code, XML or supported build URL<textarea bind:value={input} rows="3" disabled={busy} spellcheck="false" placeholder="Paste a build here. Import runs only when you press Capture."></textarea></label>
       <div class="actions">
         <button class="btn primary" disabled={busy || !ready || !input.trim()} onclick={() => capture(false)}>Capture pasted build</button>
         <button class="btn" disabled={busy || !ready || !build.loaded} onclick={() => capture(true)}>Capture open build</button>
@@ -191,18 +191,18 @@
   .progression { overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
   header, .history { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
   h1 { font-size: 28px; margin: 5px 0; } h2 { font-size: 19px; margin: 0 0 12px; } h3 { margin-top: 22px; }
-  p { line-height: 1.55; } section { padding: 20px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 10px; }
+  p { line-height: 1.55; } section { padding: 20px; background: var(--bg-1); border: 1px solid var(--line-1); border-radius: 10px; }
   .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   .inputs { display: grid; grid-template-columns: 150px minmax(180px, 1fr) 200px; gap: 12px; }
   label { display: flex; flex-direction: column; gap: 7px; } .paste { margin: 16px 0 12px; }
-  textarea { width: 100%; resize: vertical; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-0); color: var(--text); font: inherit; }
-  .history { padding: 14px 0; border-bottom: 1px solid var(--border); } .history .small { margin-top: 5px; }
+  textarea { width: 100%; resize: vertical; padding: 10px; border: 1px solid var(--line-1); border-radius: 6px; background: var(--bg-0); color: var(--fg-1); font: inherit; }
+  .history { padding: 14px 0; border-bottom: 1px solid var(--line-1); } .history .small { margin-top: 5px; }
   .error, .blocked { color: var(--bad); } .badge { font-size: 11px; text-transform: uppercase; padding-left: 8px; }
-  li { padding: 6px 0; } li p { margin: 5px 0; color: var(--text-dim); }
+  li { padding: 6px 0; } li p { margin: 5px 0; color: var(--fg-3); }
   details { margin-top: 12px; } summary { cursor: pointer; padding: 8px 0; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; user-select: text; }
   .table-wrap { overflow-x: auto; } table { border-collapse: collapse; width: 100%; font-size: 12px; }
-  th, td { padding: 10px; border-bottom: 1px solid var(--border); text-align: right; } th:first-child { text-align: left; }
+  th, td { padding: 10px; border-bottom: 1px solid var(--line-1); text-align: right; } th:first-child { text-align: left; }
   @media (max-width: 900px) { .inputs { grid-template-columns: 1fr; } .two { grid-template-columns: 1fr; } }
 </style>
