@@ -62,6 +62,12 @@ To check by hand, open Settings (the gear in the title bar, or Ctrl+,) and press
 
 ## Features
 
+### Progression (PoE1 preview)
+
+Capture current and target builds without replacing the open build, keep local snapshot history,
+compare equipment and passive changes, and review transition checks and a PoB-calculated boss scenario.
+See [PROGRESSION.md](PROGRESSION.md) for usage, calculation assumptions, backup and validation instructions.
+
 ### Every Path of Building tab
 
 Tree, skills, items, calcs, config, notes, party and builds are all here, with PoB's tooltips and

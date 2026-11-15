@@ -88,7 +88,7 @@
     await run(async () => {
       const path = await save({ defaultPath: "progression-history.json", filters: [{ name: "Progression backup", extensions: ["json"] }] });
       if (path) {
-        const text = ready ? JSON.stringify(plan, null, 2) : localStorage.getItem(STORAGE_KEY);
+        const text = ready ? JSON.stringify(plan) : localStorage.getItem(STORAGE_KEY);
         if (text) await writeTextFile(path, text);
       }
     });
@@ -120,9 +120,9 @@
       <h2>Capture a build</h2>
       <p class="dim">For Shield Crush Slayer → Dual Strike of Ambidexterity Slayer, capture your current build and the intended target loadout. Choose the tree, item set and skills in PoB before exporting. No example DPS is supplied.</p>
       <div class="inputs">
-        <label>Use as<select class="select" bind:value={role} disabled={busy}><option value="current">Current</option><option value="target">Target</option></select></label>
+        <label>Use as<select class="select" aria-label="Use as" bind:value={role} disabled={busy}><option value="current">Current</option><option value="target">Target</option></select></label>
         <label>Snapshot name<input class="input" bind:value={label} maxlength="160" placeholder="e.g. Shield Crush — early maps" disabled={busy} /></label>
-        <label>Boss profile<select class="select" bind:value={boss} disabled={busy}><option value="Boss">Standard boss</option><option value="Pinnacle">Guardian / Pinnacle</option><option value="Uber">Uber Pinnacle</option></select></label>
+        <label>Boss profile<select class="select" aria-label="Boss profile" bind:value={boss} disabled={busy}><option value="Boss">Standard boss</option><option value="Pinnacle">Guardian / Pinnacle</option><option value="Uber">Uber Pinnacle</option></select></label>
       </div>
       <label class="paste">PoB share code, XML or supported build URL<textarea bind:value={input} rows="3" disabled={busy} spellcheck="false" placeholder="Paste a build here. Import runs only when you press Capture."></textarea></label>
       <div class="actions">

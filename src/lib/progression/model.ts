@@ -102,7 +102,14 @@ export function assess(current: Snapshot, target: Snapshot): Check[] {
 
 export function priorities(current: Snapshot, target: Snapshot): Check[] {
   const checks = assess(current, target).filter((check) => check.status !== "pass");
-  const rank = (check: Check) => check.status === "blocked" ? 0 : /versions|config/.test(check.id) ? 1 : /gear|gems|tree/.test(check.id) ? 2 : 3;
+  for (const change of diffSnapshots(current, target).equipment) {
+    if (!change.target) continue;
+    checks.push({
+      id: `item-${change.slot}`, status: "review", title: `Prepare ${change.slot}: ${change.target.name}`,
+      detail: `Compare against ${change.current?.name ?? "the empty slot"} in PoB before buying or equipping. Check attribute requirements, resistances and skill compatibility together; no isolated DPS gain has been calculated.`,
+    });
+  }
+  const rank = (check: Check) => check.status === "blocked" ? 0 : /versions|config/.test(check.id) ? 1 : /gear|gems|tree|^item-Weapon/.test(check.id) ? 2 : 3;
   return checks.sort((a, b) => rank(a) - rank(b));
 }
 

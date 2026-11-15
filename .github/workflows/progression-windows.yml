@@ -43,30 +43,41 @@ jobs:
         shell: pwsh
         run: |
           "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
-          Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
-          "NoDefaultCurrentDirectoryInExePath=" >> $env:GITHUB_ENV
       - run: bun install --frozen-lockfile
       - run: bun run check
       - run: bun test scripts
+      - name: Browser interaction tests
+        run: |
+          bun x playwright install chromium
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          bun run test:progression:ui
       - run: bun run build
       - name: Sync pinned PoB engines
         run: |
+          Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
           cargo run -p pob-sync -- --source upstream/PathOfBuilding-PoE2
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cargo run -p pob-sync -- --game poe1 --source upstream/PathOfBuilding
-      - name: Rust regression tests
+      - name: Rust engine regression tests
         run: |
+          Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
           cargo test -p pob-engine
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cargo test -p pob-redux --lib
       - name: Validate Progression against real PoB
         env:
           POB_REDUX_POB_ROOT: src-tauri/resources/pob1
-        run: cargo test -p pob-engine --test progression -- --ignored --nocapture
+        run: |
+          Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
+          cargo test -p pob-engine --test progression -- --ignored --nocapture
+      - name: Rust application regression tests
+        run: |
+          Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
+          cargo test -p pob-redux --lib
       - name: Build isolated unsigned Windows installer
         env:
           VITE_PROGRESSION_VALIDATION: "true"
-        run: bun run tauri build --bundles nsis --config src-tauri/tauri.progression.conf.json
+        run: |
+          Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
+          bun run tauri build --bundles nsis --config src-tauri/tauri.progression.conf.json
       - uses: actions/upload-artifact@v7
         with:
           name: progression-windows-${{ github.sha }}

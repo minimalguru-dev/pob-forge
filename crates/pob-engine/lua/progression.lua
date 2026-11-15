@@ -46,7 +46,8 @@ return function(methods, ensureBuild, decodeCode)
 		end
 		table.sort(nodes, function(a, b) return a.id < b.id end)
 		for _, slot in ipairs(entry.itemsTab.orderedSlots) do
-			local shown = type(slot.shown) ~= "function" or slot.shown()
+			local shown = slot.shown ~= false
+			if type(slot.shown) == "function" then shown = slot.shown() end
 			if shown and not slot.inactive then
 				local item = slot.selItemId and entry.itemsTab.items[slot.selItemId]
 				if item then equipment[#equipment + 1] = {
