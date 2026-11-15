@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+  import { EmptyClipboardError, readImportClipboard } from "$lib/import/clipboard";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import {
     engine,
@@ -69,6 +70,8 @@
   let sort = $state<"modified" | "name" | "level" | "class">("modified");
   let flash = $state<string | null>(null);
   let fetching = $state(false);
+  let pasting = $state(false);
+  let importError = $state<string | null>(null);
 
   // The name written as `author` into exported .build files; remembered across builds.
   let author = $state("");
@@ -740,47 +743,41 @@
   async function doImport() {
     const text = code.trim();
     if (!text) return;
-    if (isMobalyticsLink(text)) {
-      fetching = true;
-      try {
+    importError = null;
+    build.clearError();
+    fetching = true;
+    try {
+      if (isMobalyticsLink(text)) {
         moba = await resolveMobalytics(text);
-      } catch (e) {
-        build.error = String(e);
-      } finally {
-        fetching = false;
-      }
-    } else if (isMaxrollGuideLink(text)) {
-      fetching = true;
-      try {
+      } else if (isMaxrollGuideLink(text)) {
         const r = await resolveMaxroll(text);
         if (r.links.length === 1) await loadCodeOrLink(r.links[0].url);
         else guide = r;
-      } catch (e) {
-        build.error = String(e);
-      } finally {
-        fetching = false;
-      }
-    } else if (/^https?:\/\//i.test(text)) {
-      fetching = true;
-      try {
+      } else if (/^https?:\/\//i.test(text)) {
         await loadCodeOrLink(text);
-      } catch (e) {
-        build.error = String(e);
-      } finally {
-        fetching = false;
+      } else if (text.startsWith("<")) {
+        await build.loadXml(text);
+      } else {
+        await build.loadCode(text);
       }
-    } else if (text.startsWith("<")) {
-      await build.loadXml(text);
-    } else {
-      await build.loadCode(text);
+    } catch (e) {
+      build.error = String(e);
+    } finally {
+      fetching = false;
+      importError = build.error;
     }
   }
 
   async function pasteImport() {
-    const t = (await readText().catch(() => "")) ?? "";
-    if (t) {
-      code = t;
+    pasting = true;
+    importError = null;
+    try {
+      code = await readImportClipboard(readText);
       await doImport();
+    } catch (e) {
+      importError = e instanceof EmptyClipboardError ? m.import_clipboard_empty() : m.import_clipboard_read_failed({ error: String(e) });
+    } finally {
+      pasting = false;
     }
   }
 
@@ -1310,8 +1307,9 @@
         </div>
       {:else}
         <div class="actions">
-          <button class="btn primary" onclick={signIn}>{m.import_ggg_sign_in()}</button>
+          <button class="btn primary" onclick={signIn} disabled={!ggg.available}>{m.import_ggg_sign_in()}</button>
         </div>
+        {#if !ggg.available}<p class="dim small">{m.import_ggg_unavailable()}</p>{/if}
       {/if}
     </div>
 
@@ -1324,11 +1322,12 @@
         bind:value={code}
       ></textarea>
       <div class="actions">
-        <button class="btn primary" onclick={doImport} disabled={!code.trim() || build.busy > 0 || fetching}>
+        <button class="btn primary" onclick={doImport} disabled={!code.trim() || build.busy > 0 || fetching || pasting}>
           {fetching ? m.import_fetching() : m.import_title()}
         </button>
-        <button class="btn" onclick={pasteImport} disabled={build.busy > 0 || fetching}>{m.import_paste_and_import()}</button>
+        <button class="btn" onclick={pasteImport} disabled={build.busy > 0 || fetching || pasting}>{pasting ? m.import_pasting() : m.import_paste_and_import()}</button>
       </div>
+      {#if importError}<p role="alert" class="small" style:color="var(--bad)">{importError}</p>{/if}
     </div>
 
     <div class="panel-head">

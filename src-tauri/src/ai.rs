@@ -21,6 +21,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::agent::{self, AgentStatus, Cli, CLIS};
 
+#[cfg(windows)]
 const SERVICE: &str = "dev.pobredux.desktop";
 
 #[derive(Serialize, Clone, Copy, PartialEq)]
@@ -96,14 +97,14 @@ fn known(id: &str) -> Result<(), String> {
     }
 }
 
-fn entry(id: &str) -> Result<keyring::Entry, String> {
-    keyring::Entry::new(SERVICE, id).map_err(|e| e.to_string())
+fn entry(app: &AppHandle, id: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(&app.config().identifier, id).map_err(|e| e.to_string())
 }
 
 /// The fallback file wins: it only exists when the store refused the newer key,
 /// so any copy still in the store is older.
 pub(crate) fn stored_key(app: &AppHandle, id: &str) -> Option<String> {
-    key_file::read(app, id).or_else(|| entry(id).ok().and_then(|e| e.get_password().ok()))
+    key_file::read(app, id).or_else(|| entry(app, id).ok().and_then(|e| e.get_password().ok()))
 }
 
 pub(crate) fn stored_keys(app: &AppHandle) -> Vec<String> {
@@ -256,7 +257,7 @@ pub fn ai_key_set(app: AppHandle, provider: String, key: String) -> Result<(), S
 }
 
 pub(crate) fn store_secret(app: &AppHandle, id: &str, secret: &str) -> Result<(), String> {
-    let entry = entry(id)?;
+    let entry = entry(app, id)?;
     let err = match entry.set_password(secret) {
         Ok(()) => {
             key_file::remove(app, id);
@@ -301,7 +302,7 @@ pub fn ai_key_clear(app: AppHandle, provider: String) -> Result<(), String> {
 
 pub(crate) fn clear_secret(app: &AppHandle, id: &str) -> Result<(), String> {
     key_file::remove(app, id);
-    match entry(id)?.delete_credential() {
+    match entry(app, id)?.delete_credential() {
         Ok(()) => Ok(()),
         // Clearing a key that was never stored is a success from the UI's side.
         Err(keyring::Error::NoEntry) => Ok(()),

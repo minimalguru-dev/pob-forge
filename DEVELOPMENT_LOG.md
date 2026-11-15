@@ -105,3 +105,15 @@ Native: slijediti CONTRIBUTING.md i Windows workflow. Nakon synca postaviti `POB
 - OpenAI/Codex: vendor CLI login i app-server; chat thread traži read-only sandbox te isključuje shell, web i dodatne integracije. To ne izolira lokalni auth profil niti predstavlja OS izolaciju same desktop aplikacije. Razgovor i pročitani build podaci mogu biti poslani odabranom AI provideru.
 - Preporuka: za test Progressiona računi nisu potrebni; koristiti PoB code/XML. Prije glavnih računa odvojiti credential store/Codex profil i razriješiti pravo korištenja OAuth clienta. Ovo je preporuka iz source reviewa, ne potvrđena kompromitacija.
 - Installer i aplikacijski kod ostaju na `90cd6bb`; ova dopuna mijenja samo dokumentaciju. Službeni izvori: https://www.pathofexile.com/developer/docs i https://learn.chatgpt.com/docs/auth .
+
+## Popravak prijavljenog Import/tree-art problema i auth audit — 2026-11-15
+
+- Korisnik prijavljuje nefunkcionalan Paste/Import gumb i tree art download; traži sigurnosni audit autorizacije. Potvrđena je autorizacija za ispravke i nastavak, bez prijavljivanja na korisnikove račune.
+- Lokalni log potvrđuje greške zapisa cachea, ne HTTP grešku. Vraćena je 81 nedostajuća art datoteka; provjereno svih 990 manifest entries za oba enginea, bez hash razlika. Originalni I/O uzrok nije sačuvan starim kodom; mali slobodni prostor na C: nije dokaz uzroka.
+- Implementirano: inline Import feedback/retry, zaštita aktivnih cache temp datoteka i detaljni I/O error; credential namespace prema stvarnom Tauri app identifieru; preview PoE OAuth onemogućen u backendu i UI-ju; Codex dobiva poseban profil i obvezni keyring, bez naslijeđenih OpenAI API ključeva/proxy postavki. Token endpoint client ne prati HTTP redirecte.
+- Frontend provjeren: 28 unit testova, 6 browser testova (uključujući actual ImportView clicks s IPC fixtureom), Svelte 0/0 i production bundle pass.
+- Audit je pregledao vlastiti kod i javne dependency verzije; nijedan stvarni korisnikov token/password/auth.json nije čitan. Zakrpljeni undici 7.30.1 i zod 4.6.6; ostaje low dev-only deepmerge bez objavljene zakrpe.
+- Cargo lockfile generiran pravim `cargo update` u izoliranoj pomoćnoj grani `chore/progression-security-lockfile`, CI 43723959255. Zakrpljeni rmcp 3.9.0, rustix 1.1.6, rustls-webpki 0.103.16, webpki-root-certs 1.0.10. Promjene Cargo resolverskih veza (windows-sys) nisu ručno prepisivane; native CI koristi --locked.
+- OSV scan pokriva 657 registry paketa. Nakon zakrpa ostaju glib 0.18.5 (Linux GTK), proc-macro-error 1.0.4 te unmaintained zbus_names/zvariant/zvariant_derive. Ne tvrditi da je cijeli dependency audit čist. Nije provedena potpuna neovisna penetracijska provjera niti login glavnim računima.
+- Desktop automation nije dostupna (kernel assets OS error 3). Automatski approval review odbio je launch s loopback remote-debugging priključkom; razlog nije detaljnije naveden. Taj pristup nije ponavljan niti zaobiđen.
+- Sljedeće: pokrenuti i dovršiti Windows/Linux CI za novi code commit, ispraviti stvarne padove, preuzeti installer, isporučiti audit nalaz s preciznim ograničenjima. Stari installer ne sadrži ove auth ispravke.

@@ -100,3 +100,22 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Propust u ranijem pregledu:** potvrđeni build/testovi i odvojeni app identity nisu puni auth security audit. Nije opažena krađa tokena niti kompromitacija.
 - **Prevencija:** kod izolacije previewa provjeriti i credential namespace, OAuth registraciju i profil vanjskog CLI-ja; ne zaključivati izolaciju iz Tauri identifiera.
 - **Status:** nalaz dokumentiran; binary nije mijenjan. Preporuka za sada: Progression testirati code/XML importom bez autorizacije računa; prije autorizacije glavnih računa razriješiti navedene granice. Nisu čitani korisnikovi tokeni, lozinke ni auth cache.
+
+## 2026-11-15 — Paste action silently discarded clipboard failures
+
+- **Evidence:** ImportView used `readText().catch(() => "")`; both a permission/clipboard-lock error and an empty clipboard ended with no message. The exact clipboard condition on the user's first click was not captured.
+- **Fix:** bounded retries for transient read failures, inline errors for empty/denied clipboard and invalid imports, busy feedback and a Ctrl+V fallback. URL, raw code and XML dispatch are exercised by actual button-click component tests with mocked IPC.
+- **Validation:** 28 Bun tests, 6 browser tests, Svelte 0 errors / 0 warnings and frontend build pass. Native UI remains unverified: desktop tooling failed to initialise and automatic approval rejected remote-debugging launch.
+
+## 2026-11-15 — Cache cleanup can remove another download's temporary file
+
+- **Evidence:** tree cleanup deleted every unlisted filename, including temporary writes from concurrent PoE1/PoE2 downloads. The original Windows log only said `could not write`, so this code defect is not conclusively the cause of that particular failure. C: had about 500 MB free; disk exhaustion is a hypothesis, not a confirmed cause.
+- **Fix:** cleanup only retires content-hash art filenames; temporary writes include process ID and retain the original I/O error. A regression checks that in-flight and unrelated files survive cleanup selection, and atomic writes replace files without swallowing I/O failures.
+- **Local recovery:** restored 81 missing art files (12,485,354 bytes) from the existing official art endpoint, checking size and SHA-256 before installation in the app cache. All 990 manifest entries across both games, including bundled offline copies, now match their hashes.
+- **Pending:** native CI validation of the changes and actual in-app rendering. No user files or system caches were removed to free disk space.
+
+## 2026-11-15 — Audit scripts must filter null advisory IDs
+
+- **Evidence:** PowerShell wrapped a missing `vulns` property as an array containing null, initially counting all 657 packages as findings.
+- **Fix:** filter empty IDs before counting; inspected the corrected advisory records and rescanned after upgrades. Only non-empty returned advisory IDs are reported.
+- **Prevention:** distinguish an empty result from an array containing null; inspect representative results before summarising a scanner.

@@ -385,6 +385,15 @@ impl AgentState {
         let configured = self.configured(cli);
         match cli {
             Cli::Antigravity => antigravity::launch(app, configured.as_deref()),
+            Cli::Codex if crate::is_progression_preview(app) => {
+                let launch = which::find(cli.info().binary, configured.as_deref())?;
+                let home = app.path().app_local_data_dir().ok()?.join("providers").join("codex");
+                if let Err(e) = std::fs::create_dir_all(&home) {
+                    log::warn!("could not prepare isolated Codex profile: {e}");
+                    return None;
+                }
+                Some(codex::isolated_launch(launch, &home))
+            }
             // Cursor's newer installs name it `agent`, which Grok's installer also ships; only Cursor's counts.
             Cli::Cursor => which::find("cursor-agent", configured.as_deref()).or_else(|| {
                 which::find("agent", None).filter(|l| l.display().to_ascii_lowercase().contains("cursor"))
@@ -523,10 +532,14 @@ pub async fn agent_terminal(app: AppHandle, provider: String, action: String) ->
         .chain(launch.prefix.iter().map(|p| p.to_string_lossy().into_owned()))
         .chain(cli.login_args().iter().map(|a| a.to_string()))
         .collect();
-    let env_ps: String = launch.env.iter().map(|(k, v)| format!("$env:{k}={}; ", terminal::ps_quote(&v.to_string_lossy()))).collect();
+    let mut env_ps: String = launch.remove.iter().map(|k| format!("Remove-Item Env:{k} -ErrorAction SilentlyContinue; ")).collect();
+    env_ps.extend(launch.env.iter().map(|(k, v)| format!("$env:{k}={}; ", terminal::ps_quote(&v.to_string_lossy()))));
     let env_sh: String = launch.env.iter().map(|(k, v)| format!("{k}={} ", terminal::sh_quote(&v.to_string_lossy()))).collect();
+    let unset_sh = if launch.remove.is_empty() { String::new() } else {
+        format!("env {} ", launch.remove.iter().map(|k| format!("-u {k}")).collect::<Vec<_>>().join(" "))
+    };
     let ps = format!("{env_ps}& {}", parts.iter().map(|p| terminal::ps_quote(p)).collect::<Vec<_>>().join(" "));
-    let sh = format!("{env_sh}{}", parts.iter().map(|p| terminal::sh_quote(p)).collect::<Vec<_>>().join(" "));
+    let sh = format!("{env_sh}{unset_sh}{}", parts.iter().map(|p| terminal::sh_quote(p)).collect::<Vec<_>>().join(" "));
     terminal::open(&title, &ps, &sh, &path)?;
     Ok(cli.login().unwrap_or_default().to_string())
 }

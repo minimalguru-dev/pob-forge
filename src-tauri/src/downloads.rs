@@ -70,9 +70,8 @@ pub async fn fetch_all(jobs: Vec<Job>, progress: Arc<dyn Fn(u64) + Send + Sync>)
                     fetch(&client, &job.url, &job.hash).await?
                 }
             };
-            if !crate::art::write_atomic(&job.dest, &bytes) {
-                return Err(format!("could not write {}", job.dest.display()));
-            }
+            crate::art::write_atomic(&job.dest, &bytes)
+                .map_err(|e| format!("could not write {}: {e}", job.dest.display()))?;
             progress(done.fetch_add(job.size, Ordering::Relaxed) + job.size);
             Ok::<(), String>(())
         });

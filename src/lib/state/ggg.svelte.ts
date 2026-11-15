@@ -1,11 +1,12 @@
 import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { gggAccount, gggSignIn, gggSignInCancel, gggSignOut, type GggAccount } from "$lib/engine.svelte";
+import { gggAccount, gggAuthAvailable, gggSignIn, gggSignInCancel, gggSignOut, type GggAccount } from "$lib/engine.svelte";
 
 const DAY_MS = 86_400_000;
 
 class GggStore {
   account = $state<GggAccount | null>(null);
+  available = $state(false);
   signingIn = $state(false);
   link = $state<string | null>(null);
   linkCopied = $state(false);
@@ -15,7 +16,8 @@ class GggStore {
   }
 
   async sync() {
-    this.account = await gggAccount().catch(() => null);
+    this.available = await gggAuthAvailable().catch(() => false);
+    this.account = this.available ? await gggAccount().catch(() => null) : null;
   }
 
   /** Resolves to false when the user cancelled. */

@@ -100,8 +100,8 @@ jobs:
       - name: Vendor Path of Building
         if: steps.pob.outputs.cache-hit != 'true'
         run: |
-          cargo run -p pob-sync -- --source upstream/PathOfBuilding-PoE2
-          cargo run -p pob-sync -- --game poe1 --source upstream/PathOfBuilding
+          cargo run --locked -p pob-sync -- --source upstream/PathOfBuilding-PoE2
+          cargo run --locked -p pob-sync -- --game poe1 --source upstream/PathOfBuilding
 
       - name: Check every PoB stat label has a message key
         run: bun run check:labels
@@ -109,14 +109,14 @@ jobs:
       - name: Validate Progression against real PoB1
         env:
           POB_REDUX_POB_ROOT: src-tauri/resources/pob1
-        run: cargo test -p pob-engine --test progression -- --ignored --nocapture
+        run: cargo test --locked -p pob-engine --test progression -- --ignored --nocapture
 
       # Warnings are denied via [workspace.lints.rust], so this fails on them.
       - name: Compile the workspace
-        run: cargo check --workspace --all-targets
+        run: cargo check --locked --workspace --all-targets
 
       - name: Test
-        run: cargo test -p pob-redux --lib && cargo test -p pob-engine
+        run: cargo test --locked -p pob-redux --lib && cargo test --locked -p pob-engine
 
       # Private because it holds player names; see CLAUDE.md "Verifying a change".
       # The baseline names the corpus commit it was made from, so a corpus refresh
@@ -158,4 +158,4 @@ jobs:
 
       - name: Compare calculated stats with golden/poe1.json
         if: env.HAS_CORPUS == 'true'
-        run: cargo run -p pob-engine --bin pobctl -- --pob-root src-tauri/resources/pob1 golden corpus-poe1/poe1/index.json --out target/golden-poe1.json --baseline golden/poe1.json --check
+        run: cargo run --locked -p pob-engine --bin pobctl -- --pob-root src-tauri/resources/pob1 golden corpus-poe1/poe1/index.json --out target/golden-poe1.json --baseline golden/poe1.json --check
