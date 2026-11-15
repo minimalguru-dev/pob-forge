@@ -2,13 +2,20 @@
 
 Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedostatke, uz ispravak i status provjere. Ne pretvarati pretpostavke u potvrđene uzroke. Datumi/vremena odnose se na Europe/Zagreb.
 
+## 2026-11-15 — Lua string.sub reže bajtove, ne Unicode znakove
+
+- **Nalaz u završnom pregledu:** `label:sub(1, 160)` skraćuje valjan naziv od 160 znakova s dijakriticima i može presjeći UTF-8 znak. HTML maxlength broji znakove, ne iste bajtove.
+- **Ispravak:** sačuvati cijeli naziv i odbiti tek backend input veći od 640 bajtova; UI zadržava svoj maxlength 160.
+- **Prevencija:** ne rezati korisnički Unicode tekst Lua byte substringom.
+- **Validacija:** real-engine test sada uspoređuje točan naziv `A` + 159 slova `č`; čeka izvršavanje nakon commita.
+
 ## 2026-11-15 — Cargo integration test nema workspace root kao cwd
 
 - **Simptom:** [Linux run 43716753722](https://github.com/minimalguru-dev/pob-redux/actions/runs/43716753722) uspješno je syncao podatke i kompajlirao engine test, ali prijavio da `src-tauri/resources/pob1` nema `Launch.lua`.
 - **Uzrok:** Cargo test izvršava iz crate direktorija; relativni env path zamišljen kao workspace-relative nije razriješen prije `Engine::boot`.
 - **Ispravak:** test zadržava apsolutni path ako je zadan, a relativni razrješava prema `CARGO_MANIFEST_DIR/../..`. Greške engine callova sada uključuju ime metode.
 - **Prevencija:** testovi ne smiju pretpostavljati shell cwd. Put do testnih resursa graditi iz manifest direktorija ili koristiti apsolutni path.
-- **Validacija:** idući real-engine CI mora potvrditi boot i sva parity/non-mutation očekivanja; ovaj pad nije dokaz greške calculation enginea.
+- **Validacija:** real-engine korak Linux runa `43717329626` uspješan, uključujući boot i sva parity/non-mutation očekivanja. Izvorni pad bio je greška testnog puta, ne calculation enginea.
 
 ## 2026-11-15 — PowerShell ne proširuje wildcard putanju za rg kao POSIX shell
 
@@ -31,7 +38,7 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Dokaz:** lokalni `git apply -p2 --check` na sirovom `CalcOffence.lua` iz točno pinanog PoE2 commita: CRLF patch exit 1; isti patch nakon isključivo CRLF→LF normalizacije exit 0.
 - **Ispravak:** dodati `*.patch text eol=lf` u `.gitattributes`. Ne mijenjati formule, sadržaj patcha ili globalnu korisnikovu Git konfiguraciju.
 - **Prevencija:** patch datoteke tretirati kao byte-sensitive build ulaz; provjeriti `git ls-files --eol patches` kad se identičan pin različito ponaša na Linuxu i Windowsu.
-- **Validacija:** lokalni diskriminacijski test potvrđuje uzrok; idući Windows CI potvrđuje cijeli sync.
+- **Validacija:** lokalni diskriminacijski test potvrđuje uzrok; Windows run `43717323768` prošao je sync oba PoB enginea.
 
 ## 2026-11-15 — LuaJIT: prazna varijabla nije uklonjena varijabla
 

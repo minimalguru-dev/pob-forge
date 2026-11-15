@@ -82,5 +82,8 @@ Native: slijediti CONTRIBUTING.md i Windows workflow. Nakon synca postaviti `POB
 - U Windows pipelineu razlikovana su dva potvrđena uzroka: minilua environment (riješen) i CRLF patch (lokalno dokazano, ispravak spreman za CI).
 - Linux workflow dobiva eksplicitni real-engine Progression test prije pune workspace kompilacije, da runtime regresija bude vidljiva i na Linuxu.
 - Commit `40df7a6` sadrži CRLF pravilo i backup validaciju; lokalni Svelte check 0/0 i frontend build ponovno prolaze.
-- Linux run `43716753722` otkrio je cwd grešku novog test harnessa prije boota enginea. Test sada relativni PoB path razrješava iz workspacea; dodatno testira aktivni Ruby Flask i njegovo isključenje u boss scenariju. Runtime još nije potvrđen.
+- Linux run `43716753722` otkrio je cwd grešku novog test harnessa prije boota enginea. Commit `3eefd01` razrješava relativni PoB path iz workspacea; dodatno testira aktivni Ruby Flask i njegovo isključenje u boss scenariju.
+- **Potvrđen runtime:** Linux run [43717329626](https://github.com/minimalguru-dev/pob-redux/actions/runs/43717329626), korak `Validate Progression against real PoB1`, završio je uspješno. Prošli su configured-stat parity, boss parity s direktnim PoB configom i isključenim flaskom, non-mutation, očuvanje Compare stanja, invalid import i ponovljeni XML import.
+- Windows run `43717323768` prošao je sync oba pina nakon LF ispravka i prešao na Rust engine regresije. Time su oba ranija Windows build-preparation uzroka potvrđeno otklonjena.
+- Završni code review uklonio je byte-based rezanje Unicode naziva. Dodan je točan round-trip assert za `A` + 159 znakova `č`; zadnji code commit mora ponovno proći CI. Nakon toga ne proširivati opseg.
 - MCP kod dodatno pregledan: `src-tauri/src/mcp.rs` bind na `127.0.0.1`, Bearer provjera. Nije pokrenut javni server niti promijenjena autentikacija.

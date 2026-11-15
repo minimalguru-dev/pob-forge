@@ -36,7 +36,8 @@ return function(methods, ensureBuild, decodeCode)
 			if type(node) == "table" and node.elem == "Build" then hasBuild = true end
 		end
 		if not hasBuild then error("PoB XML has no Build section", 0) end
-		local label = tostring(p.label or "Snapshot"):sub(1, 160)
+		local label = tostring(p.label or "Snapshot")
+		if #label > 640 then error("Snapshot name is too long", 0) end
 		local entry = new("CompareEntry"):CompareEntry(xml, label)
 		if not entry or not entry.calcsTab or not entry.spec then error("PoB could not load this build", 0) end
 		local spec = entry.spec

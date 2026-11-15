@@ -30,7 +30,9 @@ fn progression_uses_pob_without_changing_live_build() {
     call("compare_add", json!({"xml": before["xml"], "label": "Existing comparison"}));
     let comparisons = call("compare_list", Value::Null);
     let stats_before = call("get_stats", Value::Null);
-    let snapshot = call("progression_capture", json!({"label": "Current", "boss": "Pinnacle"}));
+    let label = format!("A{}", "č".repeat(159));
+    let snapshot = call("progression_capture", json!({"label": label, "boss": "Pinnacle"}));
+    assert_eq!(snapshot["label"], label);
     assert_eq!(snapshot["game"], "poe1");
     assert_eq!(snapshot["mainSkill"], "Fireball");
     assert!(snapshot["stats"]["CombinedDPS"].as_f64().unwrap() > 0.0);
