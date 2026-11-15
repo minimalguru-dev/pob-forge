@@ -1,0 +1,26 @@
+name: Resolve security lockfile
+on:
+  push:
+    branches: [chore/progression-security-lockfile]
+    paths: [.github/workflows/security-lockfile.yml]
+permissions:
+  contents: read
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve patched dependencies
+        run: |
+          cargo update -p rmcp --precise 3.9.0
+          cargo update -p rustix@1.1.5 --precise 1.1.6
+          cargo update -p rustls-webpki@0.103.15 --precise 0.103.16
+          cargo update -p webpki-root-certs@1.0.9 --precise 1.0.10
+          git diff --stat Cargo.lock
+      - uses: actions/upload-artifact@v7
+        with:
+          name: security-cargo-lock
+          path: Cargo.lock
+          retention-days: 7
