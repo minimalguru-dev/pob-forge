@@ -2,6 +2,21 @@
 
 Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedostatke, uz ispravak i status provjere. Ne pretvarati pretpostavke u potvrđene uzroke. Datumi/vremena odnose se na Europe/Zagreb.
 
+## 2026-11-15 — Cargo integration test nema workspace root kao cwd
+
+- **Simptom:** [Linux run 43716753722](https://github.com/minimalguru-dev/pob-redux/actions/runs/43716753722) uspješno je syncao podatke i kompajlirao engine test, ali prijavio da `src-tauri/resources/pob1` nema `Launch.lua`.
+- **Uzrok:** Cargo test izvršava iz crate direktorija; relativni env path zamišljen kao workspace-relative nije razriješen prije `Engine::boot`.
+- **Ispravak:** test zadržava apsolutni path ako je zadan, a relativni razrješava prema `CARGO_MANIFEST_DIR/../..`. Greške engine callova sada uključuju ime metode.
+- **Prevencija:** testovi ne smiju pretpostavljati shell cwd. Put do testnih resursa graditi iz manifest direktorija ili koristiti apsolutni path.
+- **Validacija:** idući real-engine CI mora potvrditi boot i sva parity/non-mutation očekivanja; ovaj pad nije dokaz greške calculation enginea.
+
+## 2026-11-15 — PowerShell ne proširuje wildcard putanju za rg kao POSIX shell
+
+- **Simptom:** `rg ... src-tauri/src/mcp*` i sličan obrazac daje OS error 123.
+- **Ispravak:** koristiti poznatu konkretnu datoteku ili `rg -g 'mcp*' ... src-tauri/src`.
+- **Prevencija:** glob filtrirati kroz `rg -g`; ne ponavljati wildcard putanje kao argument datoteke u PowerShellu.
+- **Validacija:** pregled `src-tauri/src/mcp.rs` uspješan; potvrđeni loopback bind i Bearer provjera.
+
 ## 2026-11-15 — Backup validacija mora provjeriti i jedinstvenost ključeva
 
 - **Nalaz u završnom pregledu:** početna provjera formata dopuštala je duplikate passive node ID-ova. Takav backup može proizvesti duplicirane ključeve u Svelte listi i prekinuti render. Samo provjera da su vrijednosti brojevi nije dovoljna.

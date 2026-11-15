@@ -12,9 +12,10 @@ fn progression_lua_compiles() {
 #[ignore = "requires synced PoE1 data; run with POB_REDUX_POB_ROOT and --ignored"]
 fn progression_uses_pob_without_changing_live_build() {
     let root = PathBuf::from(std::env::var("POB_REDUX_POB_ROOT").expect("set POB_REDUX_POB_ROOT"));
+    let root = if root.is_absolute() { root } else { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").join(root) };
     let user_dir = std::env::temp_dir().join(format!("redux-progression-test-{}", std::process::id()));
     let engine = Engine::boot(EngineConfig { pob_root: root, user_dir, cache_dir: None, data_dir: None }).unwrap();
-    let call = |method: &str, params: Value| engine.call(method, &params).unwrap();
+    let call = |method: &str, params: Value| engine.call(method, &params).unwrap_or_else(|error| panic!("{method}: {error}"));
     call("new_build", json!({"name": "Progression regression fixture"}));
     call("set_level", json!({"level": 80}));
     let group = call("add_socket_group", json!({"label": "Main", "slot": "Body Armour"}));
@@ -23,6 +24,8 @@ fn progression_uses_pob_without_changing_live_build() {
     call("set_config", json!({"var": "useFrenzyCharges", "value": true}));
     call("set_config", json!({"var": "conditionKilledRecently", "value": true}));
     call("equip_item_raw", json!({"slot": "Helmet", "text": "Rarity: NORMAL\nIron Hat\n--------\nQuality: +0%\nArmour: 9\n--------\nItem Level: 1\n"}));
+    call("equip_item_raw", json!({"slot": "Flask 1", "text": "Rarity: NORMAL\nRuby Flask\n--------\nItem Level: 80\n"}));
+    call("set_slot_active", json!({"slot": "Flask 1", "active": true}));
     let before = call("save_build_xml", Value::Null);
     call("compare_add", json!({"xml": before["xml"], "label": "Existing comparison"}));
     let comparisons = call("compare_list", Value::Null);
@@ -56,6 +59,7 @@ fn progression_uses_pob_without_changing_live_build() {
     for (key, value) in snapshot["boss"]["overrides"].as_object().unwrap() {
         call("set_config", json!({"var": key, "value": value}));
     }
+    call("set_slot_active", json!({"slot": "Flask 1", "active": false}));
     let expected = call("get_stats", Value::Null);
     for key in ["CombinedDPS", "Life", "FireResist", "Speed"] {
         assert_eq!(snapshot["boss"]["stats"][key], expected["stats"][key], "boss {key} must match direct PoB calculation");
