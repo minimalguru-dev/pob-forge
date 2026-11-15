@@ -20,7 +20,7 @@ pub(crate) fn isolated_launch(mut launch: Launch, home: &std::path::Path) -> Lau
     launch.env.retain(|(key, _)| key != "CODEX_HOME" && !removed.contains(&key.as_str()));
     launch.env.push(("CODEX_HOME".into(), home.as_os_str().to_owned()));
     launch.remove.extend(removed);
-    launch.prefix.extend(["-c".into(), "cli_auth_credentials_store=\"keyring\"".into()]);
+    launch.prefix.extend(["-c".into(), "cli_auth_credentials_store='keyring'".into()]);
     launch
 }
 
@@ -348,7 +348,10 @@ mod tests {
         assert_eq!(env[std::ffi::OsStr::new("CODEX_HOME")], Some(std::ffi::OsStr::new("isolated-profile")));
         assert_eq!(env[std::ffi::OsStr::new("OPENAI_API_KEY")], None);
         assert_eq!(env[std::ffi::OsStr::new("CODEX_API_KEY")], None);
-        assert!(cmd.as_std().get_args().any(|a| a == "cli_auth_credentials_store=\"keyring\""));
+        let store = "cli_auth_credentials_store='keyring'";
+        assert!(cmd.as_std().get_args().any(|a| a == store));
+        let quoted = crate::agent::terminal::ps_quote(store);
+        assert_eq!(quoted.replace('"', "'"), quoted);
     }
 
     #[test]

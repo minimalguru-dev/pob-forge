@@ -119,3 +119,16 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Evidence:** PowerShell wrapped a missing `vulns` property as an array containing null, initially counting all 657 packages as findings.
 - **Fix:** filter empty IDs before counting; inspected the corrected advisory records and rescanned after upgrades. Only non-empty returned advisory IDs are reported.
 - **Prevention:** distinguish an empty result from an array containing null; inspect representative results before summarising a scanner.
+
+## GitHub CLI repository selection in a fork
+
+- Symptom/evidence: unqualified `gh run list` displayed upstream runs; workflow dispatch against upstream returned 404/403. No upstream workflow was started.
+- Cause: gh selected the upstream repository in this fork checkout.
+- Fix/prevention: always pass `-R minimalguru-dev/pob-redux` for CI, artifact and PR operations. The feature-branch runs were already running in the correct fork.
+- Validation: explicit repository lookup found Windows 43724471695 and Linux 43724475298 for b9217741.
+
+## Codex credential-store argument through the login terminal
+
+- Source review found that the Windows terminal wrapper replaces double quotes. A double-quoted TOML value in the new Codex override would be rewritten during login.
+- The override now uses TOML single quotes, preserved by the existing PowerShell quoting helper. The direct app-server launch receives the same value.
+- Verified a PowerShell parse round trip without invoking Codex or authenticating; the native launch regression also asserts the terminal transformation preserves the quoted argument.
