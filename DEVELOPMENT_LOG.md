@@ -43,7 +43,7 @@ Ovaj dokument je aktualni pregled za sljedećeg razvojnog agenta. Dopunjavati pr
 ## Validacija — potvrđeno lokalno
 
 - Bun 1.4.4 i dependency install iz lockfilea rade.
-- `bun test scripts`: **24 pass, 0 fail**, uključuje 14 novih Progression unit testova i 10 postojećih testova.
+- `bun test scripts`: **25 pass, 0 fail**, uključuje 15 novih Progression unit testova i 10 postojećih testova; zadnji prolaz uključuje strožu validaciju backupova.
 - `bun run check`: **0 errors, 0 warnings** nakon markup ispravka. Ponovljeni check nakon commita `61ebd64` također je završio s 0 errors / 0 warnings.
 - `bun run build`: uspješan produkcijski frontend bundle; ostaje Vite upozorenje za veliki bundle. To nije potvrda native Windows builda.
 - Playwright component-flow testovi: **3 pass** na lokalnom Edgeu; uvoz/greška, current/target i reload/delete, očuvanje oštećene povijesti. Ovo su IPC fixture testovi, ne PoB engine testovi.
@@ -52,7 +52,7 @@ Ovaj dokument je aktualni pregled za sljedećeg razvojnog agenta. Dopunjavati pr
 ## Native CI — još otvoreno
 
 - Prvi dovršeni Windows pokušaj [43715258887](https://github.com/minimalguru-dev/pob-redux/actions/runs/43715258887) prošao je frontend check/test/build, ali pao u LuaJIT buildu zbog `NoDefaultCurrentDirectoryInExePath` / `minilua`. Detalji i ispravak su u mistakes.md.
-- Commit `61ebd64` pokrenuo je [Windows run 43716010378](https://github.com/minimalguru-dev/pob-redux/actions/runs/43716010378); treba pratiti njegov konačni rezultat, ne zaključiti po prihvaćenom pushu.
+- [Windows run 43716010378](https://github.com/minimalguru-dev/pob-redux/actions/runs/43716010378) potvrdio je LuaJIT ispravak i browser testove. Pao je zatim na CRLF patchu; uzrok lokalno reproduciran i ispravljen pravilom `*.patch text eol=lf`. Idući run treba pratiti do kraja.
 - Otvaranje PR-a također je pokrenulo [Linux check 43716041218](https://github.com/minimalguru-dev/pob-redux/actions/runs/43716041218). Pratiti oba.
 - `crates/pob-engine/tests/progression.rs` uključuje Lua compile test i ignored real-engine test koji workflow eksplicitno pokreće sa synced PoE1 podacima. Provjerava parity, non-mutation, postojeći Compare state, invalid import i scenario jednakost direktnom PoB configu.
 - Privatni upstream `pobredux/corpus` i `CORPUS_DEPLOY_KEY` nisu dostupni; puni golden suite nije verificiran.
@@ -73,3 +73,11 @@ Native: slijediti CONTRIBUTING.md i Windows workflow. Nakon synca postaviti `POB
 3. Nakon uspješnog native testa preuzeti installer artifact i točno označiti što je provjereno (build/engine/GUI), a što nije.
 4. Ažurirati ovaj log i PR opis stvarnim rezultatima. Pripremiti lokalni source bundle/patch i sažetak na hrvatskom s linkovima.
 5. Ne mergeati PR niti objavljivati produkcijski release bez potrebe iz korisnikova opsega; unsigned validation artifact je predviđena isporuka.
+
+## Dnevnik nastavka — 2026-11-15
+
+- Na korisnikov zahtjev uvedeni mistakes.md i ovaj development log; commit `b84e2cc` mijenja samo dokumentaciju i nosi `[skip ci]` kako ne bi prekidao već pokrenutu kompilaciju nepromijenjenog koda.
+- Korisnik je potvrdio nastavak. Rad se nastavlja unutar istog opsega, bez novih autorizacijskih pitanja.
+- Završni pregled pooštrio je validaciju backupova (unique node IDs/slots, scalar tipovi, datum i loadout). Nakon promjene prolazi 25 unit + 3 browser testa.
+- U Windows pipelineu razlikovana su dva potvrđena uzroka: minilua environment (riješen) i CRLF patch (lokalno dokazano, ispravak spreman za CI).
+- Linux workflow dobiva eksplicitni real-engine Progression test prije pune workspace kompilacije, da runtime regresija bude vidljiva i na Linuxu.

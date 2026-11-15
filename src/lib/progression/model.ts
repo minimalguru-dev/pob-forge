@@ -131,13 +131,18 @@ export function decodePlan(text: string): Plan {
   const ids = new Set<string>();
   const str = (v: unknown) => typeof v === "string";
   const obj = (v: unknown) => !!v && typeof v === "object" && !Array.isArray(v);
+  const scalar = (v: unknown) => str(v) || typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v));
+  const statsValid = (v: unknown) => obj(v) && Object.values(v as Stats).every(value => value === null || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value)));
   for (const s of plan.snapshots) {
     if (!s || s.game !== "poe1" || !str(s.id) || ids.has(s.id) || !str(s.xml) || !str(s.label) || !str(s.at)
       || !str(s.pobVersion) || !str(s.treeVersion) || !str(s.className) || !str(s.ascendancy) || !Number.isFinite(s.level)
-      || !(s.mainSkill === null || str(s.mainSkill)) || !obj(s.stats) || !obj(s.config) || !obj(s.loadout)
-      || !s.boss || !["Boss", "Pinnacle", "Uber"].includes(s.boss.kind) || !obj(s.boss.stats) || !obj(s.boss.overrides)
+      || !Number.isFinite(Date.parse(s.at)) || !(s.mainSkill === null || str(s.mainSkill)) || !statsValid(s.stats)
+      || !obj(s.config) || !Object.values(s.config).every(scalar) || !obj(s.loadout) || ![s.loadout.tree, s.loadout.items, s.loadout.skills].every(str)
+      || !s.boss || !["Boss", "Pinnacle", "Uber"].includes(s.boss.kind) || !statsValid(s.boss.stats) || !obj(s.boss.overrides) || !Object.values(s.boss.overrides).every(scalar)
       || !Array.isArray(s.nodes) || !s.nodes.every(n => Number.isInteger(n.id) && str(n.name) && (n.mastery === null || Number.isInteger(n.mastery)))
+      || new Set(s.nodes.map(n => n.id)).size !== s.nodes.length
       || !Array.isArray(s.equipment) || !s.equipment.every(i => str(i.slot) && str(i.name) && str(i.raw))
+      || new Set(s.equipment.map(i => i.slot)).size !== s.equipment.length
       || !Array.isArray(s.gems) || !s.gems.every(g => str(g.name) && Number.isFinite(g.level) && Number.isFinite(g.quality) && typeof g.enabled === "boolean")
       || !Array.isArray(s.gemErrors) || !s.gemErrors.every(str)) throw new Error("Invalid Progression snapshot. Original history was not changed.");
     ids.add(s.id);

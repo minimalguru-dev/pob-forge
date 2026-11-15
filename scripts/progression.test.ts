@@ -84,6 +84,17 @@ test("quota failure propagates and caller retains its previous plan", () => {
   expect(() => savePlan(storage, plan)).toThrow("quota exceeded");
   expect(plan.currentId).toBe("one");
 });
+test("duplicate node IDs or slots and nested non-scalar values are rejected before rendering", () => {
+  const base = snapshot();
+  for (const malformed of [
+    { ...base, nodes: [base.nodes[0], base.nodes[0]] },
+    { ...base, equipment: [item("a"), item("b")] },
+    { ...base, stats: { Life: { invalid: true } } },
+    { ...base, config: { enemyIsBoss: ["Pinnacle"] } },
+    { ...base, at: "not a date" },
+    { ...base, loadout: {} },
+  ]) expect(() => decodePlan(JSON.stringify({ ...emptyPlan(), snapshots: [malformed] }))).toThrow();
+});
 test("successful persistence uses its own versioned PoE1 key", () => {
   const writes: string[][] = [];
   savePlan({ setItem: (key, value) => { writes.push([key, value]); } }, emptyPlan());
