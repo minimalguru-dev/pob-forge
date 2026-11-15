@@ -92,3 +92,11 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Ispravak:** lokalni testovi koriste instalirani Edge uz eksplicitni executable path; reproducibilni CI instalira Playwright Chromium.
 - **Prevencija:** provjeriti browser/runtime prije testiranja. Nedostajući browser nije greška aplikacije.
 - **Validacija:** lokalni headless Edge testovi prošli bez browser grešaka.
+
+## 2026-11-15 — Preview identity ne izolira spremljene prijave
+
+- **Nalaz pri korisnikovoj sigurnosnoj provjeri:** zasebni Tauri identifier ne mijenja hardkodirani `SERVICE = dev.pobredux.desktop` u `src-tauri/src/ai.rs`. PoE secret `ggg-oauth` zato koristi isti Credential Manager namespace kao upstream. Windows DPAPI fallback file prati zasebni app config direktorij, ali primarni Credential Manager ne.
+- **Dodatni kontekst:** `ggg.rs` zadržava upstream OAuth client ID `pobredux` i scopeove `account:profile account:characters account:trade`. Nije potvrđeno zasebno odobrenje za distribuciju forka pod tim klijentom. Codex integration pokreće korisnikov lokalni CLI bez zasebnog CODEX_HOME i može koristiti njegov postojeći auth profil.
+- **Propust u ranijem pregledu:** potvrđeni build/testovi i odvojeni app identity nisu puni auth security audit. Nije opažena krađa tokena niti kompromitacija.
+- **Prevencija:** kod izolacije previewa provjeriti i credential namespace, OAuth registraciju i profil vanjskog CLI-ja; ne zaključivati izolaciju iz Tauri identifiera.
+- **Status:** nalaz dokumentiran; binary nije mijenjan. Preporuka za sada: Progression testirati code/XML importom bez autorizacije računa; prije autorizacije glavnih računa razriješiti navedene granice. Nisu čitani korisnikovi tokeni, lozinke ni auth cache.

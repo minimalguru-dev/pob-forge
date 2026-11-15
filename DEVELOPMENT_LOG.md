@@ -96,3 +96,12 @@ Native: slijediti CONTRIBUTING.md i Windows workflow. Nakon synca postaviti `POB
 - Završni code review uklonio je byte-based rezanje Unicode naziva. Dodan je točan round-trip assert za `A` + 159 znakova `č`; zadnji code commit mora ponovno proći CI. Nakon toga ne proširivati opseg.
 - MCP kod dodatno pregledan: `src-tauri/src/mcp.rs` bind na `127.0.0.1`, Bearer provjera. Nije pokrenut javni server niti promijenjena autentikacija.
 - Završna validacija `90cd6bb`: Linux `43718155297` i Windows `43718149574` uspješni; Windows installer preuzet i hashiran. Kod je ostao zamrznut nakon zadnjeg funkcionalnog ispravka. Završni handoff update je samo dokumentacija (`[skip ci]`).
+
+## Naknadni auth pregled — 2026-11-15
+
+- Korisnik pita je li sigurno autorizirati PoE i OpenAI račun. Pregledani su samo source code i službene javne upute, bez čitanja stvarnih tokena ili prijave.
+- PoE: službeni HTTPS OAuth endpoints, PKCE S256, state provjera i loopback callback; tokeni se spremaju u Windows Credential Manager ili DPAPI fallback. Scopeovi: profile, characters, trade.
+- Otvoreno: upstream OAuth client `pobredux` i zajednički keyring SERVICE nisu izolirani novim Tauri identifierom. Ne tvrditi da je fork zasebno odobren od GGG-a. Detalji u mistakes.md.
+- OpenAI/Codex: vendor CLI login i app-server; chat thread traži read-only sandbox te isključuje shell, web i dodatne integracije. To ne izolira lokalni auth profil niti predstavlja OS izolaciju same desktop aplikacije. Razgovor i pročitani build podaci mogu biti poslani odabranom AI provideru.
+- Preporuka: za test Progressiona računi nisu potrebni; koristiti PoB code/XML. Prije glavnih računa odvojiti credential store/Codex profil i razriješiti pravo korištenja OAuth clienta. Ovo je preporuka iz source reviewa, ne potvrđena kompromitacija.
+- Installer i aplikacijski kod ostaju na `90cd6bb`; ova dopuna mijenja samo dokumentaciju. Službeni izvori: https://www.pathofexile.com/developer/docs i https://learn.chatgpt.com/docs/auth .
