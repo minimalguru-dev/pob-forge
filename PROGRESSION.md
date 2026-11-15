@@ -82,8 +82,13 @@ The integration test creates its own temporary build and user directory. It chec
 For a local validation installer with the prerequisites installed:
 
 ```powershell
+Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
 $env:VITE_PROGRESSION_VALIDATION = 'true'
 bun run tauri build --bundles nsis --config src-tauri/tauri.progression.conf.json
 ```
+
+The Windows CI also removes that environment variable in each Cargo process: an empty value still prevents LuaJIT's build script from finding its local `minilua.exe`. Keep patch files as LF as prescribed by `.gitattributes`.
+
+Preview code revision `90cd6bb` passed [Linux validation](https://github.com/minimalguru-dev/pob-redux/actions/runs/43718155297) and [Windows validation](https://github.com/minimalguru-dev/pob-redux/actions/runs/43718149574), including real-PoE1 parity/non-mutation tests on both platforms. The Windows run produced the [unsigned NSIS installer](https://github.com/minimalguru-dev/pob-redux/actions/runs/43718149574/artifacts/14164402860). This does not certify native desktop interaction or an actual player's build. See DEVELOPMENT_LOG.md for exact counts, hash and unavailable checks.
 
 The Progression tab label participates in upstream localization; new preview explanations currently use English. Complete translation, per-item counterfactual simulation, budget/market integration and automated character synchronization are outside this minimal module.

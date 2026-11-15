@@ -7,7 +7,7 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Nalaz u završnom pregledu:** `label:sub(1, 160)` skraćuje valjan naziv od 160 znakova s dijakriticima i može presjeći UTF-8 znak. HTML maxlength broji znakove, ne iste bajtove.
 - **Ispravak:** sačuvati cijeli naziv i odbiti tek backend input veći od 640 bajtova; UI zadržava svoj maxlength 160.
 - **Prevencija:** ne rezati korisnički Unicode tekst Lua byte substringom.
-- **Validacija:** real-engine test sada uspoređuje točan naziv `A` + 159 slova `č`; čeka izvršavanje nakon commita.
+- **Validacija:** real-engine test uspoređuje točan naziv `A` + 159 slova `č`; uspješno prošao na `90cd6bb` u Linux runu `43718155297` i Windows runu `43718149574`.
 
 ## 2026-11-15 — Cargo integration test nema workspace root kao cwd
 
@@ -69,14 +69,14 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Nalaz u pregledu prije prvog commita:** izraz `condition and false or 0` vraća 0, koji je u Lui truthy. Kill-condition checkbox mogao bi ostati efektivno uključen.
 - **Ispravak:** eksplicitni `if/else` za booleane i numeričke vrijednosti. Isto vrijedi za kopiranje boolean statova u JSON.
 - **Prevencija:** ne koristiti Lua `and/or` ternarni obrazac kada je srednja vrijednost `false` ili `nil`.
-- **Validacija:** integration test eksplicitno očekuje `false` za `conditionKilledRecently` i uspoređuje boss rezultate s direktnim PoB izračunom; native izvršavanje još čeka CI.
+- **Validacija:** integration test eksplicitno očekuje `false` za `conditionKilledRecently` i uspoređuje boss rezultate s direktnim PoB izračunom; prošao u Linux runovima `43717329626` i `43718155297`.
 
 ## 2026-11-15 — Doseg Lua lokalnih varijabli između modula
 
 - **Nalaz u pregledu prije prvog commita:** novi modul referencirao je `GAME`, ali je ta varijabla lokalna u `bridge.lua`.
 - **Ispravak:** game provjeru čitati preko proslijeđenog `methods.version().game`.
 - **Prevencija:** kod izdvajanja modula eksplicitno proslijediti ovisnosti; ne pretpostavljati da je bridge-local stanje globalno.
-- **Validacija:** statički pregled ispravljen; stvarni engine test čeka native CI.
+- **Validacija:** stvarni engine capture uspješno izvršen u Linux runovima `43717329626` i `43718155297`.
 
 ## 2026-11-15 — Browser test i dostupno ime select kontrole
 

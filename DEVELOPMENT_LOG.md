@@ -39,6 +39,10 @@ Ovaj dokument je aktualni pregled za sljedećeg razvojnog agenta. Dopunjavati pr
 | `bb74bd1` | PoE1 Progression, Lua capture/scenario, model, UI, unit/engine testovi, Windows workflow |
 | `fcc2efa` | Ispravni upstream theme tokeni i textarea markup |
 | `61ebd64` | Browser testovi, guide, item priorities, Windows environment ispravak |
+| `b84e2cc` | Development log i mistakes status, samo dokumentacija |
+| `40df7a6` | LF patch pravilo i stroža validacija backupova |
+| `3eefd01` | Workspace-relative native test path i provjera flask scenarija |
+| `90cd6bb` | Unicode snapshot nazivi i zabilježena real-engine validacija |
 
 ## Validacija — potvrđeno lokalno
 
@@ -49,11 +53,15 @@ Ovaj dokument je aktualni pregled za sljedećeg razvojnog agenta. Dopunjavati pr
 - Playwright component-flow testovi: **3 pass** na lokalnom Edgeu; uvoz/greška, current/target i reload/delete, očuvanje oštećene povijesti. Ovo su IPC fixture testovi, ne PoB engine testovi.
 - UI pregledan kroz renderirane screenshotove, bez horizontalnog overflowa na 1100 px; nema page-error događaja.
 
-## Native CI — još otvoreno
+## Native CI — završeno uspješno
 
 - Prvi dovršeni Windows pokušaj [43715258887](https://github.com/minimalguru-dev/pob-redux/actions/runs/43715258887) prošao je frontend check/test/build, ali pao u LuaJIT buildu zbog `NoDefaultCurrentDirectoryInExePath` / `minilua`. Detalji i ispravak su u mistakes.md.
-- [Windows run 43716010378](https://github.com/minimalguru-dev/pob-redux/actions/runs/43716010378) potvrdio je LuaJIT ispravak i browser testove. Pao je zatim na CRLF patchu; uzrok lokalno reproduciran i ispravljen pravilom `*.patch text eol=lf`. Idući run treba pratiti do kraja.
-- Otvaranje PR-a također je pokrenulo [Linux check 43716041218](https://github.com/minimalguru-dev/pob-redux/actions/runs/43716041218). Pratiti oba.
+- [Windows run 43716010378](https://github.com/minimalguru-dev/pob-redux/actions/runs/43716010378) potvrdio je LuaJIT ispravak i browser testove. Pao je zatim na CRLF patchu; uzrok lokalno reproduciran i ispravljen pravilom `*.patch text eol=lf`. Sync oba pina zatim je prošao u runu `43717323768`.
+- [Linux check 43716041218](https://github.com/minimalguru-dev/pob-redux/actions/runs/43716041218) uspješno je dovršio cijeli dostupni upstream check/test pipeline za raniji commit `61ebd64`.
+- Zadnji code commit `90cd6bb8e60cf68cbfb9c7012d524c66c7bddf07`: [Windows 43718149574](https://github.com/minimalguru-dev/pob-redux/actions/runs/43718149574), [Linux 43718155297](https://github.com/minimalguru-dev/pob-redux/actions/runs/43718155297).
+- Zadnji Linux run završio je **success**: workspace check, 56 app testova, 24 standardna engine testa i zasebni real-engine Progression test, uključujući Unicode round-trip. Postojeći voice test ostaje ignored; Progression test koji je ignored u standardnom suiteu eksplicitno je uspješno izvršen u zasebnom koraku.
+- Završni Windows run je **success**: frontend check, 25 unit testova, 3 browser testa, frontend build, sync oba pina, 24 standardna engine testa, zasebni real-engine Progression test i 59 app testova (postojeći voice test ignored). Release build i NSIS installer uspješno su završeni.
+- [Installer artifact 14164402860](https://github.com/minimalguru-dev/pob-redux/actions/runs/43718149574/artifacts/14164402860): originalni naziv `PoB Redux Progression Preview_0.5.8_x64-setup.exe`, 52.715.716 bajtova; preuzet lokalno. SHA-256 samog EXE-a: `d85258d4d072110dcf9fb9c6d88d980ecb8efbaa63e5ec1dedeb0a8c8af6bed7`. GitHub artifact istječe 2026-11-29; lokalna isporuka ostaje u outputs.
 - `crates/pob-engine/tests/progression.rs` uključuje Lua compile test i ignored real-engine test koji workflow eksplicitno pokreće sa synced PoE1 podacima. Provjerava parity, non-mutation, postojeći Compare state, invalid import i scenario jednakost direktnom PoB configu.
 - Privatni upstream `pobredux/corpus` i `CORPUS_DEPLOY_KEY` nisu dostupni; puni golden suite nije verificiran.
 - Lokalni Windows host nema Rust/MSVC/CMake preduvjete. Ne prijavljivati lokalno izgrađen native binary.
@@ -68,11 +76,11 @@ Native: slijediti CONTRIBUTING.md i Windows workflow. Nakon synca postaviti `POB
 
 ## Sljedeći koraci pri preuzimanju
 
-1. Provjeriti `git status`, zadnji commit i aktualne GitHub Actions runove na grani. Ne restartati analizu repozitorija niti tražiti već odobrene potvrde.
-2. Dovršiti pokrenuti frontend check, Windows native test/build i Linux PR checks. Ako padnu, pročitati konkretan failed log i ažurirati mistakes.md prije ispravka.
-3. Nakon uspješnog native testa preuzeti installer artifact i točno označiti što je provjereno (build/engine/GUI), a što nije.
-4. Ažurirati ovaj log i PR opis stvarnim rezultatima. Pripremiti lokalni source bundle/patch i sažetak na hrvatskom s linkovima.
-5. Ne mergeati PR niti objavljivati produkcijski release bez potrebe iz korisnikova opsega; unsigned validation artifact je predviđena isporuka.
+1. Ovaj minimalni razvojni opseg je dovršen; provjeriti aktualni `git status`, granu i ovaj log prije novog rada. Ne restartati završene provjere bez promjene koda ili novog razloga.
+2. Validirani code commit je `90cd6bb`; završni handoff commit mijenja samo Markdown dokumentaciju i dodaje AGENTS.md. Installer odgovara code commitu, ne naknadnoj dokumentaciji.
+3. Nisu verificirani interaktivna native desktop sesija, konkretni korisnikov build ni privatni golden corpus. To nisu prolazni rezultati. Buduća provjera stvarnog builda mora koristiti korisnikov stvarni input, bez izmišljanja DPS-a.
+4. Isporuka uključuje Windows installer, source ZIP, SHA-256 manifest i izvještaj na hrvatskom. PR je u vlastitom forku; nema mergea niti produkcijskog releasea.
+5. Pri novom razvoju ažurirati ovaj log i mistakes.md na važnim nalazima; zadržati razliku između fixture UI testova, real-engine testova i native GUI provjere.
 
 ## Dnevnik nastavka — 2026-11-15
 
@@ -87,3 +95,4 @@ Native: slijediti CONTRIBUTING.md i Windows workflow. Nakon synca postaviti `POB
 - Windows run `43717323768` prošao je sync oba pina nakon LF ispravka i prešao na Rust engine regresije. Time su oba ranija Windows build-preparation uzroka potvrđeno otklonjena.
 - Završni code review uklonio je byte-based rezanje Unicode naziva. Dodan je točan round-trip assert za `A` + 159 znakova `č`; zadnji code commit mora ponovno proći CI. Nakon toga ne proširivati opseg.
 - MCP kod dodatno pregledan: `src-tauri/src/mcp.rs` bind na `127.0.0.1`, Bearer provjera. Nije pokrenut javni server niti promijenjena autentikacija.
+- Završna validacija `90cd6bb`: Linux `43718155297` i Windows `43718149574` uspješni; Windows installer preuzet i hashiran. Kod je ostao zamrznut nakon zadnjeg funkcionalnog ispravka. Završni handoff update je samo dokumentacija (`[skip ci]`).
