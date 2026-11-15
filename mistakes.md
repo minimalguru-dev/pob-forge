@@ -132,3 +132,9 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - Source review found that the Windows terminal wrapper replaces double quotes. A double-quoted TOML value in the new Codex override would be rewritten during login.
 - The override now uses TOML single quotes, preserved by the existing PowerShell quoting helper. The direct app-server launch receives the same value.
 - Verified a PowerShell parse round trip without invoking Codex or authenticating; the native launch regression also asserts the terminal transformation preserves the quoted argument.
+
+## Incomplete shared writer call-site update
+
+- Linux run 43724475298 failed with E0308 in src-tauri/src/threads.rs:29: the shared art writer now returns Result but this caller still expected bool.
+- The initial call-site search was too narrow. Searched all Rust files from the repository root and updated the assistant thread writer to retain the OS error as well.
+- Prevention: search all workspace references when changing a shared function signature, and require native workspace compilation before declaring the change validated. Frontend checks cannot detect Rust call-site errors.
