@@ -129,9 +129,10 @@
       ["party", m.view_party(), "8"],
       ["optimise", m.view_optimise(), "9"],
       ["compare", m.view_compare(), "0"],
+      ["progression", m.view_progression(), ""],
     ];
     return all
-      .filter(([id]) => build.loaded || id === "import")
+      .filter(([id]) => (build.loaded || id === "import") && (id !== "progression" || game.isPoe1))
       .map(([id, label, key]) => ({ id: `view-${id}`, group: g, label, keys: key ? `Mod+${key}` : undefined, run: () => goTo(id) }));
   });
 

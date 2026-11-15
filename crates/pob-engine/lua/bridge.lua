@@ -12231,4 +12231,6 @@ M.sanity_check = function()
 	return { findings = findings, high = counts.high, medium = counts.medium, low = counts.low }
 end
 
+M.progression_capture = __progression(M, ensureBuild, decodeCode)
+
 return M
