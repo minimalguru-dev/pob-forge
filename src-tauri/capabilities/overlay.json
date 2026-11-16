@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "overlay",
+  "description": "The in-game overlay: events, moving itself in interact mode, and opening links. It reads the clipboard only through Rust.",
+  "windows": ["overlay"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "opener:default"
+  ]
+}

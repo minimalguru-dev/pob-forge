@@ -25,6 +25,8 @@ mod trade;
 mod assistant;
 mod threads;
 mod progression;
+#[cfg(desktop)]
+mod overlay;
 mod voice;
 mod web;
 
@@ -1274,6 +1276,12 @@ pub fn run() {
             app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
             #[cfg(desktop)]
             app.handle().plugin(tauri_plugin_deep_link::init())?;
+            #[cfg(desktop)]
+            app.handle().plugin(
+                tauri_plugin_global_shortcut::Builder::new()
+                    .with_handler(|app, shortcut, event| overlay::on_shortcut(app, shortcut, event.state()))
+                    .build(),
+            )?;
             let handle = app.handle();
             let link = start_link(handle);
             let user_dir = find_user_dir(handle);
@@ -1305,6 +1313,8 @@ pub fn run() {
             app.manage(decide::DecideState::new(&app.handle().clone()));
             app.manage(voice::VoiceState::new());
             app.manage(ggg::GggState::default());
+            #[cfg(desktop)]
+            overlay::setup(app.handle());
             // POB_REDUX_MCP=<port> brings the MCP server up at launch (scripts, tests)
             if let Some(port) = std::env::var("POB_REDUX_MCP").ok().and_then(|v| v.parse::<u16>().ok()) {
                 let handle = app.handle().clone();
@@ -1425,6 +1435,14 @@ pub fn run() {
             progression::progression_select,
             progression::progression_import,
             progression::progression_report,
+            #[cfg(desktop)]
+            overlay::overlay_settings_get,
+            #[cfg(desktop)]
+            overlay::overlay_settings_set,
+            #[cfg(desktop)]
+            overlay::overlay_toggle,
+            #[cfg(desktop)]
+            overlay::overlay_interact,
             threads::thread_load,
             threads::thread_save,
             threads::thread_delete,
@@ -1436,6 +1454,8 @@ pub fn run() {
                 if label == "main" {
                     trade::close(app);
                     assistant::close(app);
+                    #[cfg(desktop)]
+                    overlay::close(app);
                 }
                 // Closed by its own button, the OS or a crash: the main window docks the conversation back.
                 if label == assistant::LABEL {

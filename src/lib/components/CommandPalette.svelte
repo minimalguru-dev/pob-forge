@@ -5,6 +5,7 @@
   import { ui, type Jump } from "$lib/state/ui.svelte";
   import { chat } from "$lib/state/chat.svelte";
   import { appOptions } from "$lib/state/options.svelte";
+  import { overlay } from "$lib/state/overlay.svelte";
   import { game, GAMES, GAME_LABEL } from "$lib/state/game.svelte";
   import { loadTree } from "$lib/tree/load";
   import { stripPobText } from "$lib/pobtext";
@@ -106,6 +107,7 @@
     list.push(
       { id: "new", group: g, label: m.palette_new_build(), run: () => build.newBuild().then((r) => r && (ui.newBuildOpen = true)) },
       { id: "assistant", group: g, label: m.palette_assistant(), keys: "Mod+L", run: () => chat.toggle() },
+      { id: "overlay", group: g, label: m.palette_overlay(), keywords: "in-game overlay companion", run: () => void overlay.toggle() },
       { id: "sidebar", group: g, label: m.palette_sidebar(), keys: "Mod+B", run: () => ui.toggleSidebar() },
       { id: "options", group: g, label: m.palette_options(), keys: "Mod+,", run: () => (appOptions.open = true) },
     );

@@ -14,6 +14,7 @@
   import { voice } from "$lib/state/voice.svelte";
   import { tradeWindow } from "$lib/state/trade.svelte";
   import { chat } from "$lib/state/chat.svelte";
+  import { overlay } from "$lib/state/overlay.svelte";
   import AssistantSettings from "$lib/components/AssistantSettings.svelte";
   import { m } from "$lib/paraglide/messages";
 
@@ -119,6 +120,7 @@
     { id: "numbers", label: m.settings_numbers() },
     { id: "assistant", label: m.settings_assistant(), tone: assistantTone },
     { id: "mcp", label: m.settings_mcp(), tone: mcpTone },
+    { id: "overlay", label: m.settings_overlay(), tone: overlay.settings?.enabled ? "ok" : "off" },
     { id: "experimental", label: m.settings_experimental(), tone: decideTone },
     { id: "updates", label: m.settings_updates() },
     { id: "diagnostics", label: m.settings_diagnostics() },
@@ -147,6 +149,7 @@
   onMount(() => {
     void decider.init();
     void voice.init();
+    void overlay.init();
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || document.querySelector('[role="alertdialog"]')) return;
       close();
@@ -655,6 +658,46 @@
           </div>
         </div>
         <p class="note">{m.ggg_disclaimer()}</p>
+      {:else if active === "overlay"}
+        {@render head(m.settings_overlay(), m.settings_overlay_desc(), overlay.settings?.enabled ? m.status_on() : m.status_off(), overlay.settings?.enabled ? "ok" : "off")}
+        {#if overlay.settings}
+          {@const o = overlay.settings}
+          <div class="rows">
+            <label class="opt">
+              <span>{m.overlay_enable()}<span class="hint">{m.overlay_enable_hint()}</span></span>
+              <input class="switch" type="checkbox" role="switch" checked={o.enabled} disabled={overlay.saving} onchange={(e) => overlay.update({ enabled: (e.target as HTMLInputElement).checked })} />
+            </label>
+            <label class="opt">
+              <span>{m.overlay_toggle_key()}<span class="hint">{m.overlay_key_hint()}</span></span>
+              <input class="input mono" value={o.toggleKey} disabled={overlay.saving} onchange={(e) => overlay.update({ toggleKey: (e.target as HTMLInputElement).value.trim() })} />
+            </label>
+            <label class="opt">
+              <span>{m.overlay_interact_key()}<span class="hint">{m.overlay_interact_key_hint()}</span></span>
+              <input class="input mono" value={o.interactKey} disabled={overlay.saving} onchange={(e) => overlay.update({ interactKey: (e.target as HTMLInputElement).value.trim() })} />
+            </label>
+            <label class="opt">
+              <span>{m.overlay_opacity()}</span>
+              <input type="range" min="0.3" max="1" step="0.02" value={o.opacity} disabled={overlay.saving} onchange={(e) => overlay.update({ opacity: Number((e.target as HTMLInputElement).value) })} />
+            </label>
+            <label class="opt">
+              <span>{m.overlay_card_seconds()}</span>
+              <input class="input mono" type="number" min="3" max="120" value={o.cardSeconds} disabled={overlay.saving} onchange={(e) => overlay.update({ cardSeconds: Number((e.target as HTMLInputElement).value) })} />
+            </label>
+          </div>
+          <h2 class="label ghead">{m.overlay_panels()}</h2>
+          <div class="rows">
+            {#each [["itemCheck", m.overlay_item_check(), m.overlay_item_check_hint()], ["mapCheck", m.overlay_map_check(), m.overlay_map_check_hint()], ["leveling", m.overlay_leveling(), m.overlay_leveling_hint()], ["progression", m.overlay_progression(), m.overlay_progression_hint()]] as const as [key, label, hint] (key)}
+              <label class="opt">
+                <span>{label}<span class="hint">{hint}</span></span>
+                <input class="switch" type="checkbox" role="switch" checked={o[key]} disabled={overlay.saving} onchange={(e) => overlay.update({ [key]: (e.target as HTMLInputElement).checked })} />
+              </label>
+            {/each}
+          </div>
+          {#if overlay.error}<div class="opt err mono">{overlay.error}</div>{/if}
+          <p class="note">{m.overlay_rules_note()}</p>
+        {:else if overlay.error}
+          <div class="opt err mono">{overlay.error}</div>
+        {/if}
       {:else if active === "diagnostics"}
         {@render head(m.settings_diagnostics(), m.settings_diagnostics_desc())}
         <div class="rows">

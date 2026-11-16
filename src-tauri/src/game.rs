@@ -109,6 +109,52 @@ pub struct Settings {
     pub game: Option<Game>,
     #[serde(default)]
     pub builds_dirs: BuildsDirs,
+    #[serde(default)]
+    pub overlay: OverlaySettings,
+}
+
+/// The in-game overlay's settings (`overlay.rs`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OverlaySettings {
+    /// Opens the overlay with the app and turns the shortcuts on.
+    pub enabled: bool,
+    pub toggle_key: String,
+    pub interact_key: String,
+    /// Client.txt, when it is not where the game installs it.
+    pub log_path: Option<String>,
+    pub x: Option<i32>,
+    pub y: Option<i32>,
+    pub width: f64,
+    pub height: f64,
+    pub opacity: f64,
+    pub item_check: bool,
+    pub map_check: bool,
+    pub leveling: bool,
+    pub progression: bool,
+    /// How long an item or map card stays up.
+    pub card_seconds: u32,
+}
+
+impl Default for OverlaySettings {
+    fn default() -> Self {
+        OverlaySettings {
+            enabled: false,
+            toggle_key: "Alt+Shift+O".into(),
+            interact_key: "Alt+Shift+I".into(),
+            log_path: None,
+            x: None,
+            y: None,
+            width: 380.0,
+            height: 620.0,
+            opacity: 0.92,
+            item_check: true,
+            map_check: true,
+            leveling: true,
+            progression: true,
+            card_seconds: 15,
+        }
+    }
 }
 
 fn settings_path(app: &tauri::AppHandle) -> Option<PathBuf> {
