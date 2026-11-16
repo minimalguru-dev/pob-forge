@@ -106,6 +106,13 @@ Ask a question and it answers; ask for a change and it makes it. Each reply that
 and Undo, so one click puts everything back. Turn on "Ask before each change" in Settings > Assistant to approve
 every change first.
 
+### In-game overlay
+
+An optional panel over the game, off until you turn it on in Settings > Overlay. Ctrl+C on an item shows what it does
+to the open build in every slot it fits; Ctrl+C on a map shows which of its mods are dangerous for the build. It follows
+your zone and level from the game's log for leveling, and lists the next steps towards your Progression target. It
+reads only what you copy and the game's log file. See [OVERLAY.md](OVERLAY.md).
+
 ### MCP server
 
 Lets an AI client such as Claude Code, Claude Desktop or Cursor read and edit the open build, in

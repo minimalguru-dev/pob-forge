@@ -124,3 +124,15 @@ Native: slijediti CONTRIBUTING.md i Windows workflow. Nakon synca postaviti `POB
 
 - Provjeren završetak prethodnih runova: native kompilacija i stvarni PoE1 test prolaze, ali novi OAuth redirect test pada na obje platforme zbog nedostajuće TLS inicijalizacije u test harnessu. Windows: 62 passed, 1 failed, 1 ignored; Linux: 59 passed, 1 failed, 1 ignored. To nisu uspješni završni runovi.
 - Test sada koristi isti pob_engine::install_tls_provider() kao production run(). Nema promjene TLS sigurnosne politike, ignoriranja testa ili dodatnih auth zahtjeva. Novi CI treba završiti prije izrade/isporuke installera.
+
+## Companion overlay i Progression alati — 2026-11-16
+
+- Lokalni razvoj prebačen na `D:\dev` (C: je bio pun). Rust 1.100, Bun 1.4.4, CMake 4.5 i VS 2022 Build Tools (MSVC 14.44, libclang) instalirani na D:; Windows SDK 10.0.26100 je na C:. `bun run sync` i native build sada prolaze lokalno.
+- Lokalni klon prvo je imao CRLF patch datoteke jer je `*.patch eol=lf` stigao tek s PR granom; ponovni checkout `patches/` riješio je `git apply`. Svježi klon ove grane nema taj problem.
+- Grana `feat/companion-overlay` (iz `feat/poe1-progression`), ništa nije pushano.
+- Progression povijest premještena iz webview localStoragea u `progression-poe1.json` (app local data); diff, readiness i prioriteti portani u `src-tauri/src/progression.rs` s Rust testovima. Stari localStorage ključ migrira se jednom i ostaje kao backup. Asistent/MCP dobiva `get_progression`, `capture_progression_snapshot`, `select_progression_snapshots` (PoE1, 83 → 86 alata).
+- Potvrđen i ispravljen postojeći bug: PoB ne stavlja `FireResistMax` itd. u output, pa su snapshotovi uvijek imali `null` cap i svaka res provjera bila "unknown". Sada se cap čita iz modDB-a kao u CalcDefence; real-engine test to provjerava (Ruby Flask daje 80 % fire cap, boss scenarij 75 %).
+- Nove bridge metode: `item_evaluate` (tekst iz igre → delta po slotu, ne mijenja build; test uspoređuje sa stvarnim equipom na PoE1 i PoE2), `map_evaluate` (PoB map modovi na privremenom CompareEntry + pravila za reflect/regen/leech), `leveling_info`.
+- Overlay (`overlay.rs`, `gamelog.rs`, `OverlayWindow.svelte`): opt-in, prozirni always-on-top prozor, globalni prečaci Alt+Shift+O / Alt+Shift+I, clipboard watcher samo dok je overlay vidljiv i samo za tekst koji počinje s `Item Class:`, praćenje `Client.txt` od zadnjih 512 KiB. Bez čitanja memorije igre i bez slanja inputa.
+- Provjereno uživo nad pokrenutom igrom (PoE1): item kartica, map kartica i leveling panel iz stvarnog `Client.txt`. Progression panel u overlayu nije viđen uživo jer nema spremljenog para snapshotova; logika je ista kao u Progression tabu.
+- Nije provjereno: macOS (overlay je tamo neproziran), PoE2 klijent uživo, ne-engleski klijenti, CI za ovu granu.
