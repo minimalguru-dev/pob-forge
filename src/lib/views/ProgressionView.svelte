@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { listen } from "@tauri-apps/api/event";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { call, fetchBuildCode, readTextFile, writeTextFile } from "$lib/engine.svelte";
   import { build } from "$lib/state/build.svelte";
   import { game } from "$lib/state/game.svelte";
   import { m } from "$lib/paraglide/messages";
-  import { addSnapshot, assess, decodePlan, diffSnapshots, emptyPlan, numberStat, priorities, removeSnapshot, savePlan, STORAGE_KEY, type Boss, type Plan, type Snapshot } from "$lib/progression/model";
+  import { CHANGED_EVENT, emptyPlan, loadPlan, numberStat, progression, type Boss, type Plan, type Report, type Snapshot } from "$lib/progression/model";
 
   let plan = $state<Plan>(emptyPlan());
   let ready = $state(false);
@@ -16,12 +17,21 @@
   let input = $state("");
   let role = $state<"current" | "target">("current");
   let boss = $state<Boss>("Pinnacle");
+  let report = $state<Report | null>(null);
   const current = $derived(plan.snapshots.find(s => s.id === plan.currentId));
   const target = $derived(plan.snapshots.find(s => s.id === plan.targetId));
-  const diff = $derived(current && target ? diffSnapshots(current, target) : null);
-  const checks = $derived(current && target ? assess(current, target) : []);
-  const next = $derived(current && target ? priorities(current, target) : []);
+  const diff = $derived(report?.diff ?? null);
+  const checks = $derived(report?.checks ?? []);
+  const next = $derived(report?.priorities ?? []);
   const blockers = $derived(checks.filter(c => c.status === "blocked").length);
+
+  $effect(() => {
+    const pair = current && target ? [current, target] as const : null;
+    if (!pair) { report = null; return; }
+    let stale = false;
+    progression.report(pair[0], pair[1]).then(r => { if (!stale) report = r; }, e => { if (!stale) error = String(e); });
+    return () => { stale = true; };
+  });
   const statRows = [
     ["CombinedDPS", "Main skill combined DPS"], ["FullDPS", "Full DPS (configured skill counts)"],
     ["Speed", "Main skill rate / s"], ["Life", "Life"], ["EnergyShield", "Energy shield"],
@@ -35,17 +45,22 @@
     return value === null ? "—" : value.toLocaleString(undefined, { maximumFractionDigits: 2 });
   };
 
-  onMount(() => {
+  async function reload() {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) plan = decodePlan(saved);
+      plan = await loadPlan();
       ready = true;
-    } catch (e) { error = String(e); }
+    } catch (e) { error = String(e); ready = false; }
+  }
+
+  onMount(() => {
+    void reload();
+    // The assistant and the overlay change the same history.
+    const off = listen(CHANGED_EVENT, () => { if (!busy) void reload(); });
+    return () => { void off.then(f => f()); };
   });
 
-  function commit(candidate: Plan) {
-    savePlan(localStorage, candidate);
-    plan = candidate;
+  async function commit(change: Promise<Plan>) {
+    plan = await change;
     ready = true;
   }
 
@@ -71,7 +86,7 @@
         ...source, label: label.trim() || (live ? build.info?.name : role === "current" ? "Current build" : "Target build"), boss,
       });
       if (!game.isPoe1) throw new Error("Game changed during capture. Return to PoE1 and capture again.");
-      commit(addSnapshot(plan, { ...snapshot, id: crypto.randomUUID(), at: new Date().toISOString() }, role));
+      await commit(progression.add(snapshot, role));
       notice = "Snapshot saved locally. The open build is unchanged.";
       input = "";
     });
@@ -87,10 +102,7 @@
   async function exportHistory() {
     await run(async () => {
       const path = await save({ defaultPath: "progression-history.json", filters: [{ name: "Progression backup", extensions: ["json"] }] });
-      if (path) {
-        const text = ready ? JSON.stringify(plan) : localStorage.getItem(STORAGE_KEY);
-        if (text) await writeTextFile(path, text);
-      }
+      if (path && ready) await writeTextFile(path, JSON.stringify(plan));
     });
   }
 
@@ -98,9 +110,7 @@
     await run(async () => {
       const path = await open({ multiple: false, filters: [{ name: "Progression backup", extensions: ["json"] }] });
       if (typeof path !== "string") return;
-      const imported = decodePlan(await readTextFile(path));
-      const snapshots = [...plan.snapshots, ...imported.snapshots.filter(s => !plan.snapshots.some(existing => existing.id === s.id))];
-      commit({ schema: 1, snapshots, currentId: plan.currentId ?? imported.currentId, targetId: plan.targetId ?? imported.targetId });
+      await commit(progression.importBackup(await readTextFile(path)));
       notice = "History imported. Stored calculations are historical; re-capture to verify them with this engine.";
     });
   }
@@ -140,10 +150,10 @@
         <div class="history">
           <div><strong>{snapshot.label}</strong><div class="dim small">{snapshot.mainSkill ?? "No main skill"} · {snapshot.ascendancy} {snapshot.level} · {new Date(snapshot.at).toLocaleString()} · PoB {snapshot.pobVersion}</div><div class="dim small">Tree: {snapshot.loadout.tree} · Item set: {snapshot.loadout.items} · Skill set: {snapshot.loadout.skills} · {snapshot.boss.kind}</div></div>
           <div class="actions">
-            <button class="btn sm" class:on={plan.currentId === snapshot.id} disabled={busy} onclick={() => run(() => commit({ ...plan, currentId: snapshot.id }))}>Current</button>
-            <button class="btn sm" class:on={plan.targetId === snapshot.id} disabled={busy} onclick={() => run(() => commit({ ...plan, targetId: snapshot.id }))}>Target</button>
+            <button class="btn sm" class:on={plan.currentId === snapshot.id} disabled={busy || !ready} onclick={() => run(() => commit(progression.select(snapshot.id, null)))}>Current</button>
+            <button class="btn sm" class:on={plan.targetId === snapshot.id} disabled={busy || !ready} onclick={() => run(() => commit(progression.select(null, snapshot.id)))}>Target</button>
             <button class="btn sm" disabled={busy || !ready} onclick={() => capture(false, snapshot.xml)}>Re-capture as {role}</button>
-            <button class="btn sm ghost" disabled={busy} onclick={() => run(() => commit(removeSnapshot(plan, snapshot.id)))}>Remove</button>
+            <button class="btn sm ghost" disabled={busy || !ready} onclick={() => run(() => commit(progression.remove(snapshot.id)))}>Remove</button>
           </div>
         </div>
       {/each}

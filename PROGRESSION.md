@@ -46,7 +46,7 @@ All other imported assumptions remain, including custom mods, explicit enemy dam
 
 ## Local data and boundaries
 
-History follows upstream's local-storage convention, using the separate key `pob-redux:progression:poe1:v1`. It stores up to 20 snapshots and a maximum serialized size of 4 MiB. There is no silent eviction. A storage-quota error is shown and the previous plan remains intact. Invalid or unsupported history is not overwritten automatically; Export can preserve the original stored text for recovery. Backup imports are untrusted historical data: re-capture their XML to verify numbers with the current engine.
+History is stored by the app in `progression-poe1.json` in its local data folder, so the Progression tab, the overlay and the assistant read the same plan. History saved by earlier previews under the local-storage key `pob-redux:progression:poe1:v1` is moved there once; the old copy is left in place. It stores up to 20 snapshots and a maximum serialized size of 4 MiB. There is no silent eviction: a full or oversized history is refused and the previous plan remains intact. Invalid or unsupported history is not overwritten; it is reported and capture stays disabled. Backup imports are untrusted historical data: re-capture their XML to verify numbers with the current engine.
 
 History includes full build XML, which can contain character/build names and notes. It stays local unless the user exports it. Progression adds no telemetry or automatic network requests. Explicit URL imports use Redux's existing supported fetcher. No new GGG API client, session-cookie collection, game-memory access, screen/clipboard polling, game-file modification or input automation is added. GGG's [third-party policy](https://www.pathofexile.com/developer/docs#policy) remains authoritative; this is not a claim of GGG endorsement.
 
@@ -54,7 +54,7 @@ The preview disables PoE account authorization until the fork has an appropriate
 
 The Import tab now shows clipboard and import failures inline. A click retries a temporarily unavailable clipboard at most three times; an empty clipboard gives an explicit message. Cache writes retain the operating-system error, and tree-art cleanup preserves in-progress downloads. Downloads are verified against pinned art manifests; these changes do not substitute artwork or alter the calculation engine.
 
-The MCP server remains opt-in, token-protected and loopback-only as upstream implements it. Progression's bridge method is available through the internal engine and `pobctl`, but is not added to the assistant's public MCP tool registry in this preview.
+The MCP server remains opt-in, token-protected and loopback-only as upstream implements it. In Path of Exile 1 the assistant and MCP clients get three Progression tools: `get_progression` reads the plan with its differences, checks and priorities; `capture_progression_snapshot` saves the open build as the current or target snapshot; `select_progression_snapshots` picks the pair. None of them changes the open build. Keep and Undo in the chat do not remove a snapshot; remove it in the Progression tab.
 
 ## Development and validation
 

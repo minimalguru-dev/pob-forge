@@ -50,6 +50,8 @@ const intents: [string, string][] = [
   ["find an item in the database", "search_item_db"],
   ["undo the last tree change", "tree_undo"],
   ["find a timeless jewel seed", "search_timeless_seeds"],
+  ["what should I do next to reach my target build", "get_progression"],
+  ["save this build as my progression snapshot", "capture_progression_snapshot"],
 ];
 for (const [query, want] of intents) {
   if (!defs.some((d) => d.name === want) && !CORE.has(want)) continue;

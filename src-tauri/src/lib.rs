@@ -24,6 +24,7 @@ mod game;
 mod trade;
 mod assistant;
 mod threads;
+mod progression;
 mod voice;
 mod web;
 
@@ -1416,6 +1417,14 @@ pub fn run() {
             assistant::chat_handoff_put,
             assistant::chat_handoff_take,
             threads::threads_list,
+            progression::progression_load,
+            progression::progression_migrate,
+            progression::progression_decode,
+            progression::progression_add,
+            progression::progression_remove,
+            progression::progression_select,
+            progression::progression_import,
+            progression::progression_report,
             threads::thread_load,
             threads::thread_save,
             threads::thread_delete,

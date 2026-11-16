@@ -2,9 +2,36 @@ import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
+    // Stands in for the app's history file (src-tauri/src/progression.rs, tested in Rust).
+    const FILE = "fixture:progression-file";
+    const read = () => { const t = localStorage.getItem(FILE); if (t === "broken-history") throw new Error("Unsupported Progression history format."); return t ? JSON.parse(t) : null; };
+    const write = (plan: any) => { localStorage.setItem(FILE, JSON.stringify(plan)); return plan; };
+    const empty = () => ({ schema: 1, snapshots: [], currentId: null, targetId: null });
+    let next = 0;
+    const progression: Record<string, (args: any) => any> = {
+      progression_load: read,
+      progression_migrate: () => write(empty()),
+      progression_add: ({ captured, role }) => {
+        const plan = read() ?? empty();
+        const snapshot = { ...captured, id: `s${++next}-${Date.now()}`, at: new Date().toISOString() };
+        return write({ ...plan, snapshots: [...plan.snapshots, snapshot], [role === "current" ? "currentId" : "targetId"]: snapshot.id });
+      },
+      progression_remove: ({ id }) => {
+        const plan = read();
+        return write({ ...plan, snapshots: plan.snapshots.filter((s: any) => s.id !== id), currentId: plan.currentId === id ? null : plan.currentId, targetId: plan.targetId === id ? null : plan.targetId });
+      },
+      progression_select: ({ currentId, targetId }) => { const plan = read(); return write({ ...plan, currentId: currentId ?? plan.currentId, targetId: targetId ?? plan.targetId }); },
+      progression_report: ({ current, target }) => {
+        const equipment = target.equipment.map((t: any) => ({ slot: t.slot, current: current.equipment.find((c: any) => c.slot === t.slot) ?? null, target: t }));
+        const prepare = equipment.map((e: any) => ({ id: `item-${e.slot}`, status: "review", title: `Prepare ${e.slot}: ${e.target.name}`, detail: "Fixture" }));
+        return { diff: { equipment, compatibleTree: true, gained: target.nodes, lost: current.nodes, masteries: [], config: [] }, checks: [{ id: "manual", status: "review", title: "Validate the transition in play", detail: "Fixture" }], priorities: prepare };
+      },
+    };
     (window as any).__TAURI_INTERNALS__ = {
       metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
+      transformCallback: () => 0,
       invoke: async (command: string, args: any) => {
+        if (progression[command]) return progression[command](args);
         if (command !== "engine_call" || args.method !== "progression_capture") return null;
         if (args.params.code === "invalid") throw new Error("Invalid PoB fixture");
         const target = args.params.code === "target";
@@ -56,9 +83,9 @@ test("current and target persist, render differences and clear a removed selecti
 });
 
 test("corrupt history is retained and cannot be silently overwritten", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("pob-redux:progression:poe1:v1", "broken-history"));
+  await page.addInitScript(() => localStorage.setItem("fixture:progression-file", "broken-history"));
   await page.goto("/tests/progression/");
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.getByRole("button", { name: "Capture open build" })).toBeDisabled();
-  expect(await page.evaluate(() => localStorage.getItem("pob-redux:progression:poe1:v1"))).toBe("broken-history");
+  expect(await page.evaluate(() => localStorage.getItem("fixture:progression-file"))).toBe("broken-history");
 });
