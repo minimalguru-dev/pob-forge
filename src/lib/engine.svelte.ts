@@ -972,6 +972,26 @@ export interface TooltipLine {
 }
 
 /** Rarity art PoB frames a tooltip with; null for plain tooltips. */
+/** Keys of PoB's gear headline (bridge.lua gearUtil.OPT_HEADLINE). */
+export type GearHeadline = Record<string, number>;
+export interface ItemEvaluation {
+  item: { name: string | null; baseName: string | null; rarity: string | null; type: string | null; levelRequired: number; corrupted: boolean };
+  characterLevel: number;
+  tooLowLevel: boolean;
+  before: GearHeadline;
+  slots: {
+    slot: string;
+    label: string;
+    replacing: string | null;
+    skipped?: string;
+    after?: GearHeadline;
+    delta?: GearHeadline;
+    attributeShortfall?: { attribute: "Str" | "Dex" | "Int"; missing: number }[];
+  }[];
+  generation: number;
+  rev: number;
+}
+
 export type TooltipHeader = "UNIQUE" | "RARE" | "MAGIC" | "NORMAL" | "RELIC" | "GEM" | null;
 
 export interface Tooltip {
@@ -1909,6 +1929,8 @@ export const engine = {
     call<{ raw?: string }>("item_prepare_preview", { raw, generation, normalise }),
   itemPreview: (raw: string, generation: number) =>
     call<{ tooltip: Tooltip; slots: { slot: string; label: string }[]; generation: number; rev: number }>("item_preview", { raw, generation }),
+  /** Numbers for an item copied from the game, per slot it fits. Changes nothing. */
+  itemEvaluate: (raw: string) => call<ItemEvaluation>("item_evaluate", { raw }),
   itemCustomization: (target: ItemTarget) => call<ItemCustomization>("item_customization", target),
   customizeItem: (target: ItemTarget, edit: ItemCustomizationEdit) => call<ItemCustomization>("item_customize", { ...target, ...edit }),
   itemModifierOptions: (target: ItemTarget, source: string, query: string, implicit = false) =>

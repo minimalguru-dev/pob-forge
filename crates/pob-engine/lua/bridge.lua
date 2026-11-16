@@ -4794,6 +4794,55 @@ M.item_preview = function(p)
 		generation = main.__reduxBuildGeneration, rev = build.outputRevision }
 end
 
+-- What an item copied from the game (Ctrl+C) would change, per slot it fits: PoB's own
+-- "Equipping this item" calculation as numbers. Nothing in the build changes.
+M.item_evaluate = function(p)
+	ensureBuild(p)
+	if not p or type(p.raw) ~= "string" or not p.raw:match("%S") then
+		error("item text is required", 0)
+	end
+	local item = itemUtil.resolveItem({ raw = p.raw })
+	local tab = build.itemsTab
+	M.list_slots()
+	local calcFunc, calcBase = build.calcsTab:GetMiscCalculator()
+	local before = gearUtil.optHeadline(calcBase)
+	local weaponSet = build.calcsTab.mainEnv.weaponSet or (tab.activeItemSet.useSecondWeaponSet and 2 or 1)
+	-- Mirrors ItemsTab's itemChangesPassiveTree: these need a rebuilt tree PoB keeps private.
+	local changesTree = item.type == "Jewel" and item.jewelData
+		and (item.jewelData.conqueredBy or item.jewelRadiusIndex and (item.jewelData.intuitiveLeapLike or item.jewelData.impossibleEscapeKeystone))
+	local slots = array({})
+	for _, slot in ipairs(tab.orderedSlots) do
+		if not slot.inactive and (not slot.weaponSet or slot.weaponSet == weaponSet)
+			and (slot.weaponSet or slot.shown()) and tab:IsItemValidForSlot(item, slot.slotName) then
+			local current = tab.items[slot.selItemId]
+			local entry = { slot = slot.slotName, label = slot.label or slot.slotName, replacing = current and opt(current.name) or null }
+			if slot.nodeId and changesTree then
+				entry.skipped = "This jewel changes the passive tree; compare it in the Items tab."
+			else
+				local after = gearUtil.optHeadline(withoutFullDPS(calcFunc, { repSlotName = slot.slotName, repItem = item }))
+				entry.after = after
+				entry.delta = gearUtil.optDelta(before, after)
+				local short = array({})
+				for _, a in ipairs({ "Str", "Dex", "Int" }) do
+					if (after["Req" .. a] or 0) > (after[a] or 0) then short[#short + 1] = { attribute = a, missing = after["Req" .. a] - after[a] } end
+				end
+				entry.attributeShortfall = short
+			end
+			slots[#slots + 1] = entry
+		end
+	end
+	local levelReq = item.requirements and tonumber(item.requirements.level) or 0
+	return {
+		item = { name = opt(item.title or item.name), baseName = opt(item.baseName), rarity = opt(item.rarity), type = opt(item.type),
+			levelRequired = levelReq, corrupted = item.corrupted == true },
+		characterLevel = build.characterLevel,
+		tooLowLevel = levelReq > (build.characterLevel or 1),
+		before = before,
+		slots = slots,
+		generation = main.__reduxBuildGeneration, rev = build.outputRevision,
+	}
+end
+
 -- PoB's Ctrl+D: whether item tooltips carry the "removing this item" lines.
 -- With no `show` it only reports the current state.
 M.stat_differences = function(p)
