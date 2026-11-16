@@ -148,7 +148,17 @@
     }
   }
 
+  let closeButton = $state<HTMLButtonElement | null>(null);
+
+  /** Rust lets clicks reach this one button while the rest of the overlay passes them to the game. */
+  function reportCloseButton() {
+    const r = closeButton?.getBoundingClientRect();
+    void invoke("overlay_close_button", { rect: r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null }).catch(() => {});
+  }
+
   onMount(() => {
+    reportCloseButton();
+    window.addEventListener("resize", reportCloseButton);
     // The overlay sits over the game: nothing behind the panel is painted.
     document.documentElement.style.background = "transparent";
     document.body.style.background = "transparent";
@@ -174,6 +184,7 @@
       await Promise.all([refreshLeveling(), refreshProgression()]);
     })();
     return () => {
+      window.removeEventListener("resize", reportCloseButton);
       clearTimeout(timer);
       for (const off of offs) void off.then((f) => f());
     };
@@ -181,6 +192,13 @@
 </script>
 
 <div class="overlay" class:interact style:--panel-alpha={s?.opacity ?? 0.92}>
+  <button
+    class="close"
+    bind:this={closeButton}
+    title={m.overlay_close_hint({ key: s?.toggleKey ?? "" })}
+    aria-label={m.overlay_close()}
+    onclick={() => void invoke("overlay_hide")}
+  >✕</button>
   {#if interact}
     <header data-tauri-drag-region>
       <span data-tauri-drag-region>{m.overlay_title()} · {m.overlay_drag_hint()}</span>
@@ -312,7 +330,12 @@
 
 <style>
   :global(html), :global(body) { background: transparent !important; overflow: hidden; }
-  .overlay { display: flex; flex-direction: column; gap: 8px; padding: 6px; height: 100vh; box-sizing: border-box; font-size: 13px; user-select: none; }
+  .overlay { display: flex; flex-direction: column; gap: 8px; padding: 36px 6px 6px; height: 100vh; box-sizing: border-box; font-size: 13px; user-select: none; }
+  .close { position: fixed; top: 6px; right: 6px; width: 24px; height: 24px; padding: 0; border-radius: 50%; cursor: pointer;
+    display: grid; place-items: center; font-size: 12px; line-height: 1; color: var(--fg-2); border: 1px solid var(--line-1);
+    background: color-mix(in oklch, var(--bg-0) calc(var(--panel-alpha) * 100%), transparent); }
+  .close:hover { color: var(--fg-0); border-color: var(--bad); background: color-mix(in oklch, var(--bad) 35%, var(--bg-0)); }
+  header { margin-right: 30px; }
   .overlay.interact { outline: 1px dashed var(--line-2); outline-offset: -1px; }
   header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: move;
     background: color-mix(in oklch, var(--bg-1) calc(var(--panel-alpha) * 100%), transparent); }

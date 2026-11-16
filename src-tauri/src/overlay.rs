@@ -16,10 +16,66 @@ const POLL: Duration = Duration::from_millis(300);
 /// Larger than any item or map the game copies; anything bigger is not ours to read.
 const MAX_ITEM_TEXT: usize = 16 * 1024;
 
+/// How often the cursor is checked against the close button while clicks pass through.
+const HOVER_POLL: Duration = Duration::from_millis(40);
+
+/// A rectangle in the overlay webview's logical pixels.
+#[derive(serde::Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Rect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+impl Rect {
+    fn contains(&self, x: f64, y: f64) -> bool {
+        x >= self.x && x < self.x + self.width && y >= self.y && y < self.y + self.height
+    }
+}
+
 #[derive(Default)]
 pub struct OverlayState {
     interact: AtomicBool,
     keys: Mutex<Option<(Shortcut, Shortcut)>>,
+    /// The close button, the one spot that takes clicks while the rest lets them through to the game.
+    close_button: Mutex<Option<Rect>>,
+    /// Whether the window currently lets clicks through.
+    passthrough: AtomicBool,
+}
+
+fn set_passthrough(app: &AppHandle, w: &tauri::WebviewWindow, on: bool) {
+    let state = app.state::<OverlayState>();
+    if state.passthrough.swap(on, Ordering::Relaxed) != on {
+        let _ = w.set_ignore_cursor_events(on);
+    }
+}
+
+/// Lets clicks reach the close button while the cursor is over it, and only then.
+fn spawn_hover_watch(app: AppHandle) {
+    std::thread::Builder::new()
+        .name("overlay-hover".into())
+        .spawn(move || loop {
+            std::thread::sleep(HOVER_POLL);
+            let Some(w) = app.get_webview_window(LABEL) else { continue };
+            let state = app.state::<OverlayState>();
+            if state.interact.load(Ordering::Relaxed) || !w.is_visible().unwrap_or(false) {
+                continue;
+            }
+            let Some(rect) = *state.close_button.lock().unwrap_or_else(|e| e.into_inner()) else { continue };
+            let (Ok(cursor), Ok(origin), Ok(scale)) = (w.cursor_position(), w.inner_position(), w.scale_factor()) else { continue };
+            let over = rect.contains((cursor.x - origin.x as f64) / scale, (cursor.y - origin.y as f64) / scale);
+            set_passthrough(&app, &w, !over);
+        })
+        .expect("spawn overlay hover watcher");
+}
+
+async fn hide_window(app: &AppHandle) -> Result<(), String> {
+    set_interact(app, Some(false));
+    match app.get_webview_window(LABEL) {
+        Some(w) => w.hide().map_err(|e| e.to_string()),
+        None => Ok(()),
+    }
 }
 
 pub fn settings(app: &AppHandle) -> OverlaySettings {
@@ -107,7 +163,9 @@ async fn open_window(app: &AppHandle) -> Result<(), String> {
     if let Some(p) = position {
         let _ = window.set_position(p);
     }
-    app.state::<OverlayState>().interact.store(false, Ordering::Relaxed);
+    let state = app.state::<OverlayState>();
+    state.interact.store(false, Ordering::Relaxed);
+    state.passthrough.store(true, Ordering::Relaxed);
     let _ = window.set_ignore_cursor_events(true);
     Ok(())
 }
@@ -120,10 +178,7 @@ pub fn close(app: &AppHandle) {
 
 async fn toggle_window(app: &AppHandle) -> Result<(), String> {
     match app.get_webview_window(LABEL) {
-        Some(w) if w.is_visible().unwrap_or(false) => {
-            set_interact(app, Some(false));
-            w.hide().map_err(|e| e.to_string())
-        }
+        Some(w) if w.is_visible().unwrap_or(false) => hide_window(app).await,
         _ => open_window(app).await,
     }
 }
@@ -134,7 +189,7 @@ fn set_interact(app: &AppHandle, on: Option<bool>) {
     let state = app.state::<OverlayState>();
     let on = on.unwrap_or(!state.interact.load(Ordering::Relaxed));
     let was = state.interact.swap(on, Ordering::Relaxed);
-    let _ = w.set_ignore_cursor_events(!on);
+    set_passthrough(app, &w, !on);
     if on {
         let _ = w.set_focus();
     } else if was {
@@ -198,6 +253,7 @@ fn spawn_clipboard_watch(app: AppHandle) {
 pub fn setup(app: &AppHandle) {
     app.manage(OverlayState::default());
     spawn_clipboard_watch(app.clone());
+    spawn_hover_watch(app.clone());
     let s = settings(app);
     if !s.enabled {
         return;
@@ -254,6 +310,18 @@ pub fn overlay_interact(app: AppHandle, on: Option<bool>) {
     set_interact(&app, on);
 }
 
+/// Hides the overlay (its close button). The show/hide shortcut brings it back.
+#[tauri::command]
+pub async fn overlay_hide(app: AppHandle) -> Result<(), String> {
+    hide_window(&app).await
+}
+
+/// Where the overlay drew its close button, so clicks there are not passed to the game.
+#[tauri::command]
+pub fn overlay_close_button(app: AppHandle, rect: Option<Rect>) {
+    *app.state::<OverlayState>().close_button.lock().unwrap_or_else(|e| e.into_inner()) = rect;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,6 +334,13 @@ mod tests {
         assert_eq!(classify("Rarity: Rare\nno class line"), None);
         assert_eq!(classify("my password is Item Class: Rings"), None);
         assert_eq!(classify(""), None);
+    }
+
+    #[test]
+    fn close_button_hit_test() {
+        let r = Rect { x: 350.0, y: 4.0, width: 24.0, height: 24.0 };
+        assert!(r.contains(350.0, 4.0) && r.contains(373.9, 27.9));
+        assert!(!r.contains(374.0, 10.0) && !r.contains(349.9, 10.0) && !r.contains(360.0, 28.0));
     }
 
     #[test]

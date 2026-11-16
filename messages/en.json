@@ -1821,6 +1821,8 @@
   "overlay_progression_hint": "The next priorities from your current and target snapshots (Path of Exile 1).",
   "overlay_rules_note": "The overlay reads only what you copy and the game's own log file. It never reads the game's memory or presses keys for you.",
   "overlay_title": "PoB Redux overlay",
+  "overlay_close": "Hide the overlay",
+  "overlay_close_hint": "Hide the overlay. {key} shows it again.",
   "overlay_drag_hint": "drag to move",
   "overlay_done": "Done",
   "overlay_calculating": "Calculating with PoB…",

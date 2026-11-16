@@ -1448,6 +1448,10 @@ pub fn run() {
             #[cfg(desktop)]
             overlay::overlay_interact,
             #[cfg(desktop)]
+            overlay::overlay_hide,
+            #[cfg(desktop)]
+            overlay::overlay_close_button,
+            #[cfg(desktop)]
             gamelog::gamelog_state,
             #[cfg(desktop)]
             gamelog::gamelog_candidates,
