@@ -17,6 +17,9 @@ return function(methods, ensureBuild, decodeCode)
 			"FireResistMax", "ColdResistMax", "LightningResistMax", "Str", "Dex", "Int", "ReqStr", "ReqDex", "ReqInt",
 			"ManaUnreserved", "ManaCostWarning", "LifeCostWarning", "SpellSuppressionChance" }) do
 			local v = o[key]
+			-- Maximum resistances are not in PoB's output table.
+			local elem = key:match("^(%a+)ResistMax$")
+			if elem then v = methods._resistMax(entry.calcsTab.mainEnv, elem) end
 			if type(v) == "number" or type(v) == "boolean" then out[key] = v else out[key] = null end
 		end
 		return out

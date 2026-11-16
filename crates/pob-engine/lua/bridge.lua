@@ -4888,6 +4888,190 @@ M.leveling_info = function(p)
 	return { gems = out, passivePointsSpent = spent, buildLevel = level }
 end
 
+-- A map copied from the game (Ctrl+C): which mods PoB knows, what they do to the open build on a
+-- temporary copy (PoE1, through the Config tab's map mod options), and the mods PoB does not
+-- calculate that are dangerous for this build. The live build is never changed.
+local mapUtil = {}
+
+-- "+%d%% Monster Physical Damage Reduction" -> a Lua pattern for the rolled in-game line.
+function mapUtil.pattern(format)
+	local p = format:lower():gsub("%(%%d to %%d%)", "\1"):gsub("%%d", "\1"):gsub("%%%%", "%%")
+	-- PoB writes the game's "-12%" as "minus 12%".
+	p = p:gsub("minus \1", "-\1")
+	p = p:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"):gsub("\1", "[%%d%%.]+")
+	return "^%+?" .. p:gsub("^%%%+", "") .. "$"
+end
+
+mapUtil.RULES = {
+	{ find = "reflect.*physical", key = "reflectPhysical" },
+	{ find = "reflect.*elemental", key = "reflectElemental" },
+	{ find = "cannot regenerate", key = "noRegen" },
+	{ find = "cannot leech", key = "noLeech" },
+	{ find = "less recovery rate", key = "lessRecovery" },
+	{ find = "maximum resistances", key = "maxRes" },
+	{ find = "less effect of non%-curse auras", key = "auras" },
+	{ find = "avoid elemental ailments", key = "ailmentAvoid" },
+	{ find = "cannot be leeched", key = "noLeech" },
+	{ find = "extra physical damage as", key = "extraDamage" },
+}
+
+function mapUtil.modLines(raw)
+	local lines, section = {}, 1
+	for line in (raw .. "\n"):gmatch("([^\r\n]*)\r?\n") do
+		local text = line:gsub("^%s+", ""):gsub("%s+$", "")
+		if text:match("^%-%-%-%-") then
+			section = section + 1
+		elseif section > 1 and text ~= "" and not text:find(": ", 1, true)
+			and not text:find("%(implicit%)") and not text:find("%(enchant%)")
+			and not text:match("^Travel to this") and not text:match("^Corrupted$") and not text:match("^Unidentified$")
+			and not text:match("^Modifiable only with") and not text:match("^Can be used in") then
+			lines[#lines + 1] = text
+		end
+	end
+	return lines
+end
+
+function mapUtil.damageShares(o)
+	local total, shares = 0, {}
+	for _, t in ipairs({ "Physical", "Lightning", "Cold", "Fire", "Chaos" }) do
+		local v = tonumber(o[t .. "HitAverage"]) or 0
+		shares[t] = v
+		total = total + v
+	end
+	if total <= 0 then return nil end
+	for t, v in pairs(shares) do shares[t] = v / total end
+	return shares
+end
+
+mapUtil.STATS = { "CombinedDPS", "TotalEHP", "Life", "EnergyShield", "PhysicalMaximumHitTaken", "FireMaximumHitTaken",
+	"ColdMaximumHitTaken", "LightningMaximumHitTaken", "ChaosMaximumHitTaken", "FireResist", "ColdResist", "LightningResist", "ChaosResist",
+	"FireResistMax", "ColdResistMax", "LightningResistMax", "ChaosResistMax" }
+
+-- PoB keeps maximum resistances out of its output table; CalcDefence works them out like this.
+local function resistMax(env, elem)
+	local modDB = env and env.player and env.player.modDB
+	if not modDB then return nil end
+	local sum = elem == "Chaos" and modDB:Sum("BASE", nil, "ChaosResistMax") or modDB:Sum("BASE", nil, elem .. "ResistMax", "ElementalResistMax")
+	return modDB:Override(nil, elem .. "ResistMax") or math.min(data.misc.MaxResistCap, sum)
+end
+M._resistMax = resistMax
+
+function mapUtil.stats(o, env)
+	local out = {}
+	for _, k in ipairs(mapUtil.STATS) do
+		local elem = k:match("^(%a+)ResistMax$")
+		out[k] = elem and (resistMax(env, elem) or 0) or tonumber(o[k]) or 0
+	end
+	return out
+end
+
+M.map_evaluate = function(p)
+	ensureBuild(p)
+	if not p or type(p.raw) ~= "string" or not p.raw:match("%S") then error("map text is required", 0) end
+	local raw = p.raw
+	local tier = tonumber(raw:match("Map Tier: (%d+)") or raw:match("Waystone Tier: (%d+)") or "")
+	local lines = mapUtil.modLines(raw)
+	local matched, unmatched, prefixes, suffixes = array({}), array({}), {}, {}
+	local affixes = data.mapMods and data.mapMods.AffixData or {}
+	local kinds = {}
+	for _, list in ipairs({ { data.mapMods and data.mapMods.Prefix or {}, "prefix" }, { data.mapMods and data.mapMods.Suffix or {}, "suffix" } }) do
+		for _, e in ipairs(list[1]) do kinds[e.val] = list[2] end
+	end
+	local used = {}
+	for _, line in ipairs(lines) do
+		local low = line:lower()
+		local hit
+		for name, affix in pairs(affixes) do
+			for _, format in ipairs(affix.tooltipLines or {}) do
+				if low:match(mapUtil.pattern(format)) then hit = name break end
+			end
+			if hit then break end
+		end
+		if hit then
+			if not used[hit] then
+				used[hit] = true
+				local kind = kinds[hit]
+				local list = kind == "prefix" and prefixes or kind == "suffix" and suffixes or nil
+				local calculated = list ~= nil and affixes[hit].apply ~= nil and #list < 4 and not IS_POE2
+				if calculated then list[#list + 1] = hit end
+				matched[#matched + 1] = { name = hit, kind = opt(kind), line = line, calculated = calculated }
+			end
+		else
+			unmatched[#unmatched + 1] = line
+		end
+	end
+
+	-- Mods PoB does not calculate, judged against what this build relies on.
+	local o = build.calcsTab.mainOutput
+	local shares = mapUtil.damageShares(o)
+	local warnings = array({})
+	local function warn(level, text, line) warnings[#warnings + 1] = { level = level, text = text, line = line } end
+	local seen = {}
+	for _, line in ipairs(lines) do
+		local low = line:lower()
+		for _, rule in ipairs(mapUtil.RULES) do
+			if low:find(rule.find) and not seen[rule.key] then
+				seen[rule.key] = true
+				local k = rule.key
+				if k == "reflectPhysical" then
+					local s = shares and shares.Physical
+					if s == nil then warn("caution", "Physical reflect: PoB has no damage split for the main skill.", line)
+					elseif s >= 0.2 then warn("danger", string.format("Physical reflect: %d%% of the main skill's hit is physical.", math.floor(s * 100 + 0.5)), line) end
+				elseif k == "reflectElemental" then
+					local s = shares and (shares.Fire + shares.Cold + shares.Lightning)
+					if s == nil then warn("caution", "Elemental reflect: PoB has no damage split for the main skill.", line)
+					elseif s >= 0.2 then warn("danger", string.format("Elemental reflect: %d%% of the main skill's hit is elemental.", math.floor(s * 100 + 0.5)), line) end
+				elseif k == "noRegen" then
+					local regen = (tonumber(o.LifeRegenRecovery) or 0) + (tonumber(o.EnergyShieldRegenRecovery) or 0)
+					warn(regen > 0 and "danger" or "caution", string.format("No regeneration: the build regenerates %.0f life and energy shield per second.", regen), line)
+				elseif k == "noLeech" then
+					local leech = (tonumber(o.LifeLeechRate) or 0) + (tonumber(o.EnergyShieldLeechRate) or 0)
+					warn(leech > 0 and "danger" or "caution", string.format("No leech: the build leeches %.0f per second.", leech), line)
+				elseif k == "lessRecovery" then
+					warn("caution", "Less recovery: life and energy shield recovery are reduced.", line)
+				elseif k == "maxRes" then
+					warn("caution", "Lower maximum resistances: check the max hits below.", line)
+				elseif k == "auras" then
+					warn("caution", "Weaker auras: auras the build relies on are less effective.", line)
+				elseif k == "ailmentAvoid" then
+					warn("caution", "Monsters avoid elemental ailments: ailment-based damage and freezes suffer.", line)
+				elseif k == "extraDamage" then
+					warn("caution", "Monsters deal extra damage as an element: watch that resistance.", line)
+				end
+			end
+		end
+	end
+
+	local result = {
+		tier = tier or null, mods = matched, unmatched = unmatched, warnings = warnings,
+		calculated = false, before = null, after = null, delta = null,
+	}
+	if not IS_POE2 and (#prefixes > 0 or #suffixes > 0) then
+		local entry = new("CompareEntry"):CompareEntry(M.save_build_xml().xml, "Map check")
+		if entry and entry.calcsTab then
+			local before = mapUtil.stats(entry:GetOutput() or {}, entry.calcsTab.mainEnv)
+			local input = entry.configTab.input
+			local band = not tier and "HIGH" or tier >= 11 and "HIGH" or tier >= 6 and "MED" or "LOW"
+			input.multiplierMapModTier = band
+			pcall(function() entry.configTab.varControls.multiplierMapModTier:SelByValue(band, "val") end)
+			for i = 1, 4 do
+				input["MapPrefix" .. i] = prefixes[i] or "NONE"
+				input["MapSuffix" .. i] = suffixes[i] or "NONE"
+			end
+			entry.configTab:BuildModList()
+			entry:Rebuild()
+			local after = mapUtil.stats(entry:GetOutput() or {}, entry.calcsTab.mainEnv)
+			local delta = {}
+			for _, k in ipairs(mapUtil.STATS) do
+				if math.abs(after[k] - before[k]) > 1e-6 then delta[k] = math.floor((after[k] - before[k]) * 100 + 0.5) / 100 end
+			end
+			result.calculated, result.before, result.after, result.delta = true, before, after, delta
+			result.tierBand = band
+		end
+	end
+	return result
+end
+
 -- PoB's Ctrl+D: whether item tooltips carry the "removing this item" lines.
 -- With no `show` it only reports the current state.
 M.stat_differences = function(p)

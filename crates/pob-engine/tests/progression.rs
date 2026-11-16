@@ -36,6 +36,12 @@ fn progression_uses_pob_without_changing_live_build() {
     assert_eq!(snapshot["game"], "poe1");
     assert_eq!(snapshot["mainSkill"], "Fireball");
     assert!(snapshot["stats"]["CombinedDPS"].as_f64().unwrap() > 0.0);
+    // Readiness compares resistances with their cap; PoB keeps the cap out of its output table.
+    for (elem, cap) in [("Fire", 80.0), ("Cold", 75.0), ("Lightning", 75.0)] {
+        // The active Ruby Flask adds 5% to the fire cap.
+        assert_eq!(snapshot["stats"][format!("{elem}ResistMax")].as_f64(), Some(cap), "{elem} cap");
+    }
+    assert_eq!(snapshot["boss"]["stats"]["FireResistMax"].as_f64(), Some(75.0), "flasks are off in the boss scenario");
     for key in ["CombinedDPS", "Life", "Str", "Dex", "Int"] {
         assert_eq!(snapshot["stats"][key], stats_before["stats"][key], "configured {key} must match live PoB");
     }

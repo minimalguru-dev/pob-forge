@@ -41,7 +41,30 @@
     }
   }
 
-  type Card = { kind: "item"; data: ItemEvaluation } | { kind: "error"; message: string };
+  interface MapEvaluation {
+    tier: number | null;
+    mods: { name: string; kind: "prefix" | "suffix" | null; line: string; calculated: boolean }[];
+    unmatched: string[];
+    warnings: { level: "danger" | "caution"; text: string; line: string }[];
+    calculated: boolean;
+    before: Record<string, number> | null;
+    delta: Record<string, number> | null;
+  }
+  type Card = { kind: "item"; data: ItemEvaluation } | { kind: "map"; data: MapEvaluation } | { kind: "error"; message: string };
+
+  const MAP_ROWS: [string, string, "pct" | "abs"][] = [
+    ["CombinedDPS", "DPS", "pct"],
+    ["TotalEHP", "EHP", "pct"],
+    ["PhysicalMaximumHitTaken", "Max phys hit", "pct"],
+    ["FireMaximumHitTaken", "Max fire hit", "pct"],
+    ["ColdMaximumHitTaken", "Max cold hit", "pct"],
+    ["LightningMaximumHitTaken", "Max lightning hit", "pct"],
+    ["ChaosMaximumHitTaken", "Max chaos hit", "pct"],
+    ["FireResistMax", "Max fire res", "abs"],
+    ["ColdResistMax", "Max cold res", "abs"],
+    ["LightningResistMax", "Max lightning res", "abs"],
+    ["ChaosResistMax", "Max chaos res", "abs"],
+  ];
 
   let interact = $state(false);
   let card = $state<Card | null>(null);
@@ -63,8 +86,8 @@
     ["MovementSpeedMod", "Move speed", "abs"],
   ];
 
-  function rows(before: Record<string, number>, delta: Record<string, number>) {
-    return ROWS.flatMap(([key, label, kind]) => {
+  function rows(before: Record<string, number>, delta: Record<string, number>, table = ROWS) {
+    return table.flatMap(([key, label, kind]) => {
       const d = delta[key];
       if (!d) return [];
       const base = before[key] ?? 0;
@@ -91,10 +114,10 @@
   }
 
   async function evaluate(raw: string, kind: string) {
-    if (kind !== "item") return; // Maps arrive in a later step.
     busy = true;
     try {
-      show({ kind: "item", data: await engine.itemEvaluate(raw) });
+      if (kind === "map") show({ kind: "map", data: await call<MapEvaluation>("map_evaluate", { raw }) });
+      else show({ kind: "item", data: await engine.itemEvaluate(raw) });
     } catch (e) {
       const text = String(e).replace(/^EngineError: (Error: )?/, "");
       show({ kind: "error", message: text.includes("no build is loaded") ? m.overlay_no_build() : text });
@@ -149,6 +172,30 @@
 
   {#if card?.kind === "error"}
     <section class="panel"><p class="bad">{card.message}</p></section>
+  {:else if card?.kind === "map"}
+    {@const e = card.data}
+    <section class="panel map">
+      <div class="slothead">
+        <strong>{m.overlay_map_title()}</strong>
+        {#if e.tier}<span class="dim small">{m.overlay_map_tier({ tier: e.tier })}</span>{/if}
+      </div>
+      {#each e.warnings as w (w.text)}
+        <p class="small" class:bad={w.level === "danger"} class:warn={w.level === "caution"}>{w.level === "danger" ? "⚠ " : ""}{w.text}</p>
+      {/each}
+      {#if e.calculated && e.before && e.delta}
+        {@const list = rows(e.before, e.delta, MAP_ROWS)}
+        <p class="dim small">{m.overlay_map_calculated()}</p>
+        <div class="grid">
+          {#each list as r (r.key)}<span>{r.label}</span><span class:good={r.good} class:bad={!r.good}>{r.text}</span>{/each}
+        </div>
+        {#if !list.length}<p class="dim small">{m.overlay_no_change()}</p>{/if}
+      {:else if !e.warnings.length}
+        <p class="dim small">{m.overlay_map_nothing()}</p>
+      {/if}
+      {#if e.unmatched.length}
+        <p class="dim small">{m.overlay_map_unmatched({ count: e.unmatched.length })}</p>
+      {/if}
+    </section>
   {:else if card?.kind === "item"}
     {@const e = card.data}
     <section class="panel item">
