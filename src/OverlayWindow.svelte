@@ -7,7 +7,29 @@
   import { overlay } from "$lib/state/overlay.svelte";
   import { m } from "$lib/paraglide/messages";
   import { gemSchedule, poe1QuestPoints, poe1XpMultiplier, poeVaultUrl, resPenalty, type LevelGem, type LogState } from "$lib/overlay/leveling";
-  import { CHANGED_EVENT, progression } from "$lib/progression/model";
+  import { CHANGED_EVENT, progression, type Check } from "$lib/progression/model";
+
+  let plan = $state<{ current: string; target: string; next: Check[]; blocked: number } | null>(null);
+
+  /** The next few Progression priorities, from the same rules the Progression tab uses. */
+  async function refreshProgression() {
+    if (!game.isPoe1) { plan = null; return; }
+    try {
+      const saved = await progression.load();
+      const current = saved?.snapshots.find((x) => x.id === saved.currentId);
+      const target = saved?.snapshots.find((x) => x.id === saved.targetId);
+      if (!current || !target) { plan = null; return; }
+      const report = await progression.report(current, target);
+      plan = {
+        current: current.label,
+        target: target.label,
+        next: report.priorities.filter((c) => c.id !== "manual").slice(0, 4),
+        blocked: report.checks.filter((c) => c.status === "blocked").length,
+      };
+    } catch {
+      plan = null;
+    }
+  }
 
   let log = $state<LogState | null>(null);
   let gems = $state<LevelGem[]>([]);
@@ -141,7 +163,7 @@
         log = e.payload;
         if (levelled) void refreshLeveling();
       }),
-      listen(CHANGED_EVENT, () => void refreshLeveling()),
+      listen(CHANGED_EVENT, () => { void refreshLeveling(); void refreshProgression(); }),
       listen("build:edited", () => void refreshLeveling()),
       listen("mcp:changed", () => void refreshLeveling()),
     ];
@@ -149,7 +171,7 @@
     void (async () => {
       await game.init().catch(() => {});
       log = await invoke<LogState>("gamelog_state").catch(() => null);
-      await refreshLeveling();
+      await Promise.all([refreshLeveling(), refreshProgression()]);
     })();
     return () => {
       clearTimeout(timer);
@@ -269,6 +291,20 @@
     <section class="panel dim small">{log?.path ? m.overlay_log_waiting() : m.overlay_log_missing()}</section>
   {/if}
 
+  {#if s?.progression && plan}
+    <section class="panel progression">
+      <div class="slothead">
+        <strong>{m.overlay_progression_title()}</strong>
+        <span class="dim small">{plan.current} → {plan.target}</span>
+      </div>
+      {#if plan.blocked}<p class="bad small">{m.overlay_progression_blocked({ count: plan.blocked })}</p>{/if}
+      <ol>
+        {#each plan.next as c (c.id)}<li class="small" class:bad={c.status === "blocked"}>{c.title}</li>{/each}
+      </ol>
+      {#if !plan.next.length}<p class="dim small">{m.overlay_progression_clear()}</p>{/if}
+    </section>
+  {/if}
+
   {#if interact && !card}
     <section class="panel dim small">{m.overlay_idle_hint({ toggle: s?.toggleKey ?? "", interact: s?.interactKey ?? "" })}</section>
   {/if}
@@ -289,5 +325,6 @@
   .grid { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; font-variant-numeric: tabular-nums; }
   .good { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
   .dim { color: var(--fg-3); } .small { font-size: 12px; } p { margin: 4px 0; }
+  ol { margin: 4px 0 0; padding-left: 18px; } li { padding: 1px 0; }
   .rarity.unique { color: oklch(70% 0.12 60); } .rarity.rare { color: oklch(86% 0.13 95); } .rarity.magic { color: oklch(72% 0.12 260); }
 </style>
