@@ -119,3 +119,8 @@ Native: slijediti CONTRIBUTING.md i Windows workflow. Nakon synca postaviti `POB
 - Sljedeće: pokrenuti i dovršiti Windows/Linux CI za novi code commit, ispraviti stvarne padove, preuzeti installer, isporučiti audit nalaz s preciznim ograničenjima. Stari installer ne sadrži ove auth ispravke.
 - Follow-up review uses single-quoted TOML for the Codex keyring override so the existing Windows terminal wrapper preserves it. PowerShell argument round trip passed without login; native test extended. Documentation now explicitly separates old and new auth behavior.
 - Linux run 43724475298 caught one missed shared write_atomic caller in threads.rs (E0308). Updated it to propagate the OS error; repository-wide Rust reference search completed. Fresh native validation required for this follow-up.
+
+## Nastavak — 2026-11-16
+
+- Provjeren završetak prethodnih runova: native kompilacija i stvarni PoE1 test prolaze, ali novi OAuth redirect test pada na obje platforme zbog nedostajuće TLS inicijalizacije u test harnessu. Windows: 62 passed, 1 failed, 1 ignored; Linux: 59 passed, 1 failed, 1 ignored. To nisu uspješni završni runovi.
+- Test sada koristi isti pob_engine::install_tls_provider() kao production run(). Nema promjene TLS sigurnosne politike, ignoriranja testa ili dodatnih auth zahtjeva. Novi CI treba završiti prije izrade/isporuke installera.

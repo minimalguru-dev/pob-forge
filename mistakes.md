@@ -138,3 +138,9 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - Linux run 43724475298 failed with E0308 in src-tauri/src/threads.rs:29: the shared art writer now returns Result but this caller still expected bool.
 - The initial call-site search was too narrow. Searched all Rust files from the repository root and updated the assistant thread writer to retain the OS error as well.
 - Prevention: search all workspace references when changing a shared function signature, and require native workspace compilation before declaring the change validated. Frontend checks cannot detect Rust call-site errors.
+
+## Native HTTP test must initialize the TLS provider
+
+- Runs 43725402086 (Windows) and 43725407072 (Linux) failed only in the new OAuth redirect test: reqwest rustls-no-provider panicked because the test bypassed application startup.
+- Production run() already calls pob_engine::install_tls_provider(). The test now calls that same initialization before constructing the real HTTP client. Redirect protection remains unchanged; no TLS checks are disabled.
+- Prevention: when testing a production client outside the application entry point, reproduce its required initialization. Revalidate on both platforms rather than marking the test ignored.

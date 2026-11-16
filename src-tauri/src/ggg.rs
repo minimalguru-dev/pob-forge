@@ -524,6 +524,7 @@ mod tests {
 
     #[tokio::test]
     async fn oauth_client_does_not_forward_a_form_on_redirect() {
+        pob_engine::install_tls_provider();
         let redirect = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
         let destination = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
         let url = format!("http://{}/token", redirect.local_addr().unwrap());
