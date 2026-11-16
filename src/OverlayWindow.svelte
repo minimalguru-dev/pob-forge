@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { call, engine, openUrl, type ItemEvaluation } from "$lib/engine.svelte";
@@ -149,12 +149,26 @@
   }
 
   let closeButton = $state<HTMLButtonElement | null>(null);
+  let stack = $state<HTMLDivElement | null>(null);
+  const anyPanel = $derived(busy || !!card || (!!s?.leveling && (!!log?.zone || interact)) || (!!s?.progression && !!plan) || interact);
 
   /** Rust lets clicks reach this one button while the rest of the overlay passes them to the game. */
   function reportCloseButton() {
     const r = closeButton?.getBoundingClientRect();
     void invoke("overlay_close_button", { rect: r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null }).catch(() => {});
   }
+
+  // The button moves with the panels: report it again whenever they change.
+  $effect(() => {
+    void [closeButton, interact, anyPanel];
+    void tick().then(reportCloseButton);
+  });
+  $effect(() => {
+    if (!stack) return;
+    const ro = new ResizeObserver(reportCloseButton);
+    ro.observe(stack);
+    return () => ro.disconnect();
+  });
 
   onMount(() => {
     reportCloseButton();
@@ -192,18 +206,22 @@
 </script>
 
 <div class="overlay" class:interact style:--panel-alpha={s?.opacity ?? 0.92}>
-  <button
-    class="close"
-    bind:this={closeButton}
-    title={m.overlay_close_hint({ key: s?.toggleKey ?? "" })}
-    aria-label={m.overlay_close()}
-    onclick={() => void invoke("overlay_hide")}
-  >✕</button>
   {#if interact}
     <header data-tauri-drag-region>
       <span data-tauri-drag-region>{m.overlay_title()} · {m.overlay_drag_hint()}</span>
       <button class="btn sm" onclick={() => invoke("overlay_interact", { on: false })}>{m.overlay_done()}</button>
     </header>
+  {/if}
+
+  <div class="stack" bind:this={stack}>
+  {#if anyPanel}
+    <button
+      class="close"
+      bind:this={closeButton}
+      title={m.overlay_close_hint({ key: s?.toggleKey ?? "" })}
+      aria-label={m.overlay_close()}
+      onclick={() => void invoke("overlay_hide")}
+    >✕</button>
   {/if}
 
   {#if busy}
@@ -326,16 +344,18 @@
   {#if interact && !card}
     <section class="panel dim small">{m.overlay_idle_hint({ toggle: s?.toggleKey ?? "", interact: s?.interactKey ?? "" })}</section>
   {/if}
+  </div>
 </div>
 
 <style>
   :global(html), :global(body) { background: transparent !important; overflow: hidden; }
-  .overlay { display: flex; flex-direction: column; gap: 8px; padding: 36px 6px 6px; height: 100vh; box-sizing: border-box; font-size: 13px; user-select: none; }
-  .close { position: fixed; top: 6px; right: 6px; width: 24px; height: 24px; padding: 0; border-radius: 50%; cursor: pointer;
-    display: grid; place-items: center; font-size: 12px; line-height: 1; color: var(--fg-2); border: 1px solid var(--line-1);
-    background: color-mix(in oklch, var(--bg-0) calc(var(--panel-alpha) * 100%), transparent); }
-  .close:hover { color: var(--fg-0); border-color: var(--bad); background: color-mix(in oklch, var(--bad) 35%, var(--bg-0)); }
-  header { margin-right: 30px; }
+  .overlay { display: flex; flex-direction: column; gap: 8px; padding: 6px; height: 100vh; box-sizing: border-box; font-size: 13px; user-select: none; }
+  .stack { position: relative; display: flex; flex-direction: column; gap: 8px; }
+  /* Sits in the top-right corner of the first panel. */
+  .close { position: absolute; top: 7px; right: 7px; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 5px; cursor: pointer;
+    display: grid; place-items: center; font-size: 11px; line-height: 1; color: var(--fg-3); background: transparent; z-index: 1; }
+  .close:hover { color: var(--fg-0); background: color-mix(in oklch, var(--bad) 45%, transparent); }
+  .stack > section:first-of-type { padding-right: 34px; }
   .overlay.interact { outline: 1px dashed var(--line-2); outline-offset: -1px; }
   header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: move;
     background: color-mix(in oklch, var(--bg-1) calc(var(--panel-alpha) * 100%), transparent); }
