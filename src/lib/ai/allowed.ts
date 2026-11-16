@@ -48,6 +48,9 @@ export const ALLOWED = new Set([
   "search_poedb",
   "search_wiki",
   "read_web_page",
+  // Opens the trade site with PoB's weighted search for a slot; no listings,
+  // no account. The panel asks before each one, like the web lookups.
+  "open_trade_search",
   // write, approval-gated
   "alloc_node",
   "alloc_path",

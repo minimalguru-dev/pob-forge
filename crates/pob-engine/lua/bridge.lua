@@ -7045,6 +7045,92 @@ M.trade_search_result = function()
 	return { query = tradeState.query }
 end
 
+-- The trade site's own search page for a generated query, as the Trader's link opens it.
+function itemUtil.tradeSearchUrl(query, league, realm)
+	local function enc(s)
+		return (tostring(s):gsub("[^a-zA-Z0-9]", function(c) return string.format("%%%02X", c:byte()) end))
+	end
+	local base
+	if IS_POE2 then
+		base = "https://www.pathofexile.com/trade2/search/poe2/"
+	else
+		realm = itemUtil.tradeRealm(realm)
+		base = "https://www.pathofexile.com/trade/search/" .. (realm == "pc" and "" or (realm .. "/"))
+	end
+	return base .. enc(league) .. "?q=" .. enc(query)
+end
+
+-- One slot's trade search, generated start to finish by PoB's Trader without the trade API
+-- (no listings are fetched): the link, and what the query weighs and filters.
+M.trade_search_url = function(p)
+	ensureBuild()
+	p = p or {}
+	if type(p.statWeights) == "table" and p.statWeights[1] then
+		local known, names = {}, {}
+		for _, s in ipairs(data.powerStatList) do
+			if s.stat then known[s.stat] = true names[#names + 1] = s.stat end
+		end
+		for _, w in ipairs(p.statWeights) do
+			if not known[w.stat] then
+				error("unknown stat " .. tostring(w.stat) .. "; one of: " .. table.concat(names, ", "), 0)
+			end
+		end
+	end
+	M.trade_search_start(p)
+	for _ = 1, 600 do
+		if M.trade_search_step({ steps = 150 }).done then break end
+	end
+	local query = M.trade_search_result().query
+	local league = type(p.league) == "string" and p.league ~= "" and p.league or timelessUtil.currentLeague()
+	local decoded = dkjson.decode(query) or {}
+	local q = decoded.query or {}
+	local texts = {}
+	local gen = itemUtil.tradeGenerator()
+	for _, byType in pairs(gen.modData or {}) do
+		for _, modData in pairs(byType) do
+			local tradeMod = type(modData) == "table" and modData.tradeMod
+			if tradeMod and tradeMod.id then texts[tradeMod.id] = tradeMod.text end
+		end
+	end
+	local function label(id)
+		return texts[id] or (tostring(id):gsub("^pseudo%.pseudo_", "pseudo: "):gsub("_", " "))
+	end
+	local weighted, required, blocked, minWeight = array({}), array({}), array({}), null
+	for _, group in ipairs(q.stats or {}) do
+		for _, f in ipairs(group.filters or {}) do
+			local v = f.value or {}
+			if group.type == "weight" then
+				weighted[#weighted + 1] = { id = f.id, text = label(f.id), weight = tonumber(v.weight) or 0 }
+			elseif group.type == "and" then
+				required[#required + 1] = { id = f.id, text = label(f.id), min = opt(v.min) }
+			elseif group.type == "not" then
+				blocked[#blocked + 1] = { id = f.id, text = label(f.id) }
+			end
+		end
+		if group.type == "weight" and group.value and group.value.min then minWeight = group.value.min end
+	end
+	local filters = q.filters or {}
+	local typeFilters = filters.type_filters and filters.type_filters.filters or {}
+	local weights = array({})
+	for _, w in ipairs(itemUtil.tradeWeights(p.statWeights)) do
+		weights[#weights + 1] = { stat = w.stat, label = w.label, weightMult = w.weightMult }
+	end
+	local target = itemUtil.tradeTarget(p)
+	return {
+		url = itemUtil.tradeSearchUrl(query, league, p.realm),
+		query = query,
+		league = league,
+		slot = target.special or (target.slot and target.slot.slotName) or null,
+		category = opt(typeFilters.category and typeFilters.category.option),
+		status = opt(q.status and q.status.option),
+		statWeights = weights,
+		minWeight = minWeight,
+		weighted = weighted,
+		required = required,
+		blocked = blocked,
+	}
+end
+
 -- With a realm, that realm's leagues. Without one, each league once, as the links built before realms needed.
 M.trade_leagues = function(p)
 	local api = IS_POE2 and "trade2" or "trade"

@@ -136,3 +136,13 @@ Native: slijediti CONTRIBUTING.md i Windows workflow. Nakon synca postaviti `POB
 - Overlay (`overlay.rs`, `gamelog.rs`, `OverlayWindow.svelte`): opt-in, prozirni always-on-top prozor, globalni prečaci Alt+Shift+O / Alt+Shift+I, clipboard watcher samo dok je overlay vidljiv i samo za tekst koji počinje s `Item Class:`, praćenje `Client.txt` od zadnjih 512 KiB. Bez čitanja memorije igre i bez slanja inputa.
 - Provjereno uživo nad pokrenutom igrom (PoE1): item kartica, map kartica i leveling panel iz stvarnog `Client.txt`. Progression panel u overlayu nije viđen uživo jer nema spremljenog para snapshotova; logika je ista kao u Progression tabu.
 - Nije provjereno: macOS (overlay je tamo neproziran), PoE2 klijent uživo, ne-engleski klijenti, CI za ovu granu.
+
+## Trade pretraga iz asistenta — 2026-11-16
+
+- Grana `feat/trade-search-tool` (iz `feat/companion-overlay`), ništa nije pushano.
+- PoB-ov Trader (`TradeQueryGenerator`) generira query bez trade API-ja; API treba samo za dohvat listinga. Novi bridge `trade_search_url` vrti postojeći `trade_search_start/step/result` do kraja i od queryja gradi link (`/trade/search/[realm/]<league>?q=` ili `/trade2/search/poe2/<league>?q=`) te sažetak: kategorija, težine, vagani modovi, `minWeight`. Weighting nije reimplementiran. Prvi put koristi isporučeni `Data/QueryMods.lua`; liga bez argumenta dolazi iz javnog `/api/trade/data/leagues` kao kod timeless pretrage.
+- Alat `open_trade_search` (PoE1 87, PoE2 81): `read_only` + `open_world` pa ga panel tretira kao lookup koji korisnik odobrava; `slow`. Otvara link kroz `trade::open` (izdvojeno iz `trade_window_open`) i vraća `tradeUrl`, pa panel prikazuje i Open trade site gumb. Ne dohvaća listinge, ne koristi cookies/OAuth, ne šalje whisper i ne kupuje. Opis upućuje na Copy na listingu + overlay item check.
+- Testovi: `crates/pob-engine/tests/trade_search.rs` (Ring 1, Life težina; kategorija `accessory.ring`, Life među vaganim modovima, kodiran URL, nepoznat stat odbijen, build nepromijenjen) prolazi na PoE1 i PoE2 podacima.
+- Nije provjereno: alat uživo u app prozoru, i počinje li tekst s trade siteovog Copy gumba s `Item Class:` (overlay watcher prihvaća samo takav tekst).
+- Provjereno: `cargo test -p pob-redux tools::` (3 passed, brojevi 87/81), `bun run check` (0 grešaka, 0 upozorenja). `bun run check:tools` traži pokrenut app s MCP serverom pa nije pokrenut; ista CORE/ALLOWED/intent provjera izvedena je offline nad opisima iz `tools.rs` (14/14 intenta, novi "find a ring to buy on the trade site" → `open_trade_search`).
+- Worktree nema `src-tauri/resources/pob*`; za `cargo test -p pob-redux` povezani su junctionima na glavni checkout (git ih ignorira).

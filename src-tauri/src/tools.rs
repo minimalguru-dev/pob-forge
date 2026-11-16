@@ -556,6 +556,32 @@ setting for the whole tree. It applies to nodes allocated from then on, so set i
                 &["type", "base_name"],
             ),
         ),
+        ro(
+            "open_trade_search",
+            "Build a trade search for one gear slot of the open build and open it on the official trade site in the app's trade window. PoB's Trader generates the query without the trade API: every mod the slot can roll is weighed by how much it raises `stat_weights`, with a minimum total a little above the item in the slot. No listings are fetched and nothing is bought or whispered: the user browses the results, signed in on the site if they choose, and trades in game themselves. Returns `tradeUrl`, `league`, `category`, the `statWeights` used and the query summary: `weighted` (each mod and its weight, best first) and `minWeight`. To check a listing against the build, the user turns on the in-game overlay and presses Copy on the listing: the overlay's item check scores the copied item for each slot it fits. The user approves each search. Takes a few seconds.",
+            obj(
+                json!({
+                    "slot": prop("string", "Slot name as get_items lists it, for example Ring 1, Helmet or Body Armour"),
+                    "league": prop("string", "Trade league, exactly as the user names it (default: the current league)"),
+                    "stat_weights": {
+                        "type": "array",
+                        "description": "What the item should raise, most important first (default: the weights saved in the build's Trader, or FullDPS 1 and TotalEHP 0.5)",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "stat": prop("string", "PoB power stat, as list_power_stats names it: FullDPS, CombinedDPS, Life, EnergyShield, TotalEHP and so on"),
+                                "weight": prop("number", "Relative weight (default 1)"),
+                            },
+                            "required": ["stat"],
+                        },
+                    },
+                    "status": { "type": "string", "enum": ["securable", "available", "onlineleague", "online", "any"], "description": "Listings to show: securable is instant buyout (default online)" },
+                }),
+                &["slot"],
+            ),
+        )
+        .open_world()
+        .slow(),
         // Item sets
         ro("list_item_sets", "The build's gear sets and which one is active.", none()),
         rw("select_item_set", "Switch the active gear set.", obj(json!({ "id": prop("integer", "Item set id from list_item_sets") }), &["id"])).idempotent(),
@@ -1516,6 +1542,40 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
                 }),
             )?)
         }
+        "open_trade_search" => {
+            let weights: Vec<Value> = arg_list(args, "stat_weights")
+                .into_iter()
+                .filter_map(|w| {
+                    let stat = w.get("stat").and_then(Value::as_str)?;
+                    Some(json!({ "stat": stat, "weightMult": w.get("weight").and_then(Value::as_f64).unwrap_or(1.0) }))
+                })
+                .collect();
+            let mut v = ctx.call(
+                "trade_search_url",
+                json!({
+                    "slotName": req_str(args, "slot")?,
+                    "league": arg_str(args, "league"),
+                    "statWeights": weights,
+                    "status": arg_str(args, "status"),
+                }),
+            )?;
+            let url = v.get("url").and_then(Value::as_str).unwrap_or_default().to_string();
+            let opened = crate::trade::open(&ctx.app, &url);
+            if let Some(m) = v.as_object_mut() {
+                // The query is in the link; the summary below is what the model reads.
+                m.remove("query");
+                m.remove("url");
+                m.insert("tradeUrl".into(), json!(url));
+                m.insert("opened".into(), json!(opened.is_ok()));
+                if let Err(e) = opened {
+                    m.insert("note".into(), json!(format!("The trade window did not open ({e}); the user can open tradeUrl from the button under the reply.")));
+                }
+                if let Some(Value::Array(w)) = m.get_mut("weighted") {
+                    w.truncate(20);
+                }
+            }
+            read(v)
+        }
         // Item sets
         "list_item_sets" => read(ctx.call("list_item_sets", Value::Null)?),
         "select_item_set" => stats(ctx.call("select_item_set", json!({ "id": req_i64(args, "id")? }))?),
@@ -1715,7 +1775,7 @@ mod tests {
     #[test]
     fn poe1_registry_speaks_poe1() {
         let d = defs(Game::Poe1);
-        assert_eq!(d.len(), 86, "PoE1 tool count changed");
+        assert_eq!(d.len(), 87, "PoE1 tool count changed");
         for (name, _) in POE1_TEXT {
             assert!(d.iter().any(|t| t.name == *name), "POE1_TEXT names {name}, which is not a tool");
         }
@@ -1733,7 +1793,7 @@ mod tests {
     #[test]
     fn registry_is_stable_and_measured() {
         let d = defs(Game::Poe2);
-        assert_eq!(d.len(), 80, "tool count changed");
+        assert_eq!(d.len(), 81, "tool count changed");
 
         let mut names: Vec<&str> = d.iter().map(|t| t.name).collect();
         names.sort_unstable();
