@@ -27,6 +27,8 @@ mod threads;
 mod progression;
 #[cfg(desktop)]
 mod overlay;
+#[cfg(desktop)]
+mod gamelog;
 mod voice;
 mod web;
 
@@ -1315,6 +1317,8 @@ pub fn run() {
             app.manage(ggg::GggState::default());
             #[cfg(desktop)]
             overlay::setup(app.handle());
+            #[cfg(desktop)]
+            gamelog::setup(app.handle());
             // POB_REDUX_MCP=<port> brings the MCP server up at launch (scripts, tests)
             if let Some(port) = std::env::var("POB_REDUX_MCP").ok().and_then(|v| v.parse::<u16>().ok()) {
                 let handle = app.handle().clone();
@@ -1443,6 +1447,10 @@ pub fn run() {
             overlay::overlay_toggle,
             #[cfg(desktop)]
             overlay::overlay_interact,
+            #[cfg(desktop)]
+            gamelog::gamelog_state,
+            #[cfg(desktop)]
+            gamelog::gamelog_candidates,
             threads::thread_load,
             threads::thread_save,
             threads::thread_delete,

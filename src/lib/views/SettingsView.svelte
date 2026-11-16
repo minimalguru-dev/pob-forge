@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import { appOptions } from "$lib/state/options.svelte";
   import { mcp, mcpConfigJson } from "$lib/state/mcp.svelte";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -682,6 +683,16 @@
             <label class="opt">
               <span>{m.overlay_card_seconds()}</span>
               <input class="input mono" type="number" min="3" max="120" value={o.cardSeconds} disabled={overlay.saving} onchange={(e) => overlay.update({ cardSeconds: Number((e.target as HTMLInputElement).value) })} />
+            </label>
+            <label class="opt">
+              <span>
+                {m.overlay_log_path()}
+                <span class="hint">{m.overlay_log_path_hint()}</span>
+                {#await invoke<string[]>("gamelog_candidates") then found}
+                  {#if found.length && !o.logPath}<span class="hint mono">{m.overlay_log_found({ path: found[0] })}</span>{/if}
+                {/await}
+              </span>
+              <input class="input mono" value={o.logPath ?? ""} placeholder="Client.txt" disabled={overlay.saving} onchange={(e) => overlay.update({ logPath: (e.target as HTMLInputElement).value.trim() || null })} />
             </label>
           </div>
           <h2 class="label ghead">{m.overlay_panels()}</h2>
