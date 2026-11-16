@@ -40,6 +40,7 @@ class UpdateStore {
   }
 
   init() {
+    if (import.meta.env.VITE_PROGRESSION_VALIDATION === "true") return;
     try {
       this.dismissed = localStorage.getItem(KEY);
     } catch {}
@@ -63,6 +64,11 @@ class UpdateStore {
 
   /** `manual` surfaces "you are up to date" and any error; the boot check is silent. */
   async check(manual = true) {
+    if (import.meta.env.VITE_PROGRESSION_VALIDATION === "true") {
+      this.error = "Progression Preview uses manual builds from the fork; upstream auto-updates are disabled.";
+      this.phase = "error";
+      return;
+    }
     if (this.phase === "downloading" || this.phase === "checking") return;
     this.phase = "checking";
     this.error = null;

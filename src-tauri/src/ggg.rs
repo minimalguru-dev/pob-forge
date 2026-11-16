@@ -35,6 +35,7 @@ const SIGN_IN_LIFETIME: u64 = 7 * 24 * 60 * 60;
 const SIGNED_OUT: &str = "Sign in with Path of Exile first.";
 const EXPIRED: &str = "The Path of Exile sign-in has expired. Sign in again.";
 const NEEDS_TRADE: &str = "Sign in with Path of Exile again to allow trade searches.";
+const PREVIEW_AUTH_DISABLED: &str = "Path of Exile account access is disabled in this preview until its OAuth client registration is resolved. Import a PoB code or XML instead.";
 /// A trade request may only go to these addresses, so nothing else can be sent the token.
 const TRADE_API: [&str; 6] = [
     "https://www.pathofexile.com/api/trade2/search/",
@@ -146,7 +147,7 @@ fn now() -> u64 {
 }
 
 fn client() -> Result<reqwest::Client, String> {
-    reqwest::Client::builder().user_agent(UA).timeout(Duration::from_secs(20)).build().map_err(|e| e.to_string())
+    reqwest::Client::builder().user_agent(UA).redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(20)).build().map_err(|e| e.to_string())
 }
 
 #[derive(Deserialize)]
@@ -188,6 +189,9 @@ async fn request_token(form: String) -> Result<TokenResponse, TokenError> {
 
 /// `stale` is a token the API just refused, which forces a refresh unless another call already made one.
 async fn access_token(app: &AppHandle, state: &GggState, stale: Option<&str>) -> Result<String, String> {
+    if !ggg_auth_available(app.clone()) {
+        return Err(PREVIEW_AUTH_DISABLED.into());
+    }
     let mut store = state.store(app).await;
     let session = store.session.clone().ok_or(SIGNED_OUT)?;
     if session.expires_at > now() + 60 && stale != Some(session.access.as_str()) {
@@ -378,12 +382,23 @@ impl From<&Session> for Account {
 
 #[tauri::command]
 pub async fn ggg_account(app: AppHandle, state: State<'_, GggState>) -> Result<Option<Account>, String> {
+    if !ggg_auth_available(app.clone()) {
+        return Ok(None);
+    }
     Ok(state.store(&app).await.session.as_ref().map(Account::from))
+}
+
+#[tauri::command]
+pub fn ggg_auth_available(app: AppHandle) -> bool {
+    !crate::is_progression_preview(&app)
 }
 
 /// `None` when the user cancelled, or started another sign-in that replaced this one.
 #[tauri::command]
 pub async fn ggg_sign_in(app: AppHandle, state: State<'_, GggState>) -> Result<Option<Account>, String> {
+    if !ggg_auth_available(app.clone()) {
+        return Err(PREVIEW_AUTH_DISABLED.into());
+    }
     let (cancel, cancelled) = oneshot::channel();
     *state.pending.lock().unwrap() = Some(cancel);
     let (listener, port) = bind().await?;
@@ -506,6 +521,25 @@ pub async fn ggg_trade_request(app: AppHandle, state: State<'_, GggState>, url: 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn oauth_client_does_not_forward_a_form_on_redirect() {
+        pob_engine::install_tls_provider();
+        let redirect = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let destination = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let url = format!("http://{}/token", redirect.local_addr().unwrap());
+        let next = destination.local_addr().unwrap();
+        let task = tokio::spawn(async move {
+            let (mut socket, _) = redirect.accept().await.unwrap();
+            let mut buf = [0u8; 4096];
+            socket.read(&mut buf).await.unwrap();
+            socket.write_all(format!("HTTP/1.1 307 Temporary Redirect\r\nLocation: http://{next}/capture\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
+        });
+        let response = client().unwrap().post(url).body("refresh_token=synthetic-test-value").send().await.unwrap();
+        assert_eq!(response.status(), 307);
+        task.await.unwrap();
+        assert!(tokio::time::timeout(Duration::from_millis(100), destination.accept()).await.is_err());
+    }
 
     fn headers(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
         pairs.iter().map(|(k, v)| (reqwest::header::HeaderName::from_static(k), reqwest::header::HeaderValue::from_static(v))).collect()

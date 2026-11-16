@@ -38,6 +38,10 @@ use tauri::{Emitter, Manager, State};
 
 use game::Game;
 
+pub(crate) fn is_progression_preview(app: &tauri::AppHandle) -> bool {
+    app.config().identifier == "dev.minimalguru.pob-progression-preview"
+}
+
 /// The engine and pool booted on one game's PoB. Replaced whole when the
 /// user switches game, so every clone taken before the switch keeps driving
 /// the engine it was taken from until it is dropped.
@@ -1347,6 +1351,7 @@ pub fn run() {
             mobalytics_resolve,
             maxroll_resolve,
             ggg::ggg_account,
+            ggg::ggg_auth_available,
             ggg::ggg_sign_in,
             ggg::ggg_sign_in_cancel,
             ggg::ggg_sign_out,

@@ -47,17 +47,33 @@ async fn download(segments: &[&str], version: Option<&str>) -> Option<Vec<u8>> {
     res.bytes().await.ok().map(|b| b.to_vec())
 }
 
-pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> bool {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
+        std::fs::create_dir_all(dir)?;
     }
-    let tmp = path.with_extension(format!("tmp{}", NEXT.fetch_add(1, Ordering::Relaxed)));
-    if std::fs::write(&tmp, bytes).is_ok() && std::fs::rename(&tmp, path).is_ok() {
-        return true;
-    }
+    let tmp = path.with_extension(format!("{}.{}.tmp", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
+    let result = std::fs::write(&tmp, bytes).and_then(|()| std::fs::rename(&tmp, path));
     let _ = std::fs::remove_file(&tmp);
-    false
+    result
+}
+
+#[cfg(test)]
+mod write_tests {
+    #[test]
+    fn atomic_cache_write_replaces_files_and_reports_io_errors() {
+        let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let dir = std::env::temp_dir().join(format!("pob-atomic-{}-{nonce}", std::process::id()));
+        let path = dir.join("nested/image.webp");
+        super::write_atomic(&path, b"first").unwrap();
+        super::write_atomic(&path, b"second").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"second");
+        assert_eq!(std::fs::read_dir(path.parent().unwrap()).unwrap().count(), 1);
+        let error = super::write_atomic(&path.join("blocked.webp"), b"invalid").unwrap_err();
+        assert!(error.raw_os_error().is_some());
+        assert_eq!(std::fs::read(&path).unwrap(), b"second");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }
 
 async fn map(cache: &Path, game: &str) -> Response<Vec<u8>> {
@@ -75,10 +91,10 @@ async fn map(cache: &Path, game: &str) -> Response<Vec<u8>> {
         if res.status().is_success() {
             let etag = res.headers().get(header::ETAG).cloned();
             if let Ok(bytes) = res.bytes().await {
-                if serde_json::from_slice::<serde_json::Value>(&bytes).is_ok() && write_atomic(&file, &bytes) {
+                if serde_json::from_slice::<serde_json::Value>(&bytes).is_ok() && write_atomic(&file, &bytes).is_ok() {
                     match etag {
                         Some(etag) => {
-                            write_atomic(&etag_file, etag.as_bytes());
+                            let _ = write_atomic(&etag_file, etag.as_bytes());
                         }
                         None => {
                             let _ = std::fs::remove_file(&etag_file);
@@ -106,7 +122,7 @@ async fn image(cache: &Path, game: &str, tag: &str, path: &str) -> Response<Vec<
             let Some(bytes) = download(&segments, Some(tag)).await else {
                 return not_found();
             };
-            write_atomic(&file, &bytes);
+            let _ = write_atomic(&file, &bytes);
             bytes
         }
     };

@@ -15,6 +15,15 @@ use crate::ai::ModelInfo;
 const SERVER: &str = "pobredux";
 const TOKEN_ENV: &str = "POB_REDUX_MCP_TOKEN";
 
+pub(crate) fn isolated_launch(mut launch: Launch, home: &std::path::Path) -> Launch {
+    let removed = ["OPENAI_API_KEY", "CODEX_API_KEY", "OPENAI_BASE_URL", "OPENAI_ORG_ID", "OPENAI_PROJECT_ID"];
+    launch.env.retain(|(key, _)| key != "CODEX_HOME" && !removed.contains(&key.as_str()));
+    launch.env.push(("CODEX_HOME".into(), home.as_os_str().to_owned()));
+    launch.remove.extend(removed);
+    launch.prefix.extend(["-c".into(), "cli_auth_credentials_store='keyring'".into()]);
+    launch
+}
+
 /// Nothing should ask with approvals off and a read-only sandbox; if something does, say no rather than hang.
 fn refusal(method: &str) -> Value {
     if method == "item/permissions/requestApproval" {
@@ -313,7 +322,7 @@ fn explain(error: &Value) -> Option<String> {
     let message = error["message"].as_str().unwrap_or("").trim();
     let info = format!("{} {message}", error["codexErrorInfo"]).to_ascii_lowercase();
     if info.contains("unauthorized") || info.contains("401") {
-        return Some("Codex is not signed in. Run `codex login` in a terminal, then check again in the assistant's provider settings.".into());
+        return Some("Codex is not signed in. Use Sign in in the assistant's provider settings to run `codex login` for its configured profile, then check again.".into());
     }
     if info.contains("usagelimitexceeded") {
         return Some(format!("Your ChatGPT plan's Codex usage limit is reached. {message}").trim().to_string());
@@ -324,6 +333,26 @@ fn explain(error: &Value) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+
+    #[test]
+    fn preview_codex_uses_its_own_profile_and_no_inherited_api_key() {
+        let original = super::Launch {
+            program: "codex.exe".into(),
+            env: vec![("OPENAI_API_KEY".into(), "synthetic-key".into()), ("CODEX_HOME".into(), "other-profile".into())],
+            ..Default::default()
+        };
+        let launch = super::isolated_launch(original, std::path::Path::new("isolated-profile"));
+        assert_eq!(launch.display(), "codex.exe");
+        let cmd = launch.command();
+        let env: std::collections::HashMap<_, _> = cmd.as_std().get_envs().collect();
+        assert_eq!(env[std::ffi::OsStr::new("CODEX_HOME")], Some(std::ffi::OsStr::new("isolated-profile")));
+        assert_eq!(env[std::ffi::OsStr::new("OPENAI_API_KEY")], None);
+        assert_eq!(env[std::ffi::OsStr::new("CODEX_API_KEY")], None);
+        let store = "cli_auth_credentials_store='keyring'";
+        assert!(cmd.as_std().get_args().any(|a| a == store));
+        let quoted = crate::agent::terminal::ps_quote(store);
+        assert_eq!(quoted.replace('"', "'"), quoted);
+    }
 
     #[test]
     fn turn_errors_read_plainly() {

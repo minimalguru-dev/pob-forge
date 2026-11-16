@@ -32,3 +32,5 @@ Thumbs.db
 CLAUDE.md
 .claude/
 .mcp.json
+/test-results/
+/playwright-report/

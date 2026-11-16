@@ -1,0 +1,88 @@
+name: Progression Windows validation
+on:
+  push:
+    branches: [feat/poe1-progression]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: progression-windows-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Read upstream pins
+        id: pins
+        shell: bash
+        run: |
+          pin() { awk -v s="[$1]" '$0 == s {f=1; next} /^\[/ {f=0} f && /^commit/' pob-sync.toml | cut -d'"' -f2; }
+          echo "poe1=$(pin poe1)" >> "$GITHUB_OUTPUT"
+          echo "poe2=$(pin poe2)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          repository: PathOfBuildingCommunity/PathOfBuilding
+          ref: ${{ steps.pins.outputs.poe1 }}
+          path: upstream/PathOfBuilding
+      - uses: actions/checkout@v7
+        with:
+          repository: PathOfBuildingCommunity/PathOfBuilding-PoE2
+          ref: ${{ steps.pins.outputs.poe2 }}
+          path: upstream/PathOfBuilding-PoE2
+      - name: Set native compiler environment
+        shell: pwsh
+        run: |
+          "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun test scripts
+      - name: Browser interaction tests
+        run: |
+          bun x playwright install chromium
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          bun run test:progression:ui
+      - run: bun run build
+      - name: Sync pinned PoB engines
+        run: |
+          Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
+          cargo run --locked -p pob-sync -- --source upstream/PathOfBuilding-PoE2
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo run --locked -p pob-sync -- --game poe1 --source upstream/PathOfBuilding
+      - name: Rust engine regression tests
+        run: |
+          Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
+          cargo test --locked -p pob-engine
+      - name: Validate Progression against real PoB
+        env:
+          POB_REDUX_POB_ROOT: src-tauri/resources/pob1
+        run: |
+          Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
+          cargo test --locked -p pob-engine --test progression -- --ignored --nocapture
+      - name: Rust application regression tests
+        run: |
+          Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
+          cargo test --locked -p pob-redux --lib
+      - name: Build isolated unsigned Windows installer
+        env:
+          VITE_PROGRESSION_VALIDATION: "true"
+        run: |
+          Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
+          bun run tauri build --bundles nsis --config src-tauri/tauri.progression.conf.json
+      - name: Verify locked dependencies
+        run: git diff --exit-code -- Cargo.lock
+      - uses: actions/upload-artifact@v7
+        with:
+          name: progression-windows-${{ github.sha }}
+          path: target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14

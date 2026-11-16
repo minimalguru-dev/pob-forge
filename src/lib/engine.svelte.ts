@@ -274,6 +274,10 @@ export function gggAccount(): Promise<GggAccount | null> {
   return invoke<GggAccount | null>("ggg_account");
 }
 
+export function gggAuthAvailable(): Promise<boolean> {
+  return invoke("ggg_auth_available");
+}
+
 /** Resolves to null when the user cancelled the sign-in. */
 export function gggSignIn(): Promise<GggAccount | null> {
   return invoke<GggAccount | null>("ggg_sign_in");

@@ -26,11 +26,7 @@ fn dir(app: &AppHandle, game: &str) -> Result<PathBuf, String> {
 }
 
 fn write(path: &Path, text: &str) -> Result<(), String> {
-    if crate::art::write_atomic(path, text.as_bytes()) {
-        Ok(())
-    } else {
-        Err(format!("could not write {}", path.display()))
-    }
+    crate::art::write_atomic(path, text.as_bytes()).map_err(|e| format!("could not write {}: {e}", path.display()))
 }
 
 #[tauri::command]

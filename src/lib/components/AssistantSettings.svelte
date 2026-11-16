@@ -260,6 +260,9 @@
             <div class="opt col"><span class="hint">{m.assistant_no_build({ name: p.label })}</span></div>
           {/if}
           {#if p.agent.installed}
+            {#if p.id === "codex" && import.meta.env.VITE_PROGRESSION_VALIDATION === "true"}
+              <div class="opt col"><span class="hint">This preview uses a separate Codex sign-in and requires the OS credential store. Chat messages and build data used by the assistant are sent to OpenAI.</span></div>
+            {/if}
             <div class="opt">
               <span>
                 {m.assistant_account()}

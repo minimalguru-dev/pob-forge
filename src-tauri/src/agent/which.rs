@@ -4,10 +4,11 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// `prefix` holds the script when an npm install can only run through node.
+/// A vendor CLI and the arguments/environment needed to start it.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Launch {
     pub program: PathBuf,
+    /// Arguments before the subcommand, including the script for npm installs run through Node.
     pub prefix: Vec<OsString>,
     pub env: Vec<(String, OsString)>,
     pub remove: Vec<&'static str>,
@@ -17,7 +18,7 @@ pub(crate) struct Launch {
 
 impl Launch {
     pub fn display(&self) -> String {
-        match self.prefix.first() {
+        match self.prefix.first().filter(|p| !p.to_string_lossy().starts_with('-')) {
             Some(script) => Path::new(script).display().to_string(),
             None => self.program.display().to_string(),
         }

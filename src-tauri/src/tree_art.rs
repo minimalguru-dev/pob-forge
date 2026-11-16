@@ -135,9 +135,28 @@ fn cleanup(app: &AppHandle) {
         keep.extend(list.files.iter().map(|(rel, f)| key(rel, f)));
     }
     for entry in std::fs::read_dir(&store).into_iter().flatten().flatten() {
-        if !keep.contains(entry.file_name().to_string_lossy().as_ref()) {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if is_cached_art_key(&name) && !keep.contains(name.as_ref()) {
             let _ = std::fs::remove_file(entry.path());
         }
+    }
+}
+
+fn is_cached_art_key(name: &str) -> bool {
+    let Some((hash, ext)) = name.rsplit_once('.') else { return false };
+    hash.len() == 64 && hash.bytes().all(|b| b.is_ascii_hexdigit()) && matches!(ext, "webp" | "png" | "jpg" | "jpeg")
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn cleanup_leaves_in_flight_writes_and_unrelated_files_alone() {
+        let hash = "a".repeat(64);
+        assert!(super::is_cached_art_key(&format!("{hash}.webp")));
+        assert!(!super::is_cached_art_key(&format!("{hash}.42.1.tmp")));
+        assert!(!super::is_cached_art_key(&format!("{hash}.tmp1")));
+        assert!(!super::is_cached_art_key("user-file.webp"));
     }
 }
 
