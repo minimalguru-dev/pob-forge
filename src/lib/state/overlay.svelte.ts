@@ -15,7 +15,6 @@ export interface OverlaySettings {
   itemCheck: boolean;
   mapCheck: boolean;
   leveling: boolean;
-  progression: boolean;
   cardSeconds: number;
 }
 

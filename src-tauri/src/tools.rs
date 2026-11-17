@@ -74,10 +74,7 @@ then list_affixes for the mod pool, then craft_rare, which builds it from PoB's 
 run of changes call checkpoint; every write returns `stats` and a `delta` \
 against the previous state, and rollback restores a checkpoint if the result is worse. Manage alternate \
 trees and gear sets with the list/select/create/copy/rename/delete _spec and _item_set tools. Use \
-save_build or export_build to persist the result. For a character moving towards another build, \
-get_progression reads the user's saved current and target snapshots with their differences, readiness \
-checks and next priorities; capture_progression_snapshot saves the open build as either side, and \
-select_progression_snapshots picks the pair. The user is watching the app while you work.";
+save_build or export_build to persist the result. The user is watching the app while you work.";
 
 pub(crate) fn instructions(game: Game) -> &'static str {
     match game {
@@ -798,52 +795,6 @@ fn adapt_for_poe1(defs: &mut Vec<ToolDef>) {
         destructive: false,
         idempotent: false,
         open_world: true,
-        slow: false,
-    });
-    defs.push(ToolDef {
-        name: "get_progression",
-        description: "Read the user's Progression plan: the saved snapshots (whole builds frozen in time), which one is the current character and which is the target build, and for that pair the equipment, gem and passive differences, the readiness checks (`blocked`, `review` or `pass`) and the ordered next priorities. Snapshot stats are PoB's own numbers for a solo copy of each build, configured and in the chosen boss scenario. Use it when the user asks what to do next, how far they are from a target, or what changed since an earlier snapshot. Nothing is changed.".into(),
-        schema: obj(json!({ "xml": prop("boolean", "Include each snapshot's full build XML (default false)") }), &[]),
-        output_schema: None,
-        read_only: true,
-        destructive: false,
-        idempotent: true,
-        open_world: false,
-        slow: false,
-    });
-    defs.push(ToolDef {
-        name: "capture_progression_snapshot",
-        description: "Save the open build as a Progression snapshot and select it as the current character or the target build. PoB calculates it on a temporary solo copy, configured and in a boss scenario; the open build itself is not changed. Capture the current character after the user changes it, or the target once they have picked the loadout they are aiming for. Keep and Undo in the chat do not remove a snapshot; the user removes one in the Progression tab. History holds 20 snapshots.".into(),
-        schema: obj(
-            json!({
-                "role": { "type": "string", "enum": ["current", "target"], "description": "Select the snapshot as the current character or the target build" },
-                "label": prop("string", "Snapshot name, for example the build and stage (default \"Snapshot\")"),
-                "boss": { "type": "string", "enum": ["Boss", "Pinnacle", "Uber"], "description": "Boss scenario to calculate (default Pinnacle)" },
-            }),
-            &["role"],
-        ),
-        output_schema: None,
-        read_only: false,
-        destructive: false,
-        idempotent: false,
-        open_world: false,
-        slow: false,
-    });
-    defs.push(ToolDef {
-        name: "select_progression_snapshots",
-        description: "Choose which saved Progression snapshots are the current character and the target build, by the `id` get_progression lists. Give either or both. The open build is not changed.".into(),
-        schema: obj(
-            json!({
-                "current_id": prop("string", "Snapshot id to use as the current character"),
-                "target_id": prop("string", "Snapshot id to use as the target build"),
-            }),
-            &[],
-        ),
-        output_schema: None,
-        read_only: false,
-        destructive: false,
-        idempotent: true,
-        open_world: false,
         slow: false,
     });
     for d in defs.iter_mut() {
@@ -1694,77 +1645,8 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
         "set_notes" => Ok((ctx.call("set_notes", json!({ "text": arg_str(args, "text").unwrap_or_default() }))?, true)),
         "get_loadouts" => read(ctx.call("get_loadouts", Value::Null)?),
         "select_loadout" => stats(ctx.call("select_loadout", json!({ "name": req_str(args, "name")? }))?),
-        // Progression (PoE1)
-        "get_progression" => read(progression_view(ctx, arg_bool(args, "xml").unwrap_or(false))?),
-        "capture_progression_snapshot" => {
-            let role = req_str(args, "role")?;
-            if role != "current" && role != "target" {
-                return Err(ToolError::Invalid("role must be current or target".into()));
-            }
-            let mut params = json!({ "boss": arg_str(args, "boss").unwrap_or_else(|| "Pinnacle".into()) });
-            if let Some(label) = arg_str(args, "label") {
-                params["label"] = Value::String(label);
-            }
-            let snapshot = crate::progression::from_capture(ctx.call("progression_capture", params)?).map_err(ToolError::Failed)?;
-            let id = snapshot.id.clone();
-            crate::progression::update(&ctx.app, |plan| crate::progression::add(plan, snapshot, &role)).map_err(ToolError::Failed)?;
-            let mut v = progression_view(ctx, false)?;
-            v["captured"] = Value::String(id);
-            Ok((v, false))
-        }
-        "select_progression_snapshots" => {
-            let (current, target) = (arg_str(args, "current_id"), arg_str(args, "target_id"));
-            if current.is_none() && target.is_none() {
-                return Err(ToolError::Invalid("give current_id, target_id or both".into()));
-            }
-            crate::progression::update(&ctx.app, |plan| {
-                for id in [&current, &target].into_iter().flatten() {
-                    if !plan.snapshots.iter().any(|s| &s.id == id) {
-                        return Err(format!("no snapshot with id {id}; get_progression lists them"));
-                    }
-                }
-                let mut next = plan.clone();
-                next.current_id = current.clone().or(next.current_id);
-                next.target_id = target.clone().or(next.target_id);
-                Ok(next)
-            })
-            .map_err(ToolError::Failed)?;
-            Ok((progression_view(ctx, false)?, false))
-        }
         other => Err(ToolError::Invalid(format!("unknown tool {other}"))),
     }
-}
-
-/// The plan as the assistant reads it: snapshot summaries without their XML unless asked, and the report for the selected pair.
-fn progression_view(ctx: &ToolContext, with_xml: bool) -> Result<Value, ToolError> {
-    if ctx.game() != Game::Poe1 {
-        return Err(ToolError::Failed("Progression is for Path of Exile 1 builds only.".into()));
-    }
-    let plan = crate::progression::load(&ctx.app).map_err(ToolError::Failed)?.unwrap_or_default();
-    let summary = |s: &crate::progression::Snapshot| {
-        let mut v = json!({
-            "id": s.id, "label": s.label, "at": s.at, "level": s.level, "className": s.class_name, "ascendancy": s.ascendancy,
-            "mainSkill": s.main_skill, "pobVersion": s.pob_version, "loadout": s.loadout, "stats": s.stats,
-            "boss": { "kind": s.boss.kind, "stats": s.boss.stats }, "gems": s.gems, "gemErrors": s.gem_errors,
-            "equipment": s.equipment.iter().map(|i| json!({ "slot": i.slot, "name": i.name })).collect::<Vec<_>>(),
-            "nodes": s.nodes.len(),
-        });
-        if with_xml {
-            v["xml"] = Value::String(s.xml.clone());
-        }
-        v
-    };
-    let report = match (plan.current(), plan.target()) {
-        (Some(c), Some(t)) => serde_json::to_value(crate::progression::report(c, t)).unwrap_or(Value::Null),
-        _ => Value::Null,
-    };
-    Ok(json!({
-        "snapshots": plan.snapshots.iter().map(summary).collect::<Vec<_>>(),
-        "currentId": plan.current_id,
-        "targetId": plan.target_id,
-        "report": report,
-        "note": if report.is_null() { "Select a current and a target snapshot to compare them." } else { "Priorities follow fixed rules (blockers, then comparability, then gear, gems and tree); they are not a price or DPS-per-currency ranking." },
-    }))
 }
 
 #[cfg(test)]
@@ -1775,7 +1657,7 @@ mod tests {
     #[test]
     fn poe1_registry_speaks_poe1() {
         let d = defs(Game::Poe1);
-        assert_eq!(d.len(), 87, "PoE1 tool count changed");
+        assert_eq!(d.len(), 84, "PoE1 tool count changed");
         for (name, _) in POE1_TEXT {
             assert!(d.iter().any(|t| t.name == *name), "POE1_TEXT names {name}, which is not a tool");
         }

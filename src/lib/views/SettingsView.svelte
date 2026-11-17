@@ -697,7 +697,7 @@
           </div>
           <h2 class="label ghead">{m.overlay_panels()}</h2>
           <div class="rows">
-            {#each [["itemCheck", m.overlay_item_check(), m.overlay_item_check_hint()], ["mapCheck", m.overlay_map_check(), m.overlay_map_check_hint()], ["leveling", m.overlay_leveling(), m.overlay_leveling_hint()], ["progression", m.overlay_progression(), m.overlay_progression_hint()]] as const as [key, label, hint] (key)}
+            {#each [["itemCheck", m.overlay_item_check(), m.overlay_item_check_hint()], ["mapCheck", m.overlay_map_check(), m.overlay_map_check_hint()], ["leveling", m.overlay_leveling(), m.overlay_leveling_hint()]] as const as [key, label, hint] (key)}
               <label class="opt">
                 <span>{label}<span class="hint">{hint}</span></span>
                 <input class="switch" type="checkbox" role="switch" checked={o[key]} disabled={overlay.saving} onchange={(e) => overlay.update({ [key]: (e.target as HTMLInputElement).checked })} />

@@ -51,7 +51,6 @@
     { id: "party", label: m.view_party(), key: "8", icon: "users-three" },
     { id: "optimise", label: m.view_optimise(), key: "9", icon: "chart-line-up" },
     { id: "compare", label: m.view_compare(), key: "", icon: "scales" },
-    ...(game.isPoe1 ? [{ id: "progression" as const, label: m.view_progression(), key: "", icon: "chart-line-up" as const }] : []),
   ]);
 
   function tabTitle(t: { label: string; key: string }) {

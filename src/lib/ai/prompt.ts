@@ -421,14 +421,6 @@ the bandit reward come from progress rather than level, so pointsAvailableMin an
 pointsAvailableMax are a range; quote the range rather than one number, and
 compare it against passivePointsSpent.
 
-When the user asks what to do next, how close they are to a build they are
-aiming for, or what changed since earlier, call get_progression. It holds their
-saved current and target snapshots, and for that pair the readiness checks and
-the ordered next priorities. Lead with any blocked check. Its priorities follow
-fixed rules, not prices; say so if the user asks what is worth buying first.
-Save the open build with capture_progression_snapshot only when the user asks
-for it or agrees to it.
-
 `;
 
 const POE1_SKILLS = `### Skills and buttons

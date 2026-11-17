@@ -147,3 +147,12 @@ Native: slijediti CONTRIBUTING.md i Windows workflow. Nakon synca postaviti `POB
 - Nije provjereno: odobravanje alata kroz chat panel, i počinje li tekst s trade siteovog Copy gumba s `Item Class:` (overlay watcher prihvaća samo takav tekst).
 - Provjereno: `cargo test -p pob-redux tools::` (3 passed, brojevi 87/81), `bun run check` (0 grešaka, 0 upozorenja). `bun run check:tools` traži pokrenut app s MCP serverom pa nije pokrenut; ista CORE/ALLOWED/intent provjera izvedena je offline nad opisima iz `tools.rs` (14/14 intenta, novi "find a ring to buy on the trade site" → `open_trade_search`).
 - Worktree nema `src-tauri/resources/pob*`; za `cargo test -p pob-redux` povezani su junctionima na glavni checkout (git ih ignorira).
+
+## Uklanjanje Progression modula — 2026-11-17
+
+- Korisnik je ocijenio Progression modul lošim i zatražio da se potpuno ukloni; fokus forka su AI asistent i overlay. Grana `feat/drop-progression` (iz `feat/trade-search-tool`), ništa nije pushano.
+- Uklonjeno: `progression.lua` i `progression_capture`, `src-tauri/src/progression.rs` i njegove komande, alati `get_progression` / `capture_progression_snapshot` / `select_progression_snapshots` (PoE1 87 → 84), Progression tab i navigacija, `src/lib/progression/`, overlay Progression panel i postavka, Progression testovi i CI koraci, `PROGRESSION.md`, odlomak u promptu i stringovi.
+- Overlay leveling sada uzima gemove samo iz otvorenog builda (prije iz Progression targeta ako postoji).
+- Zadržano: preview identitet (`tauri.progression.conf.json`, `is_progression_preview`, `VITE_PROGRESSION_VALIDATION`) jer odvaja podatke od upstream aplikacije i gasi upstream OAuth/updater; ime ostaje do odluke o vlastitom identitetu. Import UI test premješten u `tests/ui` (`bun run test:ui`). Windows workflow preimenovan u "Windows preview build" i pokreće se za `feat/**`.
+- Korisnikov `progression-poe1.json` u app local data nije brisan; aplikacija ga više ne čita. Povijesni unosi u ovom logu i `mistakes.md` ostaju kao zapis.
+- Provjereno: `cargo test -p pob-redux --lib` (71 passed, 1 ignored), `cargo test -p pob-engine` na PoE1 podacima (svi engine testovi, uključujući item/map evaluate i trade search), `bun run check` (0/0), `bun test scripts` (19 pass), `bun run test:ui` (3 passed, Edge). Offline provjera popisa alata: svi intenti prolaze, nijedan alat nije nedostupan. `tauri dev` se ponovno izgradio s novim kodom i radi; živi `check:tools` nije ponovljen jer je MCP server na 7316 u međuvremenu ugašen u aplikaciji.

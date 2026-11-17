@@ -78,10 +78,6 @@ export const ALLOWED = new Set([
   // Removing a whole skill setup is what "get rid of that skill" means, and
   // the approval gate plus checkpoint cover the missing undo.
   "remove_socket_group",
-  // PoE1 Progression: snapshots are separate from the open build, so these never change it.
-  "get_progression",
-  "capture_progression_snapshot",
-  "select_progression_snapshots",
 ]);
 
 /**

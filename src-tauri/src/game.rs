@@ -131,7 +131,6 @@ pub struct OverlaySettings {
     pub item_check: bool,
     pub map_check: bool,
     pub leveling: bool,
-    pub progression: bool,
     /// How long an item or map card stays up.
     pub card_seconds: u32,
 }
@@ -151,7 +150,6 @@ impl Default for OverlaySettings {
             item_check: true,
             map_check: true,
             leveling: true,
-            progression: true,
             card_seconds: 15,
         }
     }

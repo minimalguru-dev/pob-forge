@@ -1,12 +1,12 @@
-name: Progression Windows validation
+name: Windows preview build
 on:
   push:
-    branches: [feat/poe1-progression]
+    branches: ["feat/**"]
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: progression-windows-${{ github.ref }}
+  group: windows-preview-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   windows:
@@ -50,7 +50,7 @@ jobs:
         run: |
           bun x playwright install chromium
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          bun run test:progression:ui
+          bun run test:ui
       - run: bun run build
       - name: Sync pinned PoB engines
         run: |
@@ -62,12 +62,6 @@ jobs:
         run: |
           Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
           cargo test --locked -p pob-engine
-      - name: Validate Progression against real PoB
-        env:
-          POB_REDUX_POB_ROOT: src-tauri/resources/pob1
-        run: |
-          Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
-          cargo test --locked -p pob-engine --test progression -- --ignored --nocapture
       - name: Rust application regression tests
         run: |
           Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
@@ -82,7 +76,7 @@ jobs:
         run: git diff --exit-code -- Cargo.lock
       - uses: actions/upload-artifact@v7
         with:
-          name: progression-windows-${{ github.sha }}
+          name: windows-preview-${{ github.sha }}
           path: target/release/bundle/nsis/*.exe
           if-no-files-found: error
           retention-days: 14

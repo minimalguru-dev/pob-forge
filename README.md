@@ -62,12 +62,6 @@ To check by hand, open Settings (the gear in the title bar, or Ctrl+,) and press
 
 ## Features
 
-### Progression (PoE1 preview)
-
-Capture current and target builds without replacing the open build, keep local snapshot history,
-compare equipment and passive changes, and review transition checks and a PoB-calculated boss scenario.
-See [PROGRESSION.md](PROGRESSION.md) for usage, calculation assumptions, backup and validation instructions.
-
 ### Every Path of Building tab
 
 Tree, skills, items, calcs, config, notes, party and builds are all here, with PoB's tooltips and
@@ -110,8 +104,7 @@ every change first.
 
 An optional panel over the game, off until you turn it on in Settings > Overlay. Ctrl+C on an item shows what it does
 to the open build in every slot it fits; Ctrl+C on a map shows which of its mods are dangerous for the build. It follows
-your zone and level from the game's log for leveling, and lists the next steps towards your Progression target. It
-reads only what you copy and the game's log file. See [OVERLAY.md](OVERLAY.md).
+your zone and level from the game's log for leveling. It reads only what you copy and the game's log file. See [OVERLAY.md](OVERLAY.md).
 
 ### MCP server
 

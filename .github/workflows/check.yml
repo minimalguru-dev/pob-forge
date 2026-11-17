@@ -106,11 +106,6 @@ jobs:
       - name: Check every PoB stat label has a message key
         run: bun run check:labels
 
-      - name: Validate Progression against real PoB1
-        env:
-          POB_REDUX_POB_ROOT: src-tauri/resources/pob1
-        run: cargo test --locked -p pob-engine --test progression -- --ignored --nocapture
-
       # Warnings are denied via [workspace.lints.rust], so this fails on them.
       - name: Compile the workspace
         run: cargo check --locked --workspace --all-targets
