@@ -1817,7 +1817,6 @@
   "overlay_map_check_hint": "Ctrl+C on a map: the mods that are dangerous for this build.",
   "overlay_rules_note": "The overlay reads only what you copy and the game's own log file. It never reads the game's memory or presses keys for you.",
   "overlay_title": "PoB Redux overlay",
-  "overlay_drag_hint": "drag to move",
   "overlay_done": "Done",
   "overlay_calculating": "Calculating with PoB…",
   "overlay_level_req": "Needs level {need}; the build is level {have}.",

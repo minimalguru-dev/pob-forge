@@ -15,7 +15,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 
 pub use crate::game::OverlaySettings;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
@@ -33,6 +33,8 @@ pub struct OverlayState {
     /// The last items and maps copied while the overlay showed, newest first. Memory only.
     recent: Mutex<VecDeque<Copied>>,
     follow: Mutex<Follow>,
+    /// The monitor size the window covers, which a repaint nudge returns to.
+    full: Mutex<Option<tauri::PhysicalSize<u32>>>,
 }
 
 /// The open card's link to the cursor.
@@ -44,10 +46,26 @@ struct Follow {
     pinned: bool,
     /// The window takes clicks now (Ctrl held over it).
     clickable: bool,
+    /// When the card opened: the mouse may move freely for `GRACE` after it.
+    opened: Option<std::time::Instant>,
+    scale: f64,
+    /// The card's rectangle in the window, logical pixels (x, y, width, height); only it takes clicks.
+    card: (f64, f64, f64, f64),
 }
 
-/// How far, in physical pixels, the cursor may drift without Ctrl before the card closes.
-const DRIFT: f64 = 12.0;
+/// Where the card goes: the cursor in window coordinates (logical pixels), and which side has room.
+#[derive(Serialize, Clone, Copy)]
+struct Anchor {
+    x: f64,
+    y: f64,
+    left: bool,
+}
+
+/// How far, in logical pixels, the cursor may drift without Ctrl before the card closes. A hand
+/// letting go of Ctrl+C moves the mouse a little; that must not close the card before it is read.
+const DRIFT: f64 = 40.0;
+/// After a card opens, the mouse may move this long before drift counts.
+const GRACE: Duration = Duration::from_millis(800);
 const FOLLOW_POLL: Duration = Duration::from_millis(25);
 
 #[cfg(windows)]
@@ -66,37 +84,53 @@ fn follow(app: &AppHandle) -> std::sync::MutexGuard<'_, Follow> {
     app.state::<OverlayState>().inner().follow.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Puts the window beside the cursor, on the side with more room, and starts following it.
-fn place_near_cursor(app: &AppHandle) {
-    let Some(w) = app.get_webview_window(LABEL) else { return };
-    let Ok(c) = app.cursor_position() else { return };
-    let monitor = w
-        .available_monitors()
+/// The monitor a point is on.
+fn monitor_at(w: &tauri::WebviewWindow, x: f64, y: f64) -> Option<tauri::Monitor> {
+    w.available_monitors()
         .ok()
         .and_then(|ms| {
             ms.into_iter().find(|m| {
                 let (p, s) = (m.position(), m.size());
-                c.x >= p.x as f64 && c.x < (p.x + s.width as i32) as f64 && c.y >= p.y as f64 && c.y < (p.y + s.height as i32) as f64
+                x >= p.x as f64 && x < (p.x + s.width as i32) as f64 && y >= p.y as f64 && y < (p.y + s.height as i32) as f64
             })
         })
-        .or_else(|| w.current_monitor().ok().flatten());
-    if let Some(m) = monitor {
-        let (mp, ms, scale) = (m.position(), m.size(), m.scale_factor());
-        let s = settings(app);
-        let width = (s.width * scale) as i32;
-        let tall = (s.height * scale) as i32;
-        let gap = (28.0 * scale) as i32;
-        let (cx, cy) = (c.x as i32, c.y as i32);
-        let x = if cx > mp.x + ms.width as i32 / 2 { cx - gap - width } else { cx + gap };
-        let y = cy - (60.0 * scale) as i32;
-        let x = x.clamp(mp.x, (mp.x + ms.width as i32 - width).max(mp.x));
-        let y = y.clamp(mp.y, (mp.y + ms.height as i32 - tall).max(mp.y));
-        let _ = w.set_position(PhysicalPosition::new(x, y));
+        .or_else(|| w.primary_monitor().ok().flatten())
+}
+
+/// The window covers one whole monitor, transparent and click-through, like Awakened PoE Trade's.
+/// It moves only to follow the cursor to another monitor: WebView2 stops painting an unfocused
+/// window that has moved, so cards are placed inside it instead of moving it.
+fn cover(app: &AppHandle, w: &tauri::WebviewWindow, m: &tauri::Monitor) {
+    // macOS draws the overlay opaque, so there it stays a small window.
+    if cfg!(target_os = "macos") {
+        return;
     }
-    *follow(app) = Follow { origin: Some((c.x, c.y)), pinned: false, clickable: false };
+    // One pixel short of the monitor: Windows treats an exactly monitor-sized window as fullscreen,
+    // and then the overlay stops drawing over a game in front of it.
+    let (p, s) = (*m.position(), *m.size());
+    let s = tauri::PhysicalSize::new(s.width, s.height.saturating_sub(1));
+    *app.state::<OverlayState>().full.lock().unwrap_or_else(|e| e.into_inner()) = Some(s);
+    if w.outer_position().ok() != Some(p) {
+        let _ = w.set_position(p);
+    }
+    if w.inner_size().ok() != Some(s) {
+        let _ = w.set_size(s);
+    }
+}
+
+/// Anchors the card at the cursor, on the side of the screen with more room, and starts following it.
+fn place_near_cursor(app: &AppHandle) -> Option<Anchor> {
+    let w = app.get_webview_window(LABEL)?;
+    let c = app.cursor_position().ok()?;
+    let m = monitor_at(&w, c.x, c.y)?;
+    cover(app, &w, &m);
+    let (p, s, scale) = (m.position(), m.size(), m.scale_factor());
+    let anchor = Anchor { x: (c.x - p.x as f64) / scale, y: (c.y - p.y as f64) / scale, left: c.x > p.x as f64 + s.width as f64 / 2.0 };
+    *follow(app) = Follow { origin: Some((c.x, c.y)), pinned: false, clickable: false, opened: Some(std::time::Instant::now()), scale, card: (0.0, 0.0, 0.0, 0.0) };
     if !app.state::<OverlayState>().interact.load(Ordering::Relaxed) {
         let _ = w.set_ignore_cursor_events(true);
     }
+    Some(anchor)
 }
 
 /// Closes the card: the window lets clicks through again and the overlay clears it.
@@ -124,8 +158,12 @@ fn spawn_follow(app: AppHandle) {
             let Some(w) = app.get_webview_window(LABEL) else { continue };
             let Ok(c) = app.cursor_position() else { continue };
             let ctrl = ctrl_down();
-            let inside = match (w.outer_position(), w.outer_size()) {
-                (Ok(p), Ok(s)) => c.x >= p.x as f64 && c.x < (p.x + s.width as i32) as f64 && c.y >= p.y as f64 && c.y < (p.y + s.height as i32) as f64,
+            let inside = match w.outer_position() {
+                Ok(p) => {
+                    let (x, y, cw, ch) = state.card;
+                    let (left, top) = (p.x as f64 + x * state.scale, p.y as f64 + y * state.scale);
+                    cw > 0.0 && c.x >= left && c.x < left + cw * state.scale && c.y >= top && c.y < top + ch * state.scale
+                }
                 _ => false,
             };
             let clickable = ctrl && inside;
@@ -133,9 +171,10 @@ fn spawn_follow(app: AppHandle) {
                 let _ = w.set_ignore_cursor_events(!clickable);
                 follow(&app).clickable = clickable;
             }
-            if ctrl {
+            let settling = state.opened.is_some_and(|t| t.elapsed() < GRACE);
+            if ctrl || settling {
                 follow(&app).origin = Some((c.x, c.y));
-            } else if (c.x - origin.0).hypot(c.y - origin.1) > DRIFT {
+            } else if (c.x - origin.0).hypot(c.y - origin.1) > DRIFT * state.scale {
                 dismiss(&app);
             }
         })
@@ -242,15 +281,9 @@ async fn open_window(app: &AppHandle) -> Result<(), String> {
     #[cfg(not(target_os = "macos"))]
     let builder = builder.transparent(true);
     let window = builder.build().map_err(|e| e.to_string())?;
-    let position = match (s.x, s.y) {
-        (Some(x), Some(y)) => Some(PhysicalPosition::new(x, y)),
-        _ => window.primary_monitor().ok().flatten().map(|m| {
-            let scale = m.scale_factor();
-            PhysicalPosition::new(m.position().x + m.size().width as i32 - ((s.width + 24.0) * scale) as i32, m.position().y + (96.0 * scale) as i32)
-        }),
-    };
-    if let Some(p) = position {
-        let _ = window.set_position(p);
+    let monitor = app.cursor_position().ok().and_then(|c| monitor_at(&window, c.x, c.y)).or_else(|| window.primary_monitor().ok().flatten());
+    if let Some(m) = monitor {
+        cover(app, &window, &m);
     }
     app.state::<OverlayState>().interact.store(false, Ordering::Relaxed);
     let _ = window.set_ignore_cursor_events(true);
@@ -273,21 +306,15 @@ async fn toggle_window(app: &AppHandle) -> Result<(), String> {
     }
 }
 
-/// Interact mode makes the overlay clickable and movable; leaving it saves where it stands.
+/// Interact mode makes the whole overlay clickable until the user is done with the card.
 fn set_interact(app: &AppHandle, on: Option<bool>) {
     let Some(w) = app.get_webview_window(LABEL) else { return };
     let state = app.state::<OverlayState>();
     let on = on.unwrap_or(!state.interact.load(Ordering::Relaxed));
-    let was = state.interact.swap(on, Ordering::Relaxed);
+    state.interact.store(on, Ordering::Relaxed);
     let _ = w.set_ignore_cursor_events(!on);
     if on {
         let _ = w.set_focus();
-    } else if was {
-        if let Ok(p) = w.outer_position() {
-            let mut s = settings(app);
-            (s.x, s.y) = (Some(p.x), Some(p.y));
-            let _ = store(app, s);
-        }
     }
     let _ = app.emit_to(LABEL, "overlay:interact", on);
 }
@@ -348,8 +375,8 @@ fn spawn_clipboard_watch(app: AppHandle) {
                     let s = settings(&app);
                     if (kind == "map" && s.map_check) || (kind == "item" && s.item_check) {
                         remember(&app, kind, &text);
-                        place_near_cursor(&app);
-                        let _ = app.emit_to(LABEL, "overlay:item", serde_json::json!({ "raw": text, "kind": kind }));
+                        let anchor = place_near_cursor(&app);
+                        let _ = app.emit_to(LABEL, "overlay:item", serde_json::json!({ "raw": text, "kind": kind, "anchor": anchor }));
                     }
                 }
             }
@@ -397,9 +424,6 @@ pub async fn overlay_settings_set(app: AppHandle, value: OverlaySettings) -> Res
     register_keys(&app, &value)?;
     if value.enabled {
         open_window(&app).await?;
-        if let Some(w) = app.get_webview_window(LABEL) {
-            let _ = w.set_size(tauri::LogicalSize::new(value.width, value.height));
-        }
     } else {
         close(&app);
     }
@@ -439,20 +463,13 @@ pub fn overlay_dismiss(app: AppHandle) {
     dismiss(&app);
 }
 
-/// The window is as tall as the card, so it covers no more of the game than it shows. A resize
-/// also makes WebView2 paint without focus; an unchanged size gets the repaint nudge instead.
+/// The overlay shows something new: the card's rectangle in the window (logical pixels, zero size
+/// for none) is the only part that takes Ctrl clicks, and the window is nudged so WebView2 paints
+/// it without focus.
 #[tauri::command]
-pub fn overlay_fit(app: AppHandle, height: f64) {
-    let Some(w) = app.get_webview_window(LABEL) else { return };
-    let scale = w.scale_factor().unwrap_or(1.0);
-    let width = settings(&app).width;
-    let target = tauri::PhysicalSize::new((width * scale).round() as u32, (height.max(1.0) * scale).ceil() as u32);
-    match w.inner_size() {
-        Ok(now) if now == target => overlay_repaint(app),
-        _ => {
-            let _ = w.set_size(target);
-        }
-    }
+pub fn overlay_fit(app: AppHandle, x: f64, y: f64, width: f64, height: f64) {
+    follow(&app).card = (x, y, width.max(0.0), height.max(0.0));
+    overlay_repaint(app);
 }
 
 /// WebView2 stops painting a click-through window that does not have focus, so a new card is
@@ -461,7 +478,9 @@ pub fn overlay_fit(app: AppHandle, height: f64) {
 #[tauri::command]
 pub fn overlay_repaint(app: AppHandle) {
     let Some(w) = app.get_webview_window(LABEL) else { return };
-    let Ok(size) = w.inner_size() else { return };
+    // Back to the covered size, not the current one: nudges can overlap.
+    let full = *app.state::<OverlayState>().full.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(size) = full.or_else(|| w.inner_size().ok()) else { return };
     let _ = w.set_size(tauri::PhysicalSize::new(size.width, size.height + 1));
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(40));

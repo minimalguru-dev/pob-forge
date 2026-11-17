@@ -492,7 +492,6 @@
   "overlay_map_check_hint": "Ctrl+C na mapi: modovi opasni za ovaj build.",
   "overlay_rules_note": "Overlay čita samo ono što kopiraš i log datoteku same igre. Nikad ne čita memoriju igre niti pritišće tipke umjesto tebe.",
   "overlay_title": "PoB Redux overlay",
-  "overlay_drag_hint": "povuci za pomicanje",
   "overlay_done": "Gotovo",
   "overlay_calculating": "Računam s PoB-om…",
   "overlay_level_req": "Treba level {need}; build je level {have}.",

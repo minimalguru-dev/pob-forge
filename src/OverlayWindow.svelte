@@ -109,7 +109,17 @@
   const evaluation = $derived(card?.kind === "item" ? card.data : null);
   const slots = $derived(evaluation ? [...evaluation.slots].sort((a, b) => score(evaluation, b) - score(evaluation, a)) : []);
 
-  // The window is as tall as what it shows; the resize also makes an unfocused overlay paint.
+  /** The cursor where the item was copied, in window coordinates, and which side has room. */
+  let anchor = $state<{ x: number; y: number; left: boolean } | null>(null);
+  let cardHeight = $state(0);
+  const cardWidth = $derived(s?.width ?? 380);
+  // Beside the cursor; an overlay opened by the interact key with nothing copied sits top right.
+  const left = $derived(
+    anchor ? Math.max(4, Math.min(innerWidth - cardWidth - 4, anchor.left ? anchor.x - 28 - cardWidth : anchor.x + 28)) : innerWidth - cardWidth - 24,
+  );
+  const top = $derived(anchor ? Math.max(4, Math.min(innerHeight - cardHeight - 4, anchor.y - 60)) : 96);
+
+  // Tell Rust where the card is (only it takes Ctrl clicks) and nudge the unfocused window to paint.
   $effect(() => {
     void card;
     void price;
@@ -117,8 +127,12 @@
     void pinned;
     void interact;
     void asked;
-    const height = root ? Math.ceil(root.offsetHeight) : 1;
-    void invoke("overlay_fit", { height: card || busy || interact ? height : 1 }).catch(() => {});
+    void left;
+    void top;
+    const r = root?.getBoundingClientRect();
+    const shown = !!r && (!!card || busy || interact);
+    cardHeight = r ? Math.ceil(r.height) : 0;
+    void invoke("overlay_fit", shown ? { x: r.left, y: r.top, width: r.width, height: r.height } : { x: 0, y: 0, width: 0, height: 0 }).catch(() => {});
   });
 
   function show(next: Card) {
@@ -133,11 +147,19 @@
     price = null;
     pinned = false;
     busy = false;
+    anchor = null;
   }
 
   /** With Ctrl held the card takes clicks; the first one pins it. */
   function onPointerDown() {
     if (card && !pinned && !interact) void invoke("overlay_pin");
+  }
+
+  /** The window covers the screen: a click outside the card, while it takes clicks, closes it. */
+  function onWindowPointerDown(e: PointerEvent) {
+    if (root?.contains(e.target as Node)) return;
+    if (interact) void invoke("overlay_interact", { on: false });
+    if (pinned || card) void invoke("overlay_dismiss");
   }
 
   async function evaluate(raw: string, kind: string) {
@@ -167,7 +189,10 @@
     document.documentElement.style.background = "transparent";
     document.body.style.background = "transparent";
     const offs: Promise<() => void>[] = [
-      listen<{ raw: string; kind: string }>("overlay:item", (e) => void evaluate(e.payload.raw, e.payload.kind)),
+      listen<{ raw: string; kind: string; anchor: { x: number; y: number; left: boolean } | null }>("overlay:item", (e) => {
+        anchor = e.payload.anchor;
+        void evaluate(e.payload.raw, e.payload.kind);
+      }),
       listen<boolean>("overlay:interact", (e) => {
         interact = e.payload;
         if (!interact && card) show(card);
@@ -183,22 +208,34 @@
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && (pinned || card)) void invoke("overlay_dismiss"); };
     window.addEventListener("blur", onBlur);
     window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onWindowPointerDown);
     void overlay.init();
     void game.init().catch(() => {});
     return () => {
       clearTimeout(timer);
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onWindowPointerDown);
       for (const off of offs) void off.then((f) => f());
     };
   });
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="overlay" class:interact class:pinned bind:this={root} onpointerdown={onPointerDown} style:--panel-alpha={s?.opacity ?? 0.92}>
+<div
+  class="overlay"
+  class:interact
+  class:pinned
+  bind:this={root}
+  onpointerdown={onPointerDown}
+  style:--panel-alpha={s?.opacity ?? 0.92}
+  style:left="{left}px"
+  style:top="{top}px"
+  style:width="{cardWidth}px"
+>
   {#if interact}
-    <header data-tauri-drag-region>
-      <span data-tauri-drag-region>{m.overlay_title()} · {m.overlay_drag_hint()}</span>
+    <header>
+      <span>{m.overlay_title()}</span>
       <button class="btn sm" onclick={() => invoke("overlay_interact", { on: false })}>{m.overlay_done()}</button>
     </header>
   {/if}
@@ -299,11 +336,11 @@
 
 <style>
   :global(html), :global(body) { background: transparent !important; overflow: hidden; }
-  .overlay { display: flex; flex-direction: column; gap: 8px; padding: 6px; box-sizing: border-box; font-size: 13px; user-select: none; }
+  .overlay { position: fixed; display: flex; flex-direction: column; gap: 8px; padding: 6px; box-sizing: border-box; font-size: 13px; user-select: none; }
   .overlay.pinned .panel { outline: 1px solid var(--line-2); }
   .hint { margin-top: 6px; }
   .overlay.interact { outline: 1px dashed var(--line-2); outline-offset: -1px; }
-  header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: move;
+  header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px;
     background: color-mix(in oklch, var(--bg-1) calc(var(--panel-alpha) * 100%), transparent); }
   .panel { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line-1);
     background: color-mix(in oklch, var(--bg-0) calc(var(--panel-alpha) * 100%), transparent); }
