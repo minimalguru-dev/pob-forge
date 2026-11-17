@@ -1,6 +1,11 @@
 //! The in-game overlay: a small always-on-top window that lets clicks through to the game until
 //! the interact shortcut is pressed. It reads only what the user copies (Ctrl+C on an item) and,
 //! through `gamelog`, the game's own Client.txt. It never reads game memory or sends input.
+//!
+//! A card opens next to the cursor and closes as soon as the mouse moves, unless Ctrl is held.
+//! With Ctrl held the card takes clicks, and a click keeps it open (pinned) until the user clicks
+//! elsewhere or presses Esc. Ctrl is read with `GetAsyncKeyState`, which only reports whether the
+//! key is down.
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,6 +32,114 @@ pub struct OverlayState {
     keys: Mutex<Option<(Shortcut, Shortcut)>>,
     /// The last items and maps copied while the overlay showed, newest first. Memory only.
     recent: Mutex<VecDeque<Copied>>,
+    follow: Mutex<Follow>,
+}
+
+/// The open card's link to the cursor.
+#[derive(Default, Clone, Copy)]
+struct Follow {
+    /// Where the cursor stood when the card opened, or last stood with Ctrl held. None: no card.
+    origin: Option<(f64, f64)>,
+    /// Ctrl+clicked: stays until a click elsewhere or Esc.
+    pinned: bool,
+    /// The window takes clicks now (Ctrl held over it).
+    clickable: bool,
+}
+
+/// How far, in physical pixels, the cursor may drift without Ctrl before the card closes.
+const DRIFT: f64 = 12.0;
+const FOLLOW_POLL: Duration = Duration::from_millis(25);
+
+#[cfg(windows)]
+fn ctrl_down() -> bool {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL};
+    // SAFETY: GetAsyncKeyState only reads the key's state.
+    (unsafe { GetAsyncKeyState(VK_CONTROL as i32) } as u16 & 0x8000) != 0
+}
+
+#[cfg(not(windows))]
+fn ctrl_down() -> bool {
+    false
+}
+
+fn follow(app: &AppHandle) -> std::sync::MutexGuard<'_, Follow> {
+    app.state::<OverlayState>().inner().follow.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Puts the window beside the cursor, on the side with more room, and starts following it.
+fn place_near_cursor(app: &AppHandle) {
+    let Some(w) = app.get_webview_window(LABEL) else { return };
+    let Ok(c) = app.cursor_position() else { return };
+    let monitor = w
+        .available_monitors()
+        .ok()
+        .and_then(|ms| {
+            ms.into_iter().find(|m| {
+                let (p, s) = (m.position(), m.size());
+                c.x >= p.x as f64 && c.x < (p.x + s.width as i32) as f64 && c.y >= p.y as f64 && c.y < (p.y + s.height as i32) as f64
+            })
+        })
+        .or_else(|| w.current_monitor().ok().flatten());
+    if let Some(m) = monitor {
+        let (mp, ms, scale) = (m.position(), m.size(), m.scale_factor());
+        let s = settings(app);
+        let width = (s.width * scale) as i32;
+        let tall = (s.height * scale) as i32;
+        let gap = (28.0 * scale) as i32;
+        let (cx, cy) = (c.x as i32, c.y as i32);
+        let x = if cx > mp.x + ms.width as i32 / 2 { cx - gap - width } else { cx + gap };
+        let y = cy - (60.0 * scale) as i32;
+        let x = x.clamp(mp.x, (mp.x + ms.width as i32 - width).max(mp.x));
+        let y = y.clamp(mp.y, (mp.y + ms.height as i32 - tall).max(mp.y));
+        let _ = w.set_position(PhysicalPosition::new(x, y));
+    }
+    *follow(app) = Follow { origin: Some((c.x, c.y)), pinned: false, clickable: false };
+    if !app.state::<OverlayState>().interact.load(Ordering::Relaxed) {
+        let _ = w.set_ignore_cursor_events(true);
+    }
+}
+
+/// Closes the card: the window lets clicks through again and the overlay clears it.
+fn dismiss(app: &AppHandle) {
+    *follow(app) = Follow::default();
+    if let Some(w) = app.get_webview_window(LABEL) {
+        if !app.state::<OverlayState>().interact.load(Ordering::Relaxed) {
+            let _ = w.set_ignore_cursor_events(true);
+        }
+    }
+    let _ = app.emit_to(LABEL, "overlay:dismiss", ());
+}
+
+/// Watches the cursor and Ctrl while a card is open (the Awakened PoE Trade way).
+fn spawn_follow(app: AppHandle) {
+    std::thread::Builder::new()
+        .name("overlay-follow".into())
+        .spawn(move || loop {
+            std::thread::sleep(FOLLOW_POLL);
+            let state = *follow(&app);
+            let Some(origin) = state.origin else { continue };
+            if state.pinned || app.state::<OverlayState>().interact.load(Ordering::Relaxed) {
+                continue;
+            }
+            let Some(w) = app.get_webview_window(LABEL) else { continue };
+            let Ok(c) = app.cursor_position() else { continue };
+            let ctrl = ctrl_down();
+            let inside = match (w.outer_position(), w.outer_size()) {
+                (Ok(p), Ok(s)) => c.x >= p.x as f64 && c.x < (p.x + s.width as i32) as f64 && c.y >= p.y as f64 && c.y < (p.y + s.height as i32) as f64,
+                _ => false,
+            };
+            let clickable = ctrl && inside;
+            if clickable != state.clickable {
+                let _ = w.set_ignore_cursor_events(!clickable);
+                follow(&app).clickable = clickable;
+            }
+            if ctrl {
+                follow(&app).origin = Some((c.x, c.y));
+            } else if (c.x - origin.0).hypot(c.y - origin.1) > DRIFT {
+                dismiss(&app);
+            }
+        })
+        .expect("spawn overlay follow");
 }
 
 /// An item or map the game or the trade site put on the clipboard while the overlay showed.
@@ -235,6 +348,7 @@ fn spawn_clipboard_watch(app: AppHandle) {
                     let s = settings(&app);
                     if (kind == "map" && s.map_check) || (kind == "item" && s.item_check) {
                         remember(&app, kind, &text);
+                        place_near_cursor(&app);
                         let _ = app.emit_to(LABEL, "overlay:item", serde_json::json!({ "raw": text, "kind": kind }));
                     }
                 }
@@ -246,6 +360,7 @@ fn spawn_clipboard_watch(app: AppHandle) {
 pub fn setup(app: &AppHandle) {
     app.manage(OverlayState::default());
     spawn_clipboard_watch(app.clone());
+    spawn_follow(app.clone());
     let s = settings(app);
     if !s.enabled {
         return;
@@ -302,6 +417,44 @@ pub fn overlay_interact(app: AppHandle, on: Option<bool>) {
     set_interact(&app, on);
 }
 
+/// Ctrl+click on a card: it stays open, and its buttons work, until a click elsewhere or Esc.
+#[tauri::command]
+pub fn overlay_pin(app: AppHandle) {
+    {
+        let mut f = follow(&app);
+        if f.origin.is_none() {
+            return;
+        }
+        f.pinned = true;
+        f.clickable = true;
+    }
+    if let Some(w) = app.get_webview_window(LABEL) {
+        let _ = w.set_ignore_cursor_events(false);
+    }
+    let _ = app.emit_to(LABEL, "overlay:pinned", true);
+}
+
+#[tauri::command]
+pub fn overlay_dismiss(app: AppHandle) {
+    dismiss(&app);
+}
+
+/// The window is as tall as the card, so it covers no more of the game than it shows. A resize
+/// also makes WebView2 paint without focus; an unchanged size gets the repaint nudge instead.
+#[tauri::command]
+pub fn overlay_fit(app: AppHandle, height: f64) {
+    let Some(w) = app.get_webview_window(LABEL) else { return };
+    let scale = w.scale_factor().unwrap_or(1.0);
+    let width = settings(&app).width;
+    let target = tauri::PhysicalSize::new((width * scale).round() as u32, (height.max(1.0) * scale).ceil() as u32);
+    match w.inner_size() {
+        Ok(now) if now == target => overlay_repaint(app),
+        _ => {
+            let _ = w.set_size(target);
+        }
+    }
+}
+
 /// WebView2 stops painting a click-through window that does not have focus, so a new card is
 /// computed but stays invisible until the user presses the interact key. A 1 px resize and back
 /// makes it draw a frame without taking focus from the game.
@@ -321,6 +474,7 @@ pub fn overlay_repaint(app: AppHandle) {
 #[tauri::command]
 pub fn overlay_ask(app: AppHandle, text: String) {
     set_interact(&app, Some(false));
+    dismiss(&app);
     let _ = app.emit("overlay:ask", text);
     let window = app.get_webview_window("assistant").or_else(|| app.get_webview_window("main"));
     if let Some(w) = window {

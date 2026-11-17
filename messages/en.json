@@ -1842,6 +1842,7 @@
   "overlay_price_listings": "{count} listed",
   "overlay_price_source": "poe.ninja, {league}",
   "overlay_ask": "Ask the assistant",
+  "overlay_pin_hint": "Hold Ctrl to keep this card; Ctrl+click it for its buttons. Esc closes it.",
   "overlay_asked": "In the assistant's message box",
   "overlay_ask_prompt": "I copied this item in the game. Is it worth it for my build, and in which slot?",
   "overlay_log_path": "Game log file",

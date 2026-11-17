@@ -66,6 +66,9 @@
   ];
 
   let interact = $state(false);
+  /** Ctrl+clicked: the card stays and its buttons work until a click elsewhere or Esc. */
+  let pinned = $state(false);
+  let root: HTMLDivElement | undefined = $state();
   let card = $state<Card | null>(null);
   let busy = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -106,18 +109,35 @@
   const evaluation = $derived(card?.kind === "item" ? card.data : null);
   const slots = $derived(evaluation ? [...evaluation.slots].sort((a, b) => score(evaluation, b) - score(evaluation, a)) : []);
 
-  // A click-through overlay without focus does not paint on its own (overlay_repaint).
+  // The window is as tall as what it shows; the resize also makes an unfocused overlay paint.
   $effect(() => {
     void card;
     void price;
     void busy;
-    if (!interact) void invoke("overlay_repaint").catch(() => {});
+    void pinned;
+    void interact;
+    void asked;
+    const height = root ? Math.ceil(root.offsetHeight) : 1;
+    void invoke("overlay_fit", { height: card || busy || interact ? height : 1 }).catch(() => {});
   });
 
   function show(next: Card) {
     card = next;
     clearTimeout(timer);
-    timer = setTimeout(() => { if (!interact) card = null; }, (s?.cardSeconds ?? 15) * 1000);
+    timer = setTimeout(() => { if (!interact && !pinned) void invoke("overlay_dismiss"); }, (s?.cardSeconds ?? 15) * 1000);
+  }
+
+  function clear() {
+    clearTimeout(timer);
+    card = null;
+    price = null;
+    pinned = false;
+    busy = false;
+  }
+
+  /** With Ctrl held the card takes clicks; the first one pins it. */
+  function onPointerDown() {
+    if (card && !pinned && !interact) void invoke("overlay_pin");
   }
 
   async function evaluate(raw: string, kind: string) {
@@ -152,17 +172,30 @@
         interact = e.payload;
         if (!interact && card) show(card);
       }),
+      listen("overlay:pinned", () => {
+        pinned = true;
+        clearTimeout(timer);
+      }),
+      listen("overlay:dismiss", () => clear()),
     ];
+    // A pinned card closes on a click back in the game or on Esc.
+    const onBlur = () => { if (pinned) void invoke("overlay_dismiss"); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && (pinned || card)) void invoke("overlay_dismiss"); };
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("keydown", onKey);
     void overlay.init();
     void game.init().catch(() => {});
     return () => {
       clearTimeout(timer);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("keydown", onKey);
       for (const off of offs) void off.then((f) => f());
     };
   });
 </script>
 
-<div class="overlay" class:interact style:--panel-alpha={s?.opacity ?? 0.92}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="overlay" class:interact class:pinned bind:this={root} onpointerdown={onPointerDown} style:--panel-alpha={s?.opacity ?? 0.92}>
   {#if interact}
     <header data-tauri-drag-region>
       <span data-tauri-drag-region>{m.overlay_title()} · {m.overlay_drag_hint()}</span>
@@ -250,10 +283,12 @@
   {/snippet}
 
   {#snippet askButton(raw: string)}
-    {#if interact}
+    {#if interact || pinned}
       <div class="actions">
         <button class="btn sm" disabled={asked} onclick={() => void ask(raw)}>{asked ? m.overlay_asked() : m.overlay_ask()}</button>
       </div>
+    {:else}
+      <p class="dim small hint">{m.overlay_pin_hint()}</p>
     {/if}
   {/snippet}
 
@@ -264,7 +299,9 @@
 
 <style>
   :global(html), :global(body) { background: transparent !important; overflow: hidden; }
-  .overlay { display: flex; flex-direction: column; gap: 8px; padding: 6px; height: 100vh; box-sizing: border-box; font-size: 13px; user-select: none; }
+  .overlay { display: flex; flex-direction: column; gap: 8px; padding: 6px; box-sizing: border-box; font-size: 13px; user-select: none; }
+  .overlay.pinned .panel { outline: 1px solid var(--line-2); }
+  .hint { margin-top: 6px; }
   .overlay.interact { outline: 1px dashed var(--line-2); outline-offset: -1px; }
   header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: move;
     background: color-mix(in oklch, var(--bg-1) calc(var(--panel-alpha) * 100%), transparent); }

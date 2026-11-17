@@ -17,6 +17,14 @@ build open in PoB Redux. Every number comes from Path of Building's own calculat
 Both shortcuts are global while the overlay is on, so pick combinations the game does not use. The command palette
 (Ctrl+K) also has **Show or hide the in-game overlay**.
 
+## Cards
+
+A card opens beside the cursor, on the side of the screen with more room, about half a second after you copy.
+It closes as soon as the mouse moves, unless you hold **Ctrl**: with Ctrl held it stays, and a Ctrl+click on
+the card keeps it open and makes its buttons work. A kept card closes when you click back in the game or press
+**Esc**. While Ctrl is held over a card, the card takes the click instead of the game. Ctrl's state is read with
+Windows' `GetAsyncKeyState`, which only reports whether the key is down; nothing is sent to the game.
+
 ## Panels
 
 **Item check.** Hover an item in the game and press Ctrl+C, or press **Copy** on a trade site listing. The overlay

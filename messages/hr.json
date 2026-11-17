@@ -517,6 +517,7 @@
   "overlay_price_listings": "{count} u ponudi",
   "overlay_price_source": "poe.ninja, {league}",
   "overlay_ask": "Pitaj asistenta",
+  "overlay_pin_hint": "Drži Ctrl da kartica ostane; Ctrl+klik na nju za gumbe. Esc je zatvara.",
   "overlay_asked": "U polju za poruku asistenta",
   "overlay_ask_prompt": "Ovaj item je kopiran iz igre. Isplati li se za moj build i u koji slot?",
   "overlay_log_path": "Log datoteka igre",

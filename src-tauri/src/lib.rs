@@ -1443,6 +1443,12 @@ pub fn run() {
             overlay::overlay_ask,
             #[cfg(desktop)]
             overlay::overlay_repaint,
+            #[cfg(desktop)]
+            overlay::overlay_pin,
+            #[cfg(desktop)]
+            overlay::overlay_dismiss,
+            #[cfg(desktop)]
+            overlay::overlay_fit,
             prices::price_check,
             #[cfg(desktop)]
             gamelog::gamelog_state,
