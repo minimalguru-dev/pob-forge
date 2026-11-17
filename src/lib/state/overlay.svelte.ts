@@ -15,6 +15,8 @@ export interface OverlaySettings {
   itemCheck: boolean;
   mapCheck: boolean;
   leveling: boolean;
+  prices: boolean;
+  priceLeague: string | null;
   cardSeconds: number;
 }
 

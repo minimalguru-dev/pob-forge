@@ -192,6 +192,16 @@ Megalomaniac needs three notables, a Prism of Belief one skill, Against the
 Darkness two stats. If no socket is allocated, the answer is that the tree
 has no jewel socket yet.
 
+When the user talks about "this item", "the one I copied", a listing they are
+looking at, or their current zone or level, call get_game_context. It returns
+the items they copied with the overlay on, each already scored against the
+open build per slot, and where the game log says they are. Answer from its
+delta; do not ask them to paste the item.
+
+After optimise_gear, when the user wants to buy rather than craft, call
+open_trade_search once per proposed slot with open false, so each search
+becomes a button under your reply, then say which slot each one is for.
+
 When the user wants to buy an item for a slot, call open_trade_search with
 that slot and the league they name. It opens the official trade site with
 PoB's weighted search for the slot; it fetches no listings and buys nothing.
@@ -488,6 +498,16 @@ seed, pass that result's itemText and the slot to equip_item_raw and report
 what the build gains. Never write timeless jewel text yourself. The panel
 puts the search's trade link under your reply as an Open trade site button,
 so do not write the link out or build one; say which seeds it searches.
+
+When the user talks about "this item", "the one I copied", a listing they are
+looking at, or their current zone or level, call get_game_context. It returns
+the items they copied with the overlay on, each already scored against the
+open build per slot, and where the game log says they are. Answer from its
+delta; do not ask them to paste the item.
+
+After optimise_gear, when the user wants to buy rather than craft, call
+open_trade_search once per proposed slot with open false, so each search
+becomes a button under your reply, then say which slot each one is for.
 
 When the user wants to buy an item for a slot, call open_trade_search with
 that slot and the league they name. It opens the official trade site with

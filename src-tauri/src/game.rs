@@ -131,6 +131,10 @@ pub struct OverlaySettings {
     pub item_check: bool,
     pub map_check: bool,
     pub leveling: bool,
+    /// poe.ninja prices on item cards (PoE1).
+    pub prices: bool,
+    /// League for prices; none means the current challenge league.
+    pub price_league: Option<String>,
     /// How long an item or map card stays up.
     pub card_seconds: u32,
 }
@@ -150,6 +154,8 @@ impl Default for OverlaySettings {
             item_check: true,
             map_check: true,
             leveling: true,
+            prices: true,
+            price_league: None,
             card_seconds: 15,
         }
     }

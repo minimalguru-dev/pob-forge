@@ -217,21 +217,26 @@
   });
 
   // The model mangles long trade addresses when it copies them, so the button takes the tool's own.
+  /** Every trade search a reply's tools built, under that reply: one button per slot for a shopping list. */
   const tradeLinks = $derived.by(() => {
-    const out = new Map<number, string>();
-    let url: string | null = null;
+    const out = new Map<number, { url: string; slot: string | null }[]>();
+    let links: { url: string; slot: string | null }[] = [];
     let lastBot = -1;
     const close = () => {
-      if (url && lastBot >= 0) out.set(lastBot, url);
-      url = null;
+      if (links.length && lastBot >= 0) out.set(lastBot, links);
+      links = [];
       lastBot = -1;
     };
     chat.turns.forEach((t, i) => {
       if (t.kind === "user") close();
       else if (t.kind === "assistant") lastBot = i;
       else if (t.kind === "tool") {
-        const u = (t.result as { tradeUrl?: unknown } | undefined)?.tradeUrl;
-        if (typeof u === "string" && u.startsWith("https://www.pathofexile.com/trade")) url = u;
+        const r = t.result as { tradeUrl?: unknown; slot?: unknown } | undefined;
+        const u = r?.tradeUrl;
+        if (typeof u === "string" && u.startsWith("https://www.pathofexile.com/trade")) {
+          const slot = typeof r?.slot === "string" ? r.slot : null;
+          links = [...links.filter((l) => l.url !== u && (!slot || l.slot !== slot)), { url: u, slot }];
+        }
       }
     });
     if (!chat.busy) close();
@@ -362,9 +367,14 @@
           <div class="botwrap">
             <div class="turn bot"><Markdown text={turn.text} /></div>
             {#if tradeLinks.has(i)}
-              <button class="btn sm trade" onclick={() => tradeWindow.open(tradeLinks.get(i)!)} title={tradeLinks.get(i)}>
-                <Icon name="magnifying-glass" size={12} />{m.chat_open_trade()}
-              </button>
+              {@const links = tradeLinks.get(i)!}
+              <div class="trades">
+                {#each links as link (link.url)}
+                  <button class="btn sm trade" onclick={() => tradeWindow.open(link.url)} title={link.url}>
+                    <Icon name="magnifying-glass" size={12} />{link.slot && links.length > 1 ? m.chat_open_trade_slot({ slot: link.slot }) : m.chat_open_trade()}
+                  </button>
+                {/each}
+              </div>
             {/if}
             <button
               class="copy"
@@ -764,8 +774,13 @@
   .botwrap {
     position: relative;
   }
-  .trade {
+  .trades {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
     margin-top: 8px;
+  }
+  .trade {
     gap: 6px;
   }
   .bot {

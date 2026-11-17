@@ -46,11 +46,24 @@ The log is found in the standalone install and in Steam libraries. If yours is e
 Settings → Overlay. Only English game clients are understood. A long-played log is hundreds of megabytes; the overlay
 reads the last half megabyte on start and then only what the game appends.
 
+**Prices.** Uniques, currency, fragments, scarabs and divination cards get their [poe.ninja](https://poe.ninja)
+price on the item card (Path of Exile 1): the cheapest variant, a range when variants differ, and the total for a
+stack. The league is the current one unless you set **Price league**. The app downloads poe.ninja's whole price list
+for a category and keeps it for half an hour, so poe.ninja never sees what you copied. Rares have no list price; use
+the assistant's trade search for those.
+
+**Ask the assistant.** In interact mode every card has an **Ask the assistant** button. It puts the copied text in the
+assistant's message box and brings the chat forward; nothing is sent until you press Send. The assistant can also
+read the last five things you copied by itself (`get_game_context`), each scored against the open build, so "is the
+ring I just copied better?" works without pasting anything.
+
 ## What it reads, and what it never does
 
-- While the overlay is showing, it reads the clipboard every 300 ms and acts only on text that starts with
-  `Item Class:`, which is what the game writes on Ctrl+C. Other clipboard text is ignored and never logged or stored.
-  When the overlay is hidden or off, the clipboard is not read.
+- While the overlay is showing, it reads the clipboard every 300 ms and acts only on item text: text that starts with
+  `Item Class:`, which is what the game writes on Ctrl+C, or a `Rarity:` line followed by the game's `--------`
+  section breaks, which is what a trade site Copy can leave. Other clipboard text is ignored and never logged or
+  stored. When the overlay is hidden or off, the clipboard is not read.
+- The last five items it acted on are kept in memory for the assistant and forgotten when the app closes.
 - It reads the game's own log file, which the game writes for players.
 - It never reads the game's memory, injects anything into the game, or sends keys or clicks to it. One keypress of
   yours does one thing in the overlay.
@@ -72,6 +85,8 @@ isn't affiliated with or endorsed by Grinding Gear Games in any way.
 | Window, shortcuts, clipboard watcher | `src-tauri/src/overlay.rs` |
 | Game log reader | `src-tauri/src/gamelog.rs` |
 | Settings (`settings.json`, `overlay`) | `OverlaySettings` in `src-tauri/src/game.rs` |
+| Prices | `src-tauri/src/prices.rs` (`cargo test -p pob-redux --lib prices -- --ignored` talks to poe.ninja) |
+| Assistant | `get_game_context` and `open_trade_search` in `src-tauri/src/tools.rs` |
 | Bridge methods | `item_evaluate`, `map_evaluate`, `leveling_info` in `crates/pob-engine/lua/bridge.lua` |
 | Window UI | `src/OverlayWindow.svelte`, formulas in `src/lib/overlay/leveling.ts` |
 

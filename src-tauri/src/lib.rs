@@ -18,6 +18,7 @@ mod maxroll;
 mod character;
 mod ggg;
 mod ninja;
+mod prices;
 mod links;
 mod diagnostics;
 mod game;
@@ -1438,6 +1439,9 @@ pub fn run() {
             overlay::overlay_toggle,
             #[cfg(desktop)]
             overlay::overlay_interact,
+            #[cfg(desktop)]
+            overlay::overlay_ask,
+            prices::price_check,
             #[cfg(desktop)]
             gamelog::gamelog_state,
             #[cfg(desktop)]

@@ -51,6 +51,8 @@ export const ALLOWED = new Set([
   // Opens the trade site with PoB's weighted search for a slot; no listings,
   // no account. The panel asks before each one, like the web lookups.
   "open_trade_search",
+  // What the overlay saw: items the user copied in the game or on trade, and their zone and level.
+  "get_game_context",
   // write, approval-gated
   "alloc_node",
   "alloc_path",

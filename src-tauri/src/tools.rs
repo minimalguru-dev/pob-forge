@@ -555,30 +555,42 @@ setting for the whole tree. It applies to nodes allocated from then on, so set i
         ),
         ro(
             "open_trade_search",
-            "Build a trade search for one gear slot of the open build and open it on the official trade site in the app's trade window. PoB's Trader generates the query without the trade API: every mod the slot can roll is weighed by how much it raises `stat_weights`, with a minimum total a little above the item in the slot. No listings are fetched and nothing is bought or whispered: the user browses the results, signed in on the site if they choose, and trades in game themselves. Returns `tradeUrl`, `league`, `category`, the `statWeights` used and the query summary: `weighted` (each mod and its weight, best first) and `minWeight`. To check a listing against the build, the user turns on the in-game overlay and presses Copy on the listing: the overlay's item check scores the copied item for each slot it fits. The user approves each search. Takes a few seconds.",
+            "Open the official trade site, in the app's trade window, on PoB's Trader search for one slot: mods weighed by how much they raise `stat_weights`, needing more than the equipped item. No trade API, no listings fetched, nothing bought. Returns `tradeUrl`, `weighted` mods and `minWeight`. Copy on a listing, with the overlay on, scores it (get_game_context). The user approves each search.",
             obj(
                 json!({
-                    "slot": prop("string", "Slot name as get_items lists it, for example Ring 1, Helmet or Body Armour"),
-                    "league": prop("string", "Trade league, exactly as the user names it (default: the current league)"),
+                    "slot": prop("string", "Slot as get_items names it, e.g. Ring 1"),
+                    "league": prop("string", "League as the user names it (default: current)"),
                     "stat_weights": {
                         "type": "array",
-                        "description": "What the item should raise, most important first (default: the weights saved in the build's Trader, or FullDPS 1 and TotalEHP 0.5)",
+                        "description": "What the item should raise (default: the build's Trader weights)",
                         "items": {
                             "type": "object",
                             "properties": {
-                                "stat": prop("string", "PoB power stat, as list_power_stats names it: FullDPS, CombinedDPS, Life, EnergyShield, TotalEHP and so on"),
-                                "weight": prop("number", "Relative weight (default 1)"),
+                                "stat": prop("string", "Power stat (list_power_stats), e.g. FullDPS, Life, TotalEHP"),
+                                "weight": prop("number", "Default 1"),
                             },
                             "required": ["stat"],
                         },
                     },
-                    "status": { "type": "string", "enum": ["securable", "available", "onlineleague", "online", "any"], "description": "Listings to show: securable is instant buyout (default online)" },
+                    "status": { "type": "string", "enum": ["securable", "available", "onlineleague", "online", "any"], "description": "securable is instant buyout (default online)" },
+                    "open": prop("boolean", "Open the window now (default true); false for several slots, each then a button under the reply"),
                 }),
                 &["slot"],
             ),
         )
         .open_world()
         .slow(),
+        ro(
+            "get_game_context",
+            "What the in-game overlay saw: items and maps the user copied (Ctrl+C in game, Copy on trade), newest first, each scored per slot against the open build (`evaluation.slots[].delta`) or, for a map, its dangers; uniques, currency and cards carry a poe.ninja `price` (PoE1). Also zone, area level, act and level from the log. For \"this item\", \"the one I copied\". Empty `copied`: ask them to turn the overlay on and copy the item.",
+            obj(
+                json!({
+                    "limit": prop("integer", "Items to return (default 3, at most 5)"),
+                    "evaluate": prop("boolean", "Score them against the build (default true)"),
+                }),
+                &[],
+            ),
+        ),
         // Item sets
         ro("list_item_sets", "The build's gear sets and which one is active.", none()),
         rw("select_item_set", "Switch the active gear set.", obj(json!({ "id": prop("integer", "Item set id from list_item_sets") }), &["id"])).idempotent(),
@@ -1511,13 +1523,13 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
                 }),
             )?;
             let url = v.get("url").and_then(Value::as_str).unwrap_or_default().to_string();
-            let opened = crate::trade::open(&ctx.app, &url);
+            let opened = if arg_bool(args, "open").unwrap_or(true) { crate::trade::open(&ctx.app, &url).map(|_| true) } else { Ok(false) };
             if let Some(m) = v.as_object_mut() {
                 // The query is in the link; the summary below is what the model reads.
                 m.remove("query");
                 m.remove("url");
                 m.insert("tradeUrl".into(), json!(url));
-                m.insert("opened".into(), json!(opened.is_ok()));
+                m.insert("opened".into(), json!(opened.as_ref().is_ok_and(|o| *o)));
                 if let Err(e) = opened {
                     m.insert("note".into(), json!(format!("The trade window did not open ({e}); the user can open tradeUrl from the button under the reply.")));
                 }
@@ -1527,6 +1539,7 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
             }
             read(v)
         }
+        "get_game_context" => read(game_context(ctx, arg_i64(args, "limit")?, arg_bool(args, "evaluate").unwrap_or(true))?),
         // Item sets
         "list_item_sets" => read(ctx.call("list_item_sets", Value::Null)?),
         "select_item_set" => stats(ctx.call("select_item_set", json!({ "id": req_i64(args, "id")? }))?),
@@ -1649,6 +1662,64 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
     }
 }
 
+/// The overlay's recent copies, scored against the open build, and the game log's position.
+#[cfg(desktop)]
+fn game_context(ctx: &ToolContext, limit: Option<i64>, evaluate: bool) -> Result<Value, ToolError> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let limit = limit.unwrap_or(3).clamp(1, 5) as usize;
+    let settings = crate::overlay::settings(&ctx.app);
+    let copied: Vec<Value> = crate::overlay::recent(&ctx.app)
+        .into_iter()
+        .take(limit)
+        .map(|c| {
+            let mut v = json!({ "kind": c.kind, "secondsAgo": now.saturating_sub(c.at), "text": c.raw });
+            if evaluate {
+                let method = if c.kind == "map" { "map_evaluate" } else { "item_evaluate" };
+                match ctx.call(method, json!({ "raw": c.raw })) {
+                    Ok(e) => v["evaluation"] = brief_evaluation(e),
+                    Err(ToolError::Failed(e) | ToolError::Invalid(e)) => v["evaluationError"] = json!(e),
+                }
+            }
+            if c.kind == "item" && settings.prices {
+                if let Ok(Some(p)) = tauri::async_runtime::block_on(crate::prices::price(ctx.game(), &c.raw, settings.price_league.as_deref())) {
+                    v["price"] = serde_json::to_value(p).unwrap_or(Value::Null);
+                }
+            }
+            v
+        })
+        .collect();
+    let mut log = serde_json::to_value(crate::gamelog::gamelog_state(ctx.app.clone())).unwrap_or(Value::Null);
+    if let Some(m) = log.as_object_mut() {
+        m.remove("path");
+    }
+    Ok(json!({
+        "overlayEnabled": settings.enabled,
+        "log": log,
+        "copied": copied,
+    }))
+}
+
+#[cfg(not(desktop))]
+fn game_context(_: &ToolContext, _: Option<i64>, _: bool) -> Result<Value, ToolError> {
+    Err(ToolError::Failed("The in-game overlay is desktop only.".into()))
+}
+
+#[cfg(desktop)]
+/// What the model needs from item_evaluate / map_evaluate: the per-slot change, not every headline stat twice.
+fn brief_evaluation(mut e: Value) -> Value {
+    if let Some(m) = e.as_object_mut() {
+        for k in ["before", "generation", "rev"] {
+            m.remove(k);
+        }
+        if let Some(Value::Array(slots)) = m.get_mut("slots") {
+            for s in slots.iter_mut().filter_map(Value::as_object_mut) {
+                s.remove("after");
+            }
+        }
+    }
+    e
+}
+
 #[cfg(test)]
 mod tests {
     use super::{defs, instructions, POE1_TEXT};
@@ -1657,7 +1728,7 @@ mod tests {
     #[test]
     fn poe1_registry_speaks_poe1() {
         let d = defs(Game::Poe1);
-        assert_eq!(d.len(), 84, "PoE1 tool count changed");
+        assert_eq!(d.len(), 85, "PoE1 tool count changed");
         for (name, _) in POE1_TEXT {
             assert!(d.iter().any(|t| t.name == *name), "POE1_TEXT names {name}, which is not a tool");
         }
@@ -1675,7 +1746,7 @@ mod tests {
     #[test]
     fn registry_is_stable_and_measured() {
         let d = defs(Game::Poe2);
-        assert_eq!(d.len(), 81, "tool count changed");
+        assert_eq!(d.len(), 82, "tool count changed");
 
         let mut names: Vec<&str> = d.iter().map(|t| t.name).collect();
         names.sort_unstable();

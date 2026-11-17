@@ -41,7 +41,40 @@
     before: Record<string, number> | null;
     delta: Record<string, number> | null;
   }
-  type Card = { kind: "item"; data: ItemEvaluation } | { kind: "map"; data: MapEvaluation } | { kind: "error"; message: string };
+  /** Mirrors `Price` in src-tauri/src/prices.rs. */
+  interface Price {
+    name: string;
+    league: string;
+    chaos: number;
+    chaosMax: number | null;
+    divine: number | null;
+    stack: number | null;
+    listings: number | null;
+  }
+  type Card =
+    | { kind: "item"; data: ItemEvaluation; raw: string }
+    | { kind: "map"; data: MapEvaluation; raw: string }
+    | { kind: "price"; raw: string }
+    | { kind: "error"; message: string };
+
+  let price = $state<Price | null>(null);
+  let asked = $state(false);
+
+  /** Chaos below a divine, divines above; a stack also gets its total. */
+  function priceText(p: Price) {
+    const one = (chaos: number) => {
+      const div = p.divine && p.chaos > 0 ? (chaos * p.divine) / p.chaos : null;
+      return div && div >= 1 ? `${div.toFixed(div >= 10 ? 0 : 1)} div` : `${chaos >= 10 ? Math.round(chaos) : chaos.toFixed(1)}c`;
+    };
+    const each = p.chaosMax ? `${one(p.chaos)}–${one(p.chaosMax)}` : one(p.chaos);
+    return p.stack ? m.overlay_price_stack({ each, total: one(p.chaos * p.stack), count: p.stack }) : each;
+  }
+
+  /** Puts the copied text in the assistant's message box, in whichever window shows the chat. */
+  async function ask(raw: string) {
+    await invoke("overlay_ask", { text: `${m.overlay_ask_prompt()}\n\n${raw}` }).catch(() => {});
+    asked = true;
+  }
 
   const MAP_ROWS: [string, string, "pct" | "abs"][] = [
     ["CombinedDPS", "DPS", "pct"],
@@ -106,15 +139,24 @@
 
   async function evaluate(raw: string, kind: string) {
     busy = true;
+    price = null;
+    asked = false;
+    // poe.ninja lists uniques, currency and cards; the price comes in beside PoB's numbers.
+    const priced = s?.prices && kind === "item" ? invoke<Price | null>("price_check", { raw }).catch(() => null) : Promise.resolve(null);
     try {
-      if (kind === "map") show({ kind: "map", data: await call<MapEvaluation>("map_evaluate", { raw }) });
-      else show({ kind: "item", data: await engine.itemEvaluate(raw) });
+      if (kind === "map") show({ kind: "map", data: await call<MapEvaluation>("map_evaluate", { raw }), raw });
+      else show({ kind: "item", data: await engine.itemEvaluate(raw), raw });
     } catch (e) {
       const text = String(e).replace(/^EngineError: (Error: )?/, "");
-      show({ kind: "error", message: text.includes("no build is loaded") ? m.overlay_no_build() : text });
+      // Currency and cards fit no slot; their price is still worth showing.
+      const p = await priced;
+      if (p) show({ kind: "price", raw });
+      else show({ kind: "error", message: text.includes("no build is loaded") ? m.overlay_no_build() : text });
     } finally {
       busy = false;
     }
+    const p = await priced;
+    if (card && "raw" in card && card.raw === raw) price = p;
   }
 
   onMount(() => {
@@ -185,6 +227,13 @@
       {#if e.unmatched.length}
         <p class="dim small">{m.overlay_map_unmatched({ count: e.unmatched.length })}</p>
       {/if}
+      {@render askButton(card.raw)}
+    </section>
+  {:else if card?.kind === "price"}
+    <section class="panel item">
+      <div class="title"><strong>{price?.name ?? ""}</strong></div>
+      {@render priceLine()}
+      {@render askButton(card.raw)}
     </section>
   {:else if card?.kind === "item"}
     {@const e = card.data}
@@ -193,6 +242,7 @@
         <strong class="rarity {e.item.rarity?.toLowerCase()}">{e.item.name}</strong>
         {#if e.item.baseName && e.item.baseName !== e.item.name}<span class="dim">{e.item.baseName}</span>{/if}
       </div>
+      {@render priceLine()}
       {#if e.tooLowLevel}<p class="warn">{m.overlay_level_req({ need: e.item.levelRequired, have: e.characterLevel })}</p>{/if}
       {#each slots as slot (slot.slot)}
         <div class="slot">
@@ -215,8 +265,25 @@
         </div>
       {/each}
       {#if !slots.length}<p class="dim small">{m.overlay_no_slot()}</p>{/if}
+      {@render askButton(card.raw)}
     </section>
   {/if}
+
+  {#snippet priceLine()}
+    {#if price}
+      <p class="small price" title={m.overlay_price_source({ league: price.league })}>
+        {m.overlay_price({ price: priceText(price) })}{#if price.listings}<span class="dim"> · {m.overlay_price_listings({ count: price.listings })}</span>{/if}
+      </p>
+    {/if}
+  {/snippet}
+
+  {#snippet askButton(raw: string)}
+    {#if interact}
+      <div class="actions">
+        <button class="btn sm" disabled={asked} onclick={() => void ask(raw)}>{asked ? m.overlay_asked() : m.overlay_ask()}</button>
+      </div>
+    {/if}
+  {/snippet}
 
   {#if s?.leveling && log?.zone}
     <section class="panel leveling">
@@ -279,5 +346,7 @@
   .grid { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; font-variant-numeric: tabular-nums; }
   .good { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
   .dim { color: var(--fg-3); } .small { font-size: 12px; } p { margin: 4px 0; }
+  .price { color: oklch(86% 0.13 95); }
+  .actions { display: flex; justify-content: flex-end; margin-top: 6px; }
   .rarity.unique { color: oklch(70% 0.12 60); } .rarity.rare { color: oklch(86% 0.13 95); } .rarity.magic { color: oklch(72% 0.12 260); }
 </style>

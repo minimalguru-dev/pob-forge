@@ -32,6 +32,7 @@
         }),
       );
       offs.push(await listen("mcp:changed", mirror));
+      offs.push(await listen<string>("overlay:ask", (e) => (chat.input = e.payload)));
       offs.push(
         await listen("build:edited", () => {
           build.userEdits++;

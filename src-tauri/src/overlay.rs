@@ -2,9 +2,12 @@
 //! the interact shortcut is pressed. It reads only what the user copies (Ctrl+C on an item) and,
 //! through `gamelog`, the game's own Client.txt. It never reads game memory or sends input.
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use serde::Serialize;
 
 pub use crate::game::OverlaySettings;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
@@ -15,11 +18,40 @@ pub const LABEL: &str = "overlay";
 const POLL: Duration = Duration::from_millis(300);
 /// Larger than any item or map the game copies; anything bigger is not ours to read.
 const MAX_ITEM_TEXT: usize = 16 * 1024;
+/// How many copied items the assistant can look back on (`get_game_context`).
+const RECENT: usize = 5;
 
 #[derive(Default)]
 pub struct OverlayState {
     interact: AtomicBool,
     keys: Mutex<Option<(Shortcut, Shortcut)>>,
+    /// The last items and maps copied while the overlay showed, newest first. Memory only.
+    recent: Mutex<VecDeque<Copied>>,
+}
+
+/// An item or map the game or the trade site put on the clipboard while the overlay showed.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Copied {
+    pub kind: &'static str,
+    pub raw: String,
+    /// Seconds since the Unix epoch.
+    pub at: u64,
+}
+
+pub fn recent(app: &AppHandle) -> Vec<Copied> {
+    app.try_state::<OverlayState>()
+        .map(|s| s.recent.lock().unwrap_or_else(|e| e.into_inner()).iter().cloned().collect())
+        .unwrap_or_default()
+}
+
+fn remember(app: &AppHandle, kind: &'static str, raw: &str) {
+    let at = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let state = app.state::<OverlayState>();
+    let mut recent = state.recent.lock().unwrap_or_else(|e| e.into_inner());
+    recent.retain(|c| c.raw != raw);
+    recent.push_front(Copied { kind, raw: raw.to_string(), at });
+    recent.truncate(RECENT);
 }
 
 pub fn settings(app: &AppHandle) -> OverlaySettings {
@@ -147,14 +179,29 @@ fn set_interact(app: &AppHandle, on: Option<bool>) {
     let _ = app.emit_to(LABEL, "overlay:interact", on);
 }
 
-/// What kind of thing the game put on the clipboard, if it is one at all.
+/// What kind of thing the game, or the trade site's Copy button, put on the clipboard, if it is one
+/// at all. The game starts with `Item Class:`; text without it must start with a `Rarity:` line and
+/// have the game's `--------` section breaks.
 pub fn classify(text: &str) -> Option<&'static str> {
-    let first = text.trim_start().lines().next()?.trim();
-    let class = first.strip_prefix("Item Class:")?.trim();
-    Some(match class {
-        "Maps" | "Waystones" => "map",
-        _ => "item",
-    })
+    let mut lines = text.trim_start().lines().map(str::trim);
+    let first = lines.next()?;
+    if let Some(class) = first.strip_prefix("Item Class:") {
+        return Some(match class.trim() {
+            "Maps" | "Waystones" => "map",
+            _ => "item",
+        });
+    }
+    const RARITIES: [&str; 8] = ["Normal", "Magic", "Rare", "Unique", "Gem", "Currency", "Divination Card", "Relic"];
+    let rarity = first.strip_prefix("Rarity:")?.trim();
+    if !RARITIES.contains(&rarity) {
+        return None;
+    }
+    let rest: Vec<&str> = lines.collect();
+    if !rest.contains(&"--------") {
+        return None;
+    }
+    let map = rest.iter().any(|l| l.starts_with("Map Tier:") || l.starts_with("Waystone Tier:"));
+    Some(if map { "map" } else { "item" })
 }
 
 /// Watches the clipboard while the overlay is showing, for text the game wrote with Ctrl+C.
@@ -187,6 +234,7 @@ fn spawn_clipboard_watch(app: AppHandle) {
                     log::info!("overlay: {kind} copied from the game");
                     let s = settings(&app);
                     if (kind == "map" && s.map_check) || (kind == "item" && s.item_check) {
+                        remember(&app, kind, &text);
                         let _ = app.emit_to(LABEL, "overlay:item", serde_json::json!({ "raw": text, "kind": kind }));
                     }
                 }
@@ -254,6 +302,20 @@ pub fn overlay_interact(app: AppHandle, on: Option<bool>) {
     set_interact(&app, on);
 }
 
+/// "Ask the assistant" on a card: the chat's message box gets the text and its window comes forward.
+/// Nothing is sent until the user presses Send.
+#[tauri::command]
+pub fn overlay_ask(app: AppHandle, text: String) {
+    set_interact(&app, Some(false));
+    let _ = app.emit("overlay:ask", text);
+    let window = app.get_webview_window("assistant").or_else(|| app.get_webview_window("main"));
+    if let Some(w) = window {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,6 +326,10 @@ mod tests {
         assert_eq!(classify("\r\nItem Class: Maps\r\nRarity: Rare\r\nStrand Map"), Some("map"));
         assert_eq!(classify("Item Class: Waystones\nRarity: Magic"), Some("map"));
         assert_eq!(classify("Rarity: Rare\nno class line"), None);
+        // The trade site's Copy button, which may leave out the class line.
+        assert_eq!(classify("Rarity: Rare\nOverlay Loop\nIron Ring\n--------\nItem Level: 80\n--------\n+70 to maximum Life"), Some("item"));
+        assert_eq!(classify("Rarity: Magic\nStrand Map of Fun\n--------\nMap Tier: 5\n--------\nArea is a large Maze"), Some("map"));
+        assert_eq!(classify("Rarity: Mythic\nnot an item\n--------"), None);
         assert_eq!(classify("my password is Item Class: Rings"), None);
         assert_eq!(classify(""), None);
     }
