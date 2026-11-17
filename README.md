@@ -103,8 +103,8 @@ every change first.
 ### In-game overlay
 
 An optional panel over the game, off until you turn it on in Settings > Overlay. Ctrl+C on an item shows what it does
-to the open build in every slot it fits; Ctrl+C on a map shows which of its mods are dangerous for the build. It follows
-your zone and level from the game's log for leveling. It reads only what you copy and the game's log file. See [OVERLAY.md](OVERLAY.md).
+to the open build in every slot it fits; Ctrl+C on a map shows which of its mods are dangerous for the build. It reads
+only what you copy and the game's log file. See [OVERLAY.md](OVERLAY.md).
 
 ### MCP server
 

@@ -173,7 +173,7 @@ pub fn setup(app: &AppHandle) {
             loop {
                 std::thread::sleep(POLL);
                 let enabled = crate::game::load_settings(&app).overlay;
-                if !enabled.enabled || !enabled.leveling {
+                if !enabled.enabled {
                     current = None;
                     resolved_at = None;
                     continue;

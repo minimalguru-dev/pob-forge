@@ -15,7 +15,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 pub const LABEL: &str = "overlay";
-const POLL: Duration = Duration::from_millis(300);
+const POLL: Duration = Duration::from_millis(150);
 /// Larger than any item or map the game copies; anything bigger is not ours to read.
 const MAX_ITEM_TEXT: usize = 16 * 1024;
 /// How many copied items the assistant can look back on (`get_game_context`).
@@ -300,6 +300,20 @@ pub async fn overlay_toggle(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn overlay_interact(app: AppHandle, on: Option<bool>) {
     set_interact(&app, on);
+}
+
+/// WebView2 stops painting a click-through window that does not have focus, so a new card is
+/// computed but stays invisible until the user presses the interact key. A 1 px resize and back
+/// makes it draw a frame without taking focus from the game.
+#[tauri::command]
+pub fn overlay_repaint(app: AppHandle) {
+    let Some(w) = app.get_webview_window(LABEL) else { return };
+    let Ok(size) = w.inner_size() else { return };
+    let _ = w.set_size(tauri::PhysicalSize::new(size.width, size.height + 1));
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(40));
+        let _ = w.set_size(size);
+    });
 }
 
 /// "Ask the assistant" on a card: the chat's message box gets the text and its window comes forward.

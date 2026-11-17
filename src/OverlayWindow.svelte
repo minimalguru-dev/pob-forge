@@ -2,35 +2,10 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { call, engine, openUrl, type ItemEvaluation } from "$lib/engine.svelte";
+  import { call, engine, type ItemEvaluation } from "$lib/engine.svelte";
   import { game } from "$lib/state/game.svelte";
   import { overlay } from "$lib/state/overlay.svelte";
   import { m } from "$lib/paraglide/messages";
-  import { gemSchedule, poe1QuestPoints, poe1XpMultiplier, poeVaultUrl, resPenalty, type LevelGem, type LogState } from "$lib/overlay/leveling";
-
-  let log = $state<LogState | null>(null);
-  let gems = $state<LevelGem[]>([]);
-  let pointsSpent = $state<number | null>(null);
-  const level = $derived(log?.level ?? null);
-  // Towns and hideouts have no monsters, so their area level says nothing about experience.
-  const safeArea = $derived(!!log?.areaId && (log.areaId.includes("Hideout") || /_town$/i.test(log.areaId)));
-  const xp = $derived(game.isPoe1 && level && log?.areaLevel && !safeArea ? poe1XpMultiplier(level, log.areaLevel) : null);
-  const penalty = $derived(log ? resPenalty(game.current, log.act, log.endgame) : null);
-  const quest = $derived(game.isPoe1 && log ? poe1QuestPoints(log.act, log.endgame) : null);
-  const schedule = $derived(level ? gemSchedule(gems, level) : null);
-  const guide = $derived(log && !log.endgame ? poeVaultUrl(game.current, log.act) : null);
-
-  /** The open build's gems, by the level each one needs. */
-  async function refreshLeveling() {
-    try {
-      const info = await call<{ gems: LevelGem[]; passivePointsSpent: number | null }>("leveling_info", {});
-      gems = info.gems;
-      pointsSpent = info.passivePointsSpent;
-    } catch {
-      gems = [];
-      pointsSpent = null;
-    }
-  }
 
   interface MapEvaluation {
     tier: number | null;
@@ -131,6 +106,14 @@
   const evaluation = $derived(card?.kind === "item" ? card.data : null);
   const slots = $derived(evaluation ? [...evaluation.slots].sort((a, b) => score(evaluation, b) - score(evaluation, a)) : []);
 
+  // A click-through overlay without focus does not paint on its own (overlay_repaint).
+  $effect(() => {
+    void card;
+    void price;
+    void busy;
+    if (!interact) void invoke("overlay_repaint").catch(() => {});
+  });
+
   function show(next: Card) {
     card = next;
     clearTimeout(timer);
@@ -169,20 +152,9 @@
         interact = e.payload;
         if (!interact && card) show(card);
       }),
-      listen<LogState>("gamelog:update", (e) => {
-        const levelled = e.payload.level !== log?.level;
-        log = e.payload;
-        if (levelled) void refreshLeveling();
-      }),
-      listen("build:edited", () => void refreshLeveling()),
-      listen("mcp:changed", () => void refreshLeveling()),
     ];
     void overlay.init();
-    void (async () => {
-      await game.init().catch(() => {});
-      log = await invoke<LogState>("gamelog_state").catch(() => null);
-      await refreshLeveling();
-    })();
+    void game.init().catch(() => {});
     return () => {
       clearTimeout(timer);
       for (const off of offs) void off.then((f) => f());
@@ -284,47 +256,6 @@
       </div>
     {/if}
   {/snippet}
-
-  {#if s?.leveling && log?.zone}
-    <section class="panel leveling">
-      <div class="slothead">
-        <strong>{log.zone}</strong>
-        <span class="dim small">
-          {#if log.endgame}{m.overlay_endgame()}{:else if log.act}{m.overlay_act({ act: log.act })}{/if}
-          {#if log.areaLevel} · {m.overlay_area_level({ level: log.areaLevel })}{/if}
-        </span>
-      </div>
-      <div class="grid">
-        {#if level}<span>{m.overlay_char_level()}</span><span>{level}</span>{/if}
-        {#if xp !== null}
-          <span>{m.overlay_xp()}</span><span class:good={xp >= 0.95} class:warn={xp < 0.95 && xp >= 0.5} class:bad={xp < 0.5}>{Math.round(xp * 100)}%</span>
-        {:else if game.isPoe2 && level && log.areaLevel && !safeArea}
-          <span>{m.overlay_level_gap()}</span><span>{log.areaLevel - level > 0 ? "+" : ""}{log.areaLevel - level}</span>
-        {/if}
-        {#if penalty !== null}<span>{m.overlay_res_penalty()}</span><span class:warn={penalty < 0}>{penalty}%</span>{/if}
-        {#if level && quest !== null}
-          <span>{m.overlay_points()}</span>
-          <span>{m.overlay_points_value({ min: level - 1 + quest, max: level - 1 + quest + ((log.act ?? 11) > 2 ? 1 : 0), spent: pointsSpent ?? "?" })}</span>
-        {/if}
-      </div>
-      {#if schedule}
-        {#if schedule.justUnlocked.length}
-          <p class="good small">{m.overlay_gems_now({ gems: schedule.justUnlocked.map((g) => g.name).join(", ") })}</p>
-        {/if}
-        {#if schedule.upcoming.length}
-          <p class="dim small">{m.overlay_gems_next({ gems: schedule.upcoming.map((g) => `${g.name} (${g.level})`).join(", ") })}</p>
-        {/if}
-        <p class="dim small">{m.overlay_gems_from_build()}</p>
-      {/if}
-      {#if guide}
-        <button class="btn sm" disabled={!interact} title={interact ? "" : m.overlay_click_hint({ key: s.interactKey })} onclick={() => void openUrl(guide)}>
-          {m.overlay_poevault({ act: log.act ?? 0 })}
-        </button>
-      {/if}
-    </section>
-  {:else if s?.leveling && interact}
-    <section class="panel dim small">{log?.path ? m.overlay_log_waiting() : m.overlay_log_missing()}</section>
-  {/if}
 
   {#if interact && !card}
     <section class="panel dim small">{m.overlay_idle_hint({ toggle: s?.toggleKey ?? "", interact: s?.interactKey ?? "" })}</section>

@@ -1441,6 +1441,8 @@ pub fn run() {
             overlay::overlay_interact,
             #[cfg(desktop)]
             overlay::overlay_ask,
+            #[cfg(desktop)]
+            overlay::overlay_repaint,
             prices::price_check,
             #[cfg(desktop)]
             gamelog::gamelog_state,

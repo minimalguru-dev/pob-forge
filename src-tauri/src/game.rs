@@ -130,7 +130,6 @@ pub struct OverlaySettings {
     pub opacity: f64,
     pub item_check: bool,
     pub map_check: bool,
-    pub leveling: bool,
     /// poe.ninja prices on item cards (PoE1).
     pub prices: bool,
     /// League for prices; none means the current challenge league.
@@ -153,7 +152,6 @@ impl Default for OverlaySettings {
             opacity: 0.92,
             item_check: true,
             map_check: true,
-            leveling: true,
             prices: true,
             price_league: None,
             card_seconds: 15,
