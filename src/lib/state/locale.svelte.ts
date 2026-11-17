@@ -23,6 +23,7 @@ export const LOCALE_LABEL: Record<Locale, string> = {
   "pt-BR": "Português (Brasil)",
   ru: "Русский",
   th: "ไทย",
+  hr: "Hrvatski",
 };
 
 /** Tags the OS may report that no shipped locale matches exactly. */
