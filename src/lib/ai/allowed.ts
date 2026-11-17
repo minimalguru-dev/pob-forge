@@ -53,6 +53,9 @@ export const ALLOWED = new Set([
   "open_trade_search",
   // What the overlay saw: items the user copied in the game or on trade, and their zone and level.
   "get_game_context",
+  // poe.ninja's ladder, and one of its builds loaded into Compare beside the open one (PoE1).
+  "search_ninja_builds",
+  "compare_ninja_build",
   // write, approval-gated
   "alloc_node",
   "alloc_path",

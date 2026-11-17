@@ -760,6 +760,45 @@ fn adapt_for_poe1(defs: &mut Vec<ToolDef>) {
         open_world: false,
         slow: false,
     });
+    defs.push(ToolDef {
+        name: "search_ninja_builds",
+        description: "Search poe.ninja's ladder for builds like the user's: the top characters for a class or ascendancy, main skill, keystone or unique item, best first, each with `name`, `account`, level, life, energy shield, EHP, DPS, main skills and keystones. Returns `leagueUrl` and a `url` to the same search on poe.ninja. Pick one and pass its `account`, `name` and the `leagueUrl` to compare_ninja_build. The user approves each lookup.".into(),
+        schema: obj(
+            json!({
+                "class": prop("string", "Ascendancy or class, e.g. Slayer"),
+                "skill": prop("string", "Main skill gem, e.g. Dual Strike of Ambidexterity"),
+                "keystone": prop("string", "Keystone the builds take, e.g. Chaos Inoculation"),
+                "item": prop("string", "Unique item the builds use, e.g. Headhunter"),
+                "league": prop("string", "League as the user names it (default: the current one)"),
+                "limit": prop("integer", "How many builds to return (default 10, at most 30)"),
+            }),
+            &[],
+        ),
+        output_schema: None,
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: true,
+        slow: false,
+    });
+    defs.push(ToolDef {
+        name: "compare_ninja_build",
+        description: "Load one poe.ninja ladder character (from search_ninja_builds) into the Compare tab beside the open build, without changing the open build, and return what differs: headline stats (`stats`, theirs against mine), gear by slot, gems only one side uses, keystones and notables they take that the user does not and the reverse. Use it to say what the user's build is missing against strong builds of the same kind. The user approves each lookup.".into(),
+        schema: obj(
+            json!({
+                "account": prop("string", "Account from search_ninja_builds"),
+                "name": prop("string", "Character name from search_ninja_builds"),
+                "league_url": prop("string", "`leagueUrl` from search_ninja_builds"),
+            }),
+            &["account", "name", "league_url"],
+        ),
+        output_schema: None,
+        read_only: true,
+        destructive: false,
+        idempotent: false,
+        open_world: true,
+        slow: true,
+    });
     let timeless_jewel = || json!({ "type": "string", "enum": ["Glorious Vanity", "Lethal Pride", "Brutal Restraint", "Militant Faith", "Elegant Hubris", "Heroic Tragedy"], "description": "Timeless jewel" });
     defs.push(ToolDef {
         name: "list_timeless_options",
@@ -1395,6 +1434,30 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
             }
             read(v)
         }
+        "search_ninja_builds" => {
+            let limit = arg_i64(args, "limit")?.unwrap_or(10).clamp(1, 30) as usize;
+            let (class, skill, keystone, item, league) = (arg_str(args, "class"), arg_str(args, "skill"), arg_str(args, "keystone"), arg_str(args, "item"), arg_str(args, "league"));
+            if class.is_none() && skill.is_none() && keystone.is_none() && item.is_none() {
+                return Err(ToolError::Invalid("give at least one of class, skill, keystone or item".into()));
+            }
+            let found = tauri::async_runtime::block_on(crate::ninja::search_builds(
+                ctx.game(),
+                league.as_deref(),
+                class.as_deref(),
+                skill.as_deref(),
+                keystone.as_deref(),
+                item.as_deref(),
+                limit,
+            ))
+            .map_err(ToolError::Failed)?;
+            read(serde_json::to_value(found).unwrap_or(Value::Null))
+        }
+        "compare_ninja_build" => {
+            let (account, name, league_url) = (req_str(args, "account")?, req_str(args, "name")?, req_str(args, "league_url")?);
+            let code = tauri::async_runtime::block_on(crate::ninja::build_code(ctx.game(), &account, &name, &league_url)).map_err(ToolError::Failed)?;
+            ctx.call("compare_add", json!({ "code": code, "label": format!("{name} (poe.ninja)") }))?;
+            read(ninja_comparison(ctx, &name, &account)?)
+        }
         "search_timeless_seeds" => {
             let wanted = arg_list(args, "wanted");
             if wanted.is_empty() {
@@ -1662,6 +1725,63 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
     }
 }
 
+/// What a ladder build has that the open one does not, from PoB's own compare: headline stats,
+/// gear, skill groups and the tree. The comparison stays in the Compare tab for the user.
+fn ninja_comparison(ctx: &ToolContext, name: &str, account: &str) -> Result<Value, ToolError> {
+    const STATS: [&str; 18] = [
+        "CombinedDPS", "FullDPS", "TotalEHP", "Life", "EnergyShield", "Mana", "Ward", "Armour", "Evasion",
+        "FireResist", "ColdResist", "LightningResist", "ChaosResist", "EffectiveSpellSuppressionChance", "BlockChance",
+        "Str", "Dex", "Int",
+    ];
+    let summary = ctx.call("compare_summary", json!({ "onlyDifferences": true }))?;
+    let stats: Vec<Value> = summary["rows"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|r| r["stat"].as_str().is_some_and(|s| STATS.contains(&s)))
+        .map(|r| json!({ "stat": r["label"], "mine": r["mineText"], "theirs": r["theirsText"], "difference": r["deltaText"], "theirsBetter": r["better"] }))
+        .collect();
+    let items = ctx.call("compare_items", json!({ "onlyDifferences": true }))?;
+    let gear: Vec<Value> = items["rows"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|r| json!({ "slot": r["slot"], "mine": r["mine"]["name"], "theirs": r["theirs"]["name"] }))
+        .collect();
+    // Socket groups are ordered differently in every build, so compare the gems each side uses.
+    let skills = ctx.call("compare_skills", json!({ "onlyDifferences": false }))?;
+    let used = |side: &str| -> std::collections::BTreeSet<String> {
+        skills["rows"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|r| r[side]["enabled"] != Value::Bool(false))
+            .flat_map(|r| r[side]["gems"].as_array().cloned().unwrap_or_default())
+            .filter(|g| g["enabled"] != Value::Bool(false))
+            .filter_map(|g| g["name"].as_str().map(str::to_string))
+            .collect()
+    };
+    let (mine_gems, their_gems) = (used("mine"), used("theirs"));
+    let tree = ctx.call("compare_tree", Value::Null)?;
+    let first = |key: &str, n: usize| Value::Array(tree[key].as_array().into_iter().flatten().take(n).cloned().collect());
+    Ok(json!({
+        "theirs": format!("{name} ({account})"),
+        "stats": stats,
+        "gear": gear,
+        "gemsTheyUse": their_gems.difference(&mine_gems).collect::<Vec<_>>(),
+        "gemsOnlyMine": mine_gems.difference(&their_gems).collect::<Vec<_>>(),
+        "tree": {
+            "mineNodes": tree["mine"]["nodes"],
+            "theirNodes": tree["theirs"]["nodes"],
+            "keystonesTheyTake": tree["keystonesGained"],
+            "keystonesOnlyMine": tree["keystonesLost"],
+            "notablesTheyTake": first("notablesGained", 30),
+            "notablesOnlyMine": first("notablesLost", 30),
+        },
+        "note": "Their build is now in the Compare tab beside the open one; the open build is unchanged.",
+    }))
+}
+
 /// The overlay's recent copies, scored against the open build, and the game log's position.
 #[cfg(desktop)]
 fn game_context(ctx: &ToolContext, limit: Option<i64>, evaluate: bool) -> Result<Value, ToolError> {
@@ -1728,7 +1848,7 @@ mod tests {
     #[test]
     fn poe1_registry_speaks_poe1() {
         let d = defs(Game::Poe1);
-        assert_eq!(d.len(), 85, "PoE1 tool count changed");
+        assert_eq!(d.len(), 87, "PoE1 tool count changed");
         for (name, _) in POE1_TEXT {
             assert!(d.iter().any(|t| t.name == *name), "POE1_TEXT names {name}, which is not a tool");
         }

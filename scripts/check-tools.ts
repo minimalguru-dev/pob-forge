@@ -52,6 +52,7 @@ const intents: [string, string][] = [
   ["find a timeless jewel seed", "search_timeless_seeds"],
   ["find a ring to buy on the trade site", "open_trade_search"],
   ["check the item I copied in the game", "get_game_context"],
+  ["compare my build with top ninja builds", "search_ninja_builds"],
 ];
 for (const [query, want] of intents) {
   if (!defs.some((d) => d.name === want) && !CORE.has(want)) continue;

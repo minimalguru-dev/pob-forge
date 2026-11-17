@@ -9986,6 +9986,19 @@ M.compare_tree = function()
 	for k in pairs(myKeys) do if not theirKeys[k] then keyLost[#keyLost + 1] = k end end
 	table.sort(keyGained)
 	table.sort(keyLost)
+	-- Notables by name, from each side's own tree, for an advisor to read.
+	local function notables(ids, spec)
+		local names, seen = strArray({}), {}
+		for _, id in ipairs(ids) do
+			local node = spec.nodes[id]
+			if node and node.type == "Notable" and node.dn and not seen[node.dn] then
+				seen[node.dn] = true
+				names[#names + 1] = node.dn
+			end
+		end
+		table.sort(names)
+		return names
+	end
 	return {
 		mine = { nodes = myCount, title = mySpec.title or "Default", className = mySpec.curClassName },
 		theirs = { nodes = theirCount, title = theirSpec.title or "Default", className = theirSpec.curClassName },
@@ -9993,6 +10006,8 @@ M.compare_tree = function()
 		lost = lost,
 		keystonesGained = keyGained,
 		keystonesLost = keyLost,
+		notablesGained = notables(gained, theirSpec),
+		notablesLost = notables(lost, mySpec),
 	}
 end
 
