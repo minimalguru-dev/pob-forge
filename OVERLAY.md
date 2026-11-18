@@ -65,8 +65,12 @@ ring I just copied better?" works without pasting anything.
   stored. When the overlay is hidden or off, the clipboard is not read.
 - The last five items it acted on are kept in memory for the assistant and forgotten when the app closes.
 - It reads the game's own log file, which the game writes for players.
-- It never reads the game's memory, injects anything into the game, or sends keys or clicks to it. One keypress of
-  yours does one thing in the overlay.
+- It never reads the game's memory or injects anything into the game, and it never clicks.
+- The only keys it sends are **macros** (Settings → Overlay → Macros, F5 → `/hideout` by default): one key press types
+  one chat command, as Enter, the command, Enter. Commands must start with `/` and be one line. The macro keys are
+  taken only while the game window is in front, so they keep their usual meaning in every other program, and a macro
+  waits for Ctrl, Shift and Alt to be released so the typing cannot turn into shortcuts. If the chat box is already
+  open with text in it, the first Enter sends that text, as it would in Awakened PoE Trade.
 
 GGG's [third-party policy](https://www.pathofexile.com/developer/docs#policy) remains authoritative. This product
 isn't affiliated with or endorsed by Grinding Gear Games in any way.

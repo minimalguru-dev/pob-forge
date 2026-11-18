@@ -136,6 +136,16 @@ pub struct OverlaySettings {
     pub price_league: Option<String>,
     /// How long an item or map card stays up.
     pub card_seconds: u32,
+    /// Keys that type one chat command into the game, while the game is in front.
+    pub macros: Vec<Macro>,
+}
+
+/// A key and the chat command it types, such as F5 and /hideout.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Macro {
+    pub key: String,
+    pub command: String,
 }
 
 impl Default for OverlaySettings {
@@ -155,6 +165,7 @@ impl Default for OverlaySettings {
             prices: true,
             price_league: None,
             card_seconds: 15,
+            macros: vec![Macro { key: "F5".into(), command: "/hideout".into() }],
         }
     }
 }

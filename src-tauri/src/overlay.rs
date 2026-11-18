@@ -1,6 +1,10 @@
 //! The in-game overlay: a small always-on-top window that lets clicks through to the game until
 //! the interact shortcut is pressed. It reads only what the user copies (Ctrl+C on an item) and,
-//! through `gamelog`, the game's own Client.txt. It never reads game memory or sends input.
+//! through `gamelog`, the game's own Client.txt. It never reads game memory.
+//!
+//! The one input it sends is a macro: a key the user set types one chat command (Enter, the
+//! command, Enter), such as F5 for /hideout. One key press is one command, and the keys are taken
+//! only while the game is the foreground window.
 //!
 //! A card opens next to the cursor and closes as soon as the mouse moves, unless Ctrl is held.
 //! With Ctrl held the card takes clicks, and a click keeps it open (pinned) until the user clicks
@@ -35,6 +39,117 @@ pub struct OverlayState {
     follow: Mutex<Follow>,
     /// The monitor size the window covers, which a repaint nudge returns to.
     full: Mutex<Option<tauri::PhysicalSize<u32>>>,
+    /// Macro keys and their commands; taken only while the game is in front.
+    macros: Mutex<Vec<(Shortcut, String)>>,
+    macros_taken: AtomicBool,
+}
+
+/// What a macro may type: one chat command, starting with a slash, on one line.
+pub fn valid_command(command: &str) -> Result<String, String> {
+    let c = command.trim();
+    if !c.starts_with('/') || c.len() < 2 {
+        return Err(format!("a macro types a chat command, which starts with /: {c}"));
+    }
+    if c.contains(['\n', '\r']) || c.chars().count() > 120 {
+        return Err(format!("a macro command is one line of at most 120 characters: {c}"));
+    }
+    Ok(c.to_string())
+}
+
+/// The game window, by its title, is the foreground window.
+#[cfg(windows)]
+fn game_in_front() -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowTextW};
+    // SAFETY: reads the foreground window's title into a local buffer.
+    let title = unsafe {
+        let h = GetForegroundWindow();
+        if h.is_null() {
+            return false;
+        }
+        let mut buf = [0u16; 64];
+        let n = GetWindowTextW(h, buf.as_mut_ptr(), buf.len() as i32);
+        String::from_utf16_lossy(&buf[..usize::try_from(n).unwrap_or(0)])
+    };
+    title == "Path of Exile" || title == "Path of Exile 2"
+}
+
+#[cfg(not(windows))]
+fn game_in_front() -> bool {
+    false
+}
+
+#[cfg(windows)]
+fn modifiers_down() -> bool {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
+    // SAFETY: GetAsyncKeyState only reads key state.
+    [VK_CONTROL, VK_SHIFT, VK_MENU].into_iter().any(|vk| (unsafe { GetAsyncKeyState(i32::from(vk)) } as u16 & 0x8000) != 0)
+}
+
+/// Types one chat command into the game: Enter opens the chat, the command, Enter sends it.
+/// Held modifiers would turn the typing into shortcuts, so it waits briefly for them to be let go.
+#[cfg(windows)]
+fn type_command(command: &str) {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VK_RETURN};
+    for _ in 0..20 {
+        if !modifiers_down() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    if modifiers_down() || !game_in_front() {
+        log::info!("overlay: macro skipped, a modifier is held or the game is not in front");
+        return;
+    }
+    let key = |vk: u16, scan: u16, flags: u32| INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: vk, wScan: scan, dwFlags: flags, time: 0, dwExtraInfo: 0 } },
+    };
+    let send = |inputs: &[INPUT]| {
+        // SAFETY: a plain array of keyboard inputs.
+        unsafe { SendInput(inputs.len() as u32, inputs.as_ptr(), std::mem::size_of::<INPUT>() as i32) };
+    };
+    let enter = [key(VK_RETURN, 0, 0), key(VK_RETURN, 0, KEYEVENTF_KEYUP)];
+    send(&enter);
+    // The chat box needs a moment to open before it takes text.
+    std::thread::sleep(Duration::from_millis(40));
+    let text: Vec<INPUT> = command.encode_utf16().flat_map(|u| [key(0, u, KEYEVENTF_UNICODE), key(0, u, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP)]).collect();
+    send(&text);
+    std::thread::sleep(Duration::from_millis(20));
+    send(&enter);
+}
+
+#[cfg(not(windows))]
+fn type_command(_: &str) {}
+
+/// Takes the macro keys while the game is in front and gives them back otherwise, so F5 and the
+/// like keep working in every other program.
+fn spawn_macro_keys(app: AppHandle) {
+    std::thread::Builder::new()
+        .name("overlay-macros".into())
+        .spawn(move || loop {
+            std::thread::sleep(Duration::from_millis(200));
+            let state = app.state::<OverlayState>();
+            let keys: Vec<Shortcut> = state.macros.lock().unwrap_or_else(|e| e.into_inner()).iter().map(|(k, _)| *k).collect();
+            if keys.is_empty() {
+                continue;
+            }
+            let want = game_in_front();
+            if want == state.macros_taken.load(Ordering::Relaxed) {
+                continue;
+            }
+            let mut ok = true;
+            for key in &keys {
+                let done = if want { app.global_shortcut().register(*key) } else { app.global_shortcut().unregister(*key) };
+                if let Err(e) = done {
+                    ok = false;
+                    log::warn!("overlay macro key {key}: {e}");
+                }
+            }
+            if ok || !want {
+                state.macros_taken.store(want, Ordering::Relaxed);
+            }
+        })
+        .expect("spawn overlay macros");
 }
 
 /// The open card's link to the cursor.
@@ -228,6 +343,15 @@ fn register_keys(app: &AppHandle, s: &OverlaySettings) -> Result<(), String> {
         let _ = app.global_shortcut().unregister(a);
         let _ = app.global_shortcut().unregister(b);
     }
+    {
+        let mut macros = state.macros.lock().unwrap_or_else(|e| e.into_inner());
+        if state.macros_taken.swap(false, Ordering::Relaxed) {
+            for (key, _) in macros.iter() {
+                let _ = app.global_shortcut().unregister(*key);
+            }
+        }
+        macros.clear();
+    }
     if !s.enabled {
         return Ok(());
     }
@@ -235,6 +359,18 @@ fn register_keys(app: &AppHandle, s: &OverlaySettings) -> Result<(), String> {
     if toggle == interact {
         return Err("The two overlay shortcuts must differ.".into());
     }
+    let mut macros: Vec<(Shortcut, String)> = Vec::new();
+    for m in &s.macros {
+        if m.key.trim().is_empty() || m.command.trim().is_empty() {
+            continue;
+        }
+        let key = parse_key(m.key.trim())?;
+        if key == toggle || key == interact || macros.iter().any(|(k, _)| *k == key) {
+            return Err(format!("the macro key {} is already used", m.key.trim()));
+        }
+        macros.push((key, valid_command(&m.command)?));
+    }
+    *state.macros.lock().unwrap_or_else(|e| e.into_inner()) = macros;
     for key in [toggle, interact] {
         app.global_shortcut()
             .register(key)
@@ -246,6 +382,12 @@ fn register_keys(app: &AppHandle, s: &OverlaySettings) -> Result<(), String> {
 
 pub fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, state: ShortcutState) {
     if state != ShortcutState::Pressed {
+        return;
+    }
+    let command = app.state::<OverlayState>().macros.lock().unwrap_or_else(|e| e.into_inner()).iter().find(|(k, _)| k == shortcut).map(|(_, c)| c.clone());
+    if let Some(command) = command {
+        // Off the shortcut handler: typing waits for modifiers and the chat box.
+        std::thread::spawn(move || type_command(&command));
         return;
     }
     let keys = *app.state::<OverlayState>().keys.lock().unwrap_or_else(|e| e.into_inner());
@@ -388,6 +530,7 @@ pub fn setup(app: &AppHandle) {
     app.manage(OverlayState::default());
     spawn_clipboard_watch(app.clone());
     spawn_follow(app.clone());
+    spawn_macro_keys(app.clone());
     let s = settings(app);
     if !s.enabled {
         return;
@@ -519,6 +662,18 @@ mod tests {
         assert_eq!(classify("Rarity: Mythic\nnot an item\n--------"), None);
         assert_eq!(classify("my password is Item Class: Rings"), None);
         assert_eq!(classify(""), None);
+    }
+
+    #[test]
+    fn macros_type_one_chat_command() {
+        assert_eq!(valid_command(" /hideout ").unwrap(), "/hideout");
+        assert!(valid_command("hideout").is_err());
+        assert!(valid_command("/").is_err());
+        assert!(valid_command("/hideout\n/exit").is_err());
+        let s = OverlaySettings::default();
+        assert_eq!(s.macros.len(), 1);
+        assert_eq!((s.macros[0].key.as_str(), s.macros[0].command.as_str()), ("F5", "/hideout"));
+        assert_ne!(parse_key("F5").unwrap(), parse_key(&s.toggle_key).unwrap());
     }
 
     #[test]

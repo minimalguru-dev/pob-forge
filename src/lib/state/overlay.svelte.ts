@@ -17,6 +17,7 @@ export interface OverlaySettings {
   prices: boolean;
   priceLeague: string | null;
   cardSeconds: number;
+  macros: { key: string; command: string }[];
 }
 
 /** The in-game overlay's settings, shared by the Settings page and the overlay window. */

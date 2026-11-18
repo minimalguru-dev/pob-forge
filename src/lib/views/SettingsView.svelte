@@ -712,6 +712,22 @@
               </label>
             </div>
           {/if}
+          <h2 class="label ghead">{m.overlay_macros()}</h2>
+          <p class="note">{m.overlay_macros_hint()}</p>
+          <div class="rows">
+            {#each o.macros as mac, i (i)}
+              <div class="opt macro">
+                <input class="input mono key" value={mac.key} aria-label={m.overlay_macro_key()} placeholder="F5" disabled={overlay.saving}
+                  onchange={(e) => overlay.update({ macros: o.macros.map((x, j) => (j === i ? { ...x, key: (e.target as HTMLInputElement).value.trim() } : x)) })} />
+                <input class="input mono" value={mac.command} aria-label={m.overlay_macro_command()} placeholder="/hideout" disabled={overlay.saving}
+                  onchange={(e) => overlay.update({ macros: o.macros.map((x, j) => (j === i ? { ...x, command: (e.target as HTMLInputElement).value.trim() } : x)) })} />
+                <button class="btn sm ghost" disabled={overlay.saving} onclick={() => overlay.update({ macros: o.macros.filter((_, j) => j !== i) })}>{m.overlay_macro_remove()}</button>
+              </div>
+            {/each}
+            <div class="opt">
+              <button class="btn sm" disabled={overlay.saving} onclick={() => overlay.update({ macros: [...o.macros, { key: "", command: "/" }] })}>{m.overlay_macro_add()}</button>
+            </div>
+          </div>
           {#if overlay.error}<div class="opt err mono">{overlay.error}</div>{/if}
           <p class="note">{m.overlay_rules_note()}</p>
         {:else if overlay.error}
@@ -885,6 +901,18 @@
   }
   .rows.master.live {
     border-color: var(--fg-3);
+  }
+  .opt.macro {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .opt.macro .key {
+    width: 110px;
+    flex: none;
+  }
+  .opt.macro input:not(.key) {
+    flex: 1;
   }
   .opt {
     display: flex;
