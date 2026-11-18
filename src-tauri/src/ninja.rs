@@ -9,6 +9,9 @@ const UA: &str = concat!("PoB Redux/", env!("CARGO_PKG_VERSION"), " (+https://po
 
 const NO_PROFILE: &str = "poe.ninja has no profile for that account. Check the name, including its #1234 part.";
 const LIMITED: &str = "poe.ninja is limiting requests. Wait a minute, then try again.";
+/// Cloudflare's "Attention Required" page: poe.ninja refuses automated requests from this computer
+/// for now. The app does not try to get past it.
+pub const BLOCKED: &str = "poe.ninja is refusing automated requests from this computer right now (its Cloudflare protection). This usually passes; until then open poe.ninja in a browser.";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -101,6 +104,7 @@ async fn get(client: &reqwest::Client, url: &str) -> Result<Option<String>, Stri
         200..=299 => resp.text().await.map(Some).map_err(|e| format!("poe.ninja: {e}")),
         404 => Ok(None),
         429 => Err(LIMITED.into()),
+        403 => Err(BLOCKED.into()),
         _ => Err(format!("poe.ninja returned HTTP {status}")),
     }
 }
@@ -368,6 +372,7 @@ async fn get_bytes(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, Strin
     match resp.status().as_u16() {
         200..=299 => resp.bytes().await.map(|b| b.to_vec()).map_err(|e| format!("poe.ninja: {e}")),
         429 => Err(LIMITED.into()),
+        403 => Err(BLOCKED.into()),
         s => Err(format!("poe.ninja returned HTTP {s}")),
     }
 }
@@ -427,7 +432,16 @@ async fn ladder_snapshot(client: &reqwest::Client, game: Game, league: Option<&s
     struct Index {
         snapshot_versions: Vec<Named>,
     }
-    let body = get(client, &format!("{HOST}{}/api/data/index-state", game.id())).await?.ok_or("poe.ninja did not return its league list")?;
+    static INDEX: std::sync::Mutex<Option<(std::time::Instant, Game, String)>> = std::sync::Mutex::new(None);
+    let cached = INDEX.lock().unwrap_or_else(|e| e.into_inner()).as_ref().filter(|(at, g, _)| *g == game && at.elapsed() < Duration::from_secs(600)).map(|(_, _, b)| b.clone());
+    let body = match cached {
+        Some(b) => b,
+        None => {
+            let b = get(client, &format!("{HOST}{}/api/data/index-state", game.id())).await?.ok_or("poe.ninja did not return its league list")?;
+            *INDEX.lock().unwrap_or_else(|e| e.into_inner()) = Some((std::time::Instant::now(), game, b.clone()));
+            b
+        }
+    };
     let index: Index = serde_json::from_str(&body).map_err(|_| "poe.ninja sent a league list this app could not read".to_string())?;
     let ladders = index.snapshot_versions.into_iter().filter(|s| matches!(s.kind.as_deref(), None | Some("exp")));
     let wanted = league.map(|l| l.trim().to_lowercase()).filter(|l| !l.is_empty());
@@ -461,7 +475,8 @@ pub async fn search_builds(
     params.extend(filters.iter().copied());
     let api = reqwest::Url::parse_with_params(&format!("{HOST}{}/api/builds/{}/search", game.id(), snapshot.version), &params).map_err(|e| e.to_string())?;
     let page = reqwest::Url::parse_with_params(&format!("{HOST}{}/builds/{}", game.id(), snapshot.url), &filters).map_err(|e| e.to_string())?;
-    let body = get_bytes(&client, api.as_str()).await?;
+    // A refused search still gives the user the page to open themselves.
+    let body = get_bytes(&client, api.as_str()).await.map_err(|e| if e == BLOCKED { format!("{BLOCKED} The same search: {page}") } else { e })?;
     let search = parse_search(&body).ok_or("poe.ninja sent a build search this app could not read")?;
 
     let mut words: std::collections::HashMap<String, std::sync::Arc<Vec<String>>> = std::collections::HashMap::new();

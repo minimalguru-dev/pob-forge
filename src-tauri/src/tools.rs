@@ -783,14 +783,15 @@ fn adapt_for_poe1(defs: &mut Vec<ToolDef>) {
     });
     defs.push(ToolDef {
         name: "compare_ninja_build",
-        description: "Load one poe.ninja ladder character (from search_ninja_builds) into the Compare tab beside the open build, without changing the open build, and return what differs: headline stats (`stats`, theirs against mine), gear by slot, gems only one side uses, keystones and notables they take that the user does not and the reverse. Use it to say what the user's build is missing against strong builds of the same kind. The user approves each lookup.".into(),
+        description: "Load one poe.ninja ladder character (from search_ninja_builds) into the Compare tab beside the open build, without changing the open build, and return what differs: headline stats (`stats`, theirs against mine), gear by slot, gems only one side uses, keystones and notables they take that the user does not and the reverse. Use it to say what the user's build is missing against strong builds of the same kind. When poe.ninja refuses automated requests, give the user the search link and ask for the PoB code from the character's page, then pass `code`. The user approves each lookup.".into(),
         schema: obj(
             json!({
                 "account": prop("string", "Account from search_ninja_builds"),
                 "name": prop("string", "Character name from search_ninja_builds"),
                 "league_url": prop("string", "`leagueUrl` from search_ninja_builds"),
+                "code": prop("string", "Instead: a PoB code the user copied from a poe.ninja character page"),
             }),
-            &["account", "name", "league_url"],
+            &[],
         ),
         output_schema: None,
         read_only: true,
@@ -1453,9 +1454,16 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
             read(serde_json::to_value(found).unwrap_or(Value::Null))
         }
         "compare_ninja_build" => {
-            let (account, name, league_url) = (req_str(args, "account")?, req_str(args, "name")?, req_str(args, "league_url")?);
-            let code = tauri::async_runtime::block_on(crate::ninja::build_code(ctx.game(), &account, &name, &league_url)).map_err(ToolError::Failed)?;
-            ctx.call("compare_add", json!({ "code": code, "label": format!("{name} (poe.ninja)") }))?;
+            // A PoB code the user copied from poe.ninja works without the API.
+            let (code, name, account) = match arg_str(args, "code").filter(|c| !c.trim().is_empty()) {
+                Some(code) => (code, arg_str(args, "name").unwrap_or_else(|| "Ladder build".into()), arg_str(args, "account").unwrap_or_default()),
+                None => {
+                    let (account, name, league_url) = (req_str(args, "account")?, req_str(args, "name")?, req_str(args, "league_url")?);
+                    let code = tauri::async_runtime::block_on(crate::ninja::build_code(ctx.game(), &account, &name, &league_url)).map_err(ToolError::Failed)?;
+                    (code, name, account)
+                }
+            };
+            ctx.call("compare_add", json!({ "code": code.trim(), "label": format!("{name} (poe.ninja)") }))?;
             read(ninja_comparison(ctx, &name, &account)?)
         }
         "search_timeless_seeds" => {
@@ -1765,7 +1773,7 @@ fn ninja_comparison(ctx: &ToolContext, name: &str, account: &str) -> Result<Valu
     let tree = ctx.call("compare_tree", Value::Null)?;
     let first = |key: &str, n: usize| Value::Array(tree[key].as_array().into_iter().flatten().take(n).cloned().collect());
     Ok(json!({
-        "theirs": format!("{name} ({account})"),
+        "theirs": if account.is_empty() { name.to_string() } else { format!("{name} ({account})") },
         "stats": stats,
         "gear": gear,
         "gemsTheyUse": their_gems.difference(&mine_gems).collect::<Vec<_>>(),
