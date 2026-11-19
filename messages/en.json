@@ -1834,7 +1834,6 @@
   "price_total": "{count} listed. The cheapest:",
   "price_no_results": "Nothing listed matches. Untick a mod or lower its minimum.",
   "price_open_trade": "Open on the trade site",
-  "price_offline": "offline",
   "price_not_searchable": "The trade search cannot read this item; poe.ninja's price is all there is.",
   "price_item_level": "item level {level}",
   "price_corrupted": "corrupted",

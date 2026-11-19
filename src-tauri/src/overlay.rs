@@ -13,7 +13,12 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 pub const LABEL: &str = "overlay";
-const POLL: Duration = Duration::from_millis(300);
+/// Short enough that a card follows Ctrl+C at once; a clipboard read is cheap.
+const POLL: Duration = Duration::from_millis(100);
+/// How often a card held open with Ctrl checks the key and the cursor.
+const HOLD_POLL: Duration = Duration::from_millis(30);
+/// A card whose Ctrl was let go before it appeared keeps its own timer instead.
+const HOLD_GRACE: Duration = Duration::from_millis(1500);
 /// Larger than any item or map the game copies; anything bigger is not ours to read.
 const MAX_ITEM_TEXT: usize = 16 * 1024;
 
@@ -52,6 +57,48 @@ pub struct OverlayState {
     suppress: AtomicU64,
     /// Where the overlay stood before a card moved it beside the inventory.
     home: Mutex<Option<PhysicalPosition<i32>>>,
+    /// Bumped for each card, so a newer card's hold watcher replaces the older one.
+    card_generation: AtomicU64,
+}
+
+/// Whether the cursor is over the overlay window.
+fn over_overlay(app: &AppHandle) -> bool {
+    let Some(w) = app.get_webview_window(LABEL) else { return false };
+    let (Ok(cursor), Ok(pos), Ok(size)) = (w.cursor_position(), w.outer_position(), w.outer_size()) else { return false };
+    let (x, y) = (cursor.x - pos.x as f64, cursor.y - pos.y as f64);
+    x >= 0.0 && y >= 0.0 && x < size.width as f64 && y < size.height as f64
+}
+
+/// Hold to look, as in Awakened PoE Trade: once Ctrl has been seen down, letting it go closes the
+/// card. Moving the cursor onto the overlay pins it open until it is closed by hand.
+fn spawn_hold_watch(app: &AppHandle, kind: &'static str) {
+    if crate::game_window::ctrl_held().is_none() {
+        return;
+    }
+    let generation = app.state::<OverlayState>().card_generation.fetch_add(1, Ordering::Relaxed) + 1;
+    let app = app.clone();
+    let _ = std::thread::Builder::new().name("overlay-hold".into()).spawn(move || {
+        let started = std::time::Instant::now();
+        let mut held = false;
+        loop {
+            std::thread::sleep(HOLD_POLL);
+            if app.state::<OverlayState>().card_generation.load(Ordering::Relaxed) != generation {
+                return;
+            }
+            if over_overlay(&app) {
+                return;
+            }
+            match crate::game_window::ctrl_held() {
+                Some(true) => held = true,
+                Some(false) if held => {
+                    let _ = app.emit_to(LABEL, "overlay:dismiss", kind);
+                    return;
+                }
+                _ if started.elapsed() > HOLD_GRACE => return,
+                _ => {}
+            }
+        }
+    });
 }
 
 /// Moves the overlay just left of the game's inventory panel for an item or price card,
@@ -284,6 +331,7 @@ async fn price_check(app: &AppHandle) -> Result<(), String> {
     dock_beside_inventory(app, game);
     let _ = app.emit_to(LABEL, "overlay:price", serde_json::json!({ "raw": text }));
     set_interact(app, Some(true));
+    spawn_hold_watch(app, "price");
     Ok(())
 }
 
@@ -395,10 +443,14 @@ fn spawn_clipboard_watch(app: AppHandle) {
                     let s = settings(&app);
                     if (kind == "map" && s.map_check) || (kind == "item" && s.item_check) {
                         // Copied in the game: the card goes beside the inventory, not over it.
-                        if let Some(game) = crate::game_window::foreground_game() {
+                        let game = crate::game_window::foreground_game();
+                        if let Some(game) = game {
                             dock_beside_inventory(&app, game);
                         }
                         let _ = app.emit_to(LABEL, "overlay:item", serde_json::json!({ "raw": text, "kind": kind }));
+                        if game.is_some() {
+                            spawn_hold_watch(&app, "item");
+                        }
                     }
                 }
             }
@@ -479,6 +531,8 @@ pub async fn overlay_hide(app: AppHandle) -> Result<(), String> {
 /// Closes the price check: clicks go back to the game, and so does focus.
 #[tauri::command]
 pub fn overlay_price_done(app: AppHandle) {
+    // A hold watcher still running for this card has nothing left to close.
+    app.state::<OverlayState>().card_generation.fetch_add(1, Ordering::Relaxed);
     // Back home first: leaving interact mode saves wherever the overlay stands.
     undock(&app);
     set_interact(&app, Some(false));

@@ -28,6 +28,10 @@ rebuild the passive tree (Timeless, Impossible Escape and similar) are not score
 A card copied in the game shows just left of the inventory panel, so it covers neither the stash nor the inventory, and
 the overlay goes back to its place when the card closes.
 
+**Hold to look.** As in Awakened PoE Trade, a card opened from the game with Ctrl+C or Ctrl+D closes as soon as you let go
+of Ctrl. Move the cursor onto the overlay before letting go to keep it open, for example to change the price check's
+filters; Esc or ✕ closes it then. A card whose Ctrl was let go before it appeared stays for the usual few seconds.
+
 **Price check (Windows).** Hover an item in the game and press **Ctrl+D**. The app presses Ctrl+C once so the
 game copies the item, then opens a price card you can click just left of the inventory panel. Esc or ✕ closes it,
 puts the overlay back where it was and gives focus back to the game.

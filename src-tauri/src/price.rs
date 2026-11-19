@@ -136,6 +136,11 @@ fn listings(body: &str) -> Result<Vec<Listing>, String> {
         .collect())
 }
 
+/// Search ids are base64url (a gzipped query) or short alphanumeric ids; nothing else goes into the URL.
+fn valid_search_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 4096 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
 /// The API wants `{ query, sort }`; PoB's Buy Similar builds the `query` part alone.
 fn search_body(query: &str) -> Result<Value, String> {
     let v: Value = serde_json::from_str(query).map_err(|_| "the search is not valid JSON".to_string())?;
@@ -166,7 +171,7 @@ pub async fn price_trade(state: State<'_, PriceState>, game: Game, league: Strin
     let search = trade_url(&search_path)?;
     let request = client().post(search.clone()).header("content-type", "application/json").body(body.to_string());
     let found: Value = serde_json::from_str(&send(&state, request, search.as_str()).await?).map_err(|_| "pathofexile.com sent a search reply this app could not read".to_string())?;
-    let id = found["id"].as_str().filter(|id| id.bytes().all(|b| b.is_ascii_alphanumeric())).ok_or("pathofexile.com sent no search id")?.to_string();
+    let id = found["id"].as_str().filter(|id| valid_search_id(id)).ok_or("pathofexile.com sent no search id")?.to_string();
     let total = found["total"].as_u64().unwrap_or(0);
     let ids: Vec<&str> = found["result"].as_array().map(|a| a.iter().filter_map(Value::as_str).take(FETCH).collect()).unwrap_or_default();
 
@@ -370,6 +375,13 @@ mod tests {
         let kept = search_body(r#"{"query":{"name":"Tabula Rasa"},"sort":{"indexed":"desc"}}"#).unwrap();
         assert_eq!((kept["query"]["name"].as_str(), kept["sort"]["indexed"].as_str()), (Some("Tabula Rasa"), Some("desc")));
         assert!(search_body("[1]").is_err() && search_body("nope").is_err());
+    }
+
+    #[test]
+    fn search_ids_allow_base64url() {
+        assert!(valid_search_id("H4sIAAAAAAAAA3WPUQuCMBSF_0rcZxPbZlN_RvUWIUuXXJhO3LRE-w"));
+        assert!(valid_search_id("Ab12Cd"));
+        assert!(!valid_search_id("") && !valid_search_id("a/b") && !valid_search_id("a?b") && !valid_search_id("a b"));
     }
 
     #[test]

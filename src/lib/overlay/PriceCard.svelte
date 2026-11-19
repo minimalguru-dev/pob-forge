@@ -192,9 +192,9 @@
           <p class="dim small">{m.price_total({ count: result.total })}</p>
           <div class="listings">
             {#each result.listings as l, i (i)}
-              <span class="mono" class:dim={!l.online}>{formatListing(l.amount, l.currency)}</span>
+              <span class="mono">{formatListing(l.amount, l.currency)}</span>
               <span class="dim small">{l.stack && l.stack > 1 ? `×${l.stack}` : ""}</span>
-              <span class="dim small">{age(l.indexed)}{l.online ? "" : ` · ${m.price_offline()}`}</span>
+              <span class="dim small">{age(l.indexed)}</span>
             {/each}
           </div>
         {:else}

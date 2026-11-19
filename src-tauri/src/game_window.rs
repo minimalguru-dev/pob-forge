@@ -33,6 +33,11 @@ pub fn beside_inventory((left, top, right, bottom): (i32, i32, i32, i32), (width
     (x, y)
 }
 
+/// Whether Ctrl is held right now, wherever focus is. `None` where this cannot be told.
+pub fn ctrl_held() -> Option<bool> {
+    imp::ctrl_held()
+}
+
 /// Taps Ctrl+C. Only called right after the price shortcut, while the game has focus.
 pub fn send_copy() -> bool {
     imp::send_copy()
@@ -47,9 +52,14 @@ pub(crate) fn is_game(class: &str, title: &str) -> bool {
 #[cfg(windows)]
 mod imp {
     use super::Handle;
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC, VK_CONTROL};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC, VK_CONTROL};
     use windows_sys::Win32::Foundation::RECT;
     use windows_sys::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow, GetWindowRect, GetWindowTextW, SetForegroundWindow};
+
+    pub fn ctrl_held() -> Option<bool> {
+        // SAFETY: a plain state query; the high bit means the key is down.
+        Some(unsafe { GetAsyncKeyState(VK_CONTROL as i32) } as u16 & 0x8000 != 0)
+    }
 
     pub fn rect(window: Handle) -> Option<(i32, i32, i32, i32)> {
         let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
@@ -118,6 +128,10 @@ mod imp {
     pub fn focus(_: Handle) {}
 
     pub fn rect(_: Handle) -> Option<(i32, i32, i32, i32)> {
+        None
+    }
+
+    pub fn ctrl_held() -> Option<bool> {
         None
     }
 

@@ -191,6 +191,17 @@
         price = { raw: e.payload.raw, key: Date.now() };
       }),
       listen<string>("overlay:price-error", (e) => show({ kind: "error", message: e.payload })),
+      // Ctrl was let go with the cursor away from the overlay: the card goes, as in Awakened.
+      listen<"price" | "item">("overlay:dismiss", (e) => {
+        if (e.payload === "price" && price) {
+          price = null;
+          void invoke("overlay_price_done").catch(() => {});
+        } else if (e.payload === "item" && card && !price) {
+          clearTimeout(timer);
+          card = null;
+          void invoke("overlay_card_closed").catch(() => {});
+        }
+      }),
       listen<boolean>("overlay:interact", (e) => {
         interact = e.payload;
         if (!interact && card) show(card);

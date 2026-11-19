@@ -163,3 +163,12 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Ispravak:** `#[cfg_attr(not(windows), allow(dead_code))]` na `is_game`; testovi je i dalje pokrivaju na svim platformama.
 - **Prevencija:** kod koda iza `#[cfg(windows)]` provjeriti i ne-Windows granu; lokalni Windows check ne zamjenjuje Linux CI.
 - **Validacija:** ponovljeni Linux CI nakon ispravka.
+
+## 2026-11-19 — Price check odbijao ispravan trade search id
+
+- **Simptom:** u igri Ctrl+D javlja "pathofexile.com sent no search id".
+- **Dokaz:** stvarni odgovor `/api/trade/search` ima id oblika `H4sIAAAA…PB_3WP…` (base64url gzipanog upita), a `price_trade` je dopuštao samo `[A-Za-z0-9]`.
+- **Uzrok:** pretpostavka o formatu ID-a bez provjere na stvarnom odgovoru; ranija ručna provjera API-ja vidjela je id, ali nije uspoređena s filterom.
+- **Ispravak:** `valid_search_id` dopušta i `-` i `_` (do 4096 znakova) i dalje odbija sve što bi promijenilo URL; unit test s base64url id-jem.
+- **Prevencija:** validaciju vanjskih ID-jeva pisati prema stvarnom uzorku odgovora i taj uzorak staviti u test.
+- **Validacija:** unit test; ručni anonimni search + fetch s istim id-jem vratio listinge. U igri neprovjereno do novog installera.
