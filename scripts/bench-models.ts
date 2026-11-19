@@ -5,7 +5,7 @@
  *
  *   bun scripts/bench-models.ts [--models a,b,c] [--prompts 1,2,3] [--out target/bench]
  *
- * Needs the app running with POB_REDUX_MCP=7315 and Ollama on localhost.
+ * Needs the app running with POB_FORGE_MCP=7315 and Ollama on localhost.
  * Every run reloads the planner build first, so prompts that change the build
  * start from the same state. Scores are deterministic checks against facts of
  * that build, not a model-judged rubric.

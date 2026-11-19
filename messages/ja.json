@@ -130,8 +130,6 @@
   "status_rev": "rev",
   "status_assistant": "アシスタントパネル",
   "status_assistant_title": "アシスタントパネル（Ctrl+L）",
-  "status_discord": "Discord",
-  "status_discord_title": "PoB Redux の Discord",
 
   "sidebar_build": "ビルド",
   "sidebar_rename_title": "クリックで名前を変更します。ファイル名も一緒に変わります。",
@@ -192,8 +190,6 @@
   "update_available": "バージョン",
   "update_available_suffix": "が利用できます。",
   "update_install": "アップデート",
-  "update_aur_before": "お使いの AUR ヘルパーで",
-  "update_aur_after": "を更新してください。",
   "update_download": "ダウンロード",
   "update_download_title": "パッケージからのインストールはアプリではなくパッケージマネージャーが置き換えます",
   "update_later": "後で",
@@ -211,7 +207,7 @@
 
   "app_safe_mode": "セーフモード: 直前のビルドは開き直されませんでした",
   "app_recover_title": "直前のビルドを開き直しますか？",
-  "app_recover_message": "{build} を開いている間に PoB Redux が予期せず終了しました。開き直してまた落ちる場合は「空の状態で開始」を選んでください。そのビルドは復元コピーとしてビルドフォルダーに保存されます。",
+  "app_recover_message": "{build} を開いている間に PoB Forge が予期せず終了しました。開き直してまた落ちる場合は「空の状態で開始」を選んでください。そのビルドは復元コピーとしてビルドフォルダーに保存されます。",
   "app_recover_build_fallback": "ビルド",
   "app_recover_ok": "開き直す",
   "app_recover_cancel": "空の状態で開始",

@@ -53,12 +53,12 @@ export class SavedOrder {
   }
 }
 
-export const statsOrder = new SavedOrder("pob-redux:stats-order", [
+export const statsOrder = new SavedOrder("pob-forge:stats-order", [
   "minion", "offence", "skill", "attributes", "resources", "mitigation", "resistances", "misc", "fulldps", "warnings", "notcounted",
 ]);
 
 export const calcsOrder: Record<string, SavedOrder> = {
-  offence: new SavedOrder("pob-redux:calcs-order:offence"),
-  defence: new SavedOrder("pob-redux:calcs-order:defence"),
-  other: new SavedOrder("pob-redux:calcs-order:other"),
+  offence: new SavedOrder("pob-forge:calcs-order:offence"),
+  defence: new SavedOrder("pob-forge:calcs-order:defence"),
+  other: new SavedOrder("pob-forge:calcs-order:other"),
 };

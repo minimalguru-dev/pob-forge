@@ -3727,12 +3727,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "pob-redux"
+name = "pob-forge"
 version = "0.5.8"
 dependencies = [
  "axum",
  "base64 0.23.1",
  "cpal",
+ "dirs",
  "getrandom 0.4.3",
  "keyring",
  "libc",

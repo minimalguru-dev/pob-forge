@@ -7,7 +7,7 @@ export default defineConfig({
   outputStructure: "locale-modules",
   // The locale store overwrites getLocale(), so this chain only seeds the first run.
   strategy: ["localStorage", "preferredLanguage", "baseLocale"],
-  localStorageKey: "pob-redux:locale",
+  localStorageKey: "pob-forge:locale",
   emitTsDeclarations: true,
   isServer: "false",
 });

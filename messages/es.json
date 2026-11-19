@@ -130,8 +130,6 @@
   "status_rev": "rev",
   "status_assistant": "Panel del asistente",
   "status_assistant_title": "Panel del asistente (Ctrl+L)",
-  "status_discord": "Discord",
-  "status_discord_title": "Discord de PoB Redux",
 
   "sidebar_build": "Build",
   "sidebar_rename_title": "Haz clic para renombrar. El archivo se renombra con ella.",
@@ -192,8 +190,6 @@
   "update_available": "La versión",
   "update_available_suffix": "está disponible.",
   "update_install": "Actualizar",
-  "update_aur_before": "Actualiza",
-  "update_aur_after": "con tu asistente de AUR.",
   "update_download": "Descargar",
   "update_download_title": "Una instalación por paquete la sustituye su gestor de paquetes, no la aplicación",
   "update_later": "Más tarde",
@@ -211,7 +207,7 @@
 
   "app_safe_mode": "Modo seguro: la última build no se volvió a abrir",
   "app_recover_title": "¿Volver a abrir la última build?",
-  "app_recover_message": "PoB Redux se cerró de forma inesperada mientras {build} estaba abierta. Si al reabrirla la aplicación se vuelve a cerrar, elige Empezar vacío; la build se guardará entonces en tu carpeta de builds como copia recuperada.",
+  "app_recover_message": "PoB Forge se cerró de forma inesperada mientras {build} estaba abierta. Si al reabrirla la aplicación se vuelve a cerrar, elige Empezar vacío; la build se guardará entonces en tu carpeta de builds como copia recuperada.",
   "app_recover_build_fallback": "una build",
   "app_recover_ok": "Volver a abrir",
   "app_recover_cancel": "Empezar vacío",

@@ -48,6 +48,7 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Ispravak:** ukloniti varijablu naredbom `Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue` u svakom procesu koji pokreće Cargo/Tauri. Ne dodavati praznu vrijednost u `GITHUB_ENV`.
 - **Prevencija:** pročitati Windows napomenu u `CONTRIBUTING.md`; kod ovog simptoma prvo provjeriti naslijeđeno okruženje, a ne mijenjati LuaJIT ili PoB izvorni kod.
 - **Validacija:** ispravak u commitu `61ebd64` potvrđen runom `43716010378`: LuaJIT i pob-sync izgrađeni. Sljedeća greška bila je zasebni CRLF patch problem.
+- **Ponovljeno 2026-11-19 lokalno:** Git Bash na `D:\dev` ima `NoDefaultCurrentDirectoryInExePath=1`; `cargo check` je pao s istim `minilua` stderrom. PowerShell s `Remove-Item Env:NoDefaultCurrentDirectoryInExePath` u istom procesu riješio je problem bez promjene koda. Lokalne Cargo naredbe pokretati tako, ne iz Git Basha.
 
 ## 2026-11-15 — Svelte upozorenje ruši obvezni check
 
@@ -100,6 +101,7 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Propust u ranijem pregledu:** potvrđeni build/testovi i odvojeni app identity nisu puni auth security audit. Nije opažena krađa tokena niti kompromitacija.
 - **Prevencija:** kod izolacije previewa provjeriti i credential namespace, OAuth registraciju i profil vanjskog CLI-ja; ne zaključivati izolaciju iz Tauri identifiera.
 - **Status:** nalaz dokumentiran; binary nije mijenjan. Preporuka za sada: Progression testirati code/XML importom bez autorizacije računa; prije autorizacije glavnih računa razriješiti navedene granice. Nisu čitani korisnikovi tokeni, lozinke ni auth cache.
+- **Nastavak 2026-11-19 (rebrand u PoB Forge):** upstream OAuth client ID uklonjen iz koda. Prijava na pathofexile.com radi samo ako build dobije vlastiti `POB_FORGE_GGG_CLIENT_ID`; bez njega backend odbija sign-in/token. Keyring SERVICE i DPAPI entropija sada su `dev.minimalguru.pobforge`; stari zapisi čitaju se jednom i prepisuju (`ai.rs`, `legacy.rs`). Rust unit testovi prolaze; stvarna prijava nije testirana jer client ne postoji.
 
 ## 2026-11-15 — Paste action silently discarded clipboard failures
 
@@ -144,3 +146,12 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - Runs 43725402086 (Windows) and 43725407072 (Linux) failed only in the new OAuth redirect test: reqwest rustls-no-provider panicked because the test bypassed application startup.
 - Production run() already calls pob_engine::install_tls_provider(). The test now calls that same initialization before constructing the real HTTP client. Redirect protection remains unchanged; no TLS checks are disabled.
 - Prevention: when testing a production client outside the application entry point, reproduce its required initialization. Revalidate on both platforms rather than marking the test ignored.
+
+## 2026-11-19 — Masovni rename prepravio povijesne zapise
+
+- **Simptom:** skripta za rename `PoB Redux` → `PoB Forge` zamijenila je i tekst u `DEVELOPMENT_LOG.md` i `mistakes.md`: upstream link pokazivao je na vlastiti fork, a zapis o starom keyring SERVICE-u naveo je novu vrijednost kao da je bila stara.
+- **Dokaz:** `git diff DEVELOPMENT_LOG.md mistakes.md` prije commita; npr. `[Upstream](https://github.com/minimalguru-dev/pob-forge)` i `SERVICE = dev.minimalguru.pobforge` u zapisu od 2026-11-15.
+- **Uzrok:** rename je primijenjen na sve praćene tekstualne datoteke, uključujući dokumente koji bilježe što je bilo istina u prošlosti.
+- **Ispravak:** obje datoteke vraćene na HEAD prije commita; promijenjen samo naslov loga i dodani novi unosi. Ništa netočno nije commitano.
+- **Prevencija:** kod masovnih zamjena isključiti povijesne/handoff zapise i pregledati njihov diff zasebno; povijesne CI linkove ostaviti na staroj adresi (GitHub preusmjerava nakon preimenovanja repozitorija).
+- **Validacija:** `git diff` obiju datoteka sadrži samo naslov i nove unose.

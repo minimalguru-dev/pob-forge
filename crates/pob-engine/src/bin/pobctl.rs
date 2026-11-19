@@ -24,13 +24,13 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 #[command(name = "pobctl", about = "Drive the headless Path of Building engine")]
 struct Cli {
     /// Directory containing PoB's Launch.lua (a pob-sync output or a PoB2 checkout's src/).
-    #[arg(long, env = "POB_REDUX_POB_ROOT")]
+    #[arg(long, env = "POB_FORGE_POB_ROOT")]
     pob_root: PathBuf,
     /// Parent of "Path of Building (PoE2)/" (Builds, Settings.xml). Defaults to a temp dir.
-    #[arg(long, env = "POB_REDUX_USER_DIR")]
+    #[arg(long, env = "POB_FORGE_USER_DIR")]
     user_dir: Option<PathBuf>,
     /// Keep compiled Lua here between runs, as the app does. Off by default.
-    #[arg(long, env = "POB_REDUX_CACHE_DIR")]
+    #[arg(long, env = "POB_FORGE_CACHE_DIR")]
     cache_dir: Option<PathBuf>,
     #[command(subcommand)]
     cmd: Cmd,
@@ -89,7 +89,7 @@ enum Cmd {
         #[arg(long, default_value_t = 4)]
         pool: usize,
     },
-    /// Run the tree planner and gear optimiser on a corpus index (the pobredux/corpus repo).
+    /// Run the tree planner and gear optimiser on a corpus index (the private build corpus repository).
     Corpus {
         index: PathBuf,
         #[arg(long)]
@@ -793,7 +793,7 @@ fn main() {
     let cli = Cli::parse();
     let user_dir = cli
         .user_dir
-        .unwrap_or_else(|| std::env::temp_dir().join("pob-redux-cli"));
+        .unwrap_or_else(|| std::env::temp_dir().join("pob-forge-cli"));
 
     let pooled: Option<Result<Value, pob_engine::Error>> = match &cli.cmd {
         Cmd::Power { file, stat, depth, pool, no_sequential, rounds } => {

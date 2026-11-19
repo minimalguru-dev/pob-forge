@@ -8,8 +8,8 @@ export interface PlannerLink {
   target: string;
 }
 
-const LINKS_KEY = "pob-redux:planner-links";
-export const AUTHOR_KEY = "pob-redux:author";
+const LINKS_KEY = "pob-forge:planner-links";
+export const AUTHOR_KEY = "pob-forge:author";
 
 const fileName = (name: string) => name.replace(/[\\/:*?"<>|]/g, "").trim() || "build";
 

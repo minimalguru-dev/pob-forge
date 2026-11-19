@@ -50,8 +50,8 @@ impl Game {
 
     pub fn env_root(self) -> &'static str {
         match self {
-            Game::Poe1 => "POB_REDUX_POB1_ROOT",
-            Game::Poe2 => "POB_REDUX_POB_ROOT",
+            Game::Poe1 => "POB_FORGE_POB1_ROOT",
+            Game::Poe2 => "POB_FORGE_POB_ROOT",
         }
     }
 

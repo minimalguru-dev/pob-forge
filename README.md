@@ -1,31 +1,26 @@
-# PoB Redux
+# PoB Forge
 
-[![Latest release](https://img.shields.io/github/v/release/pobredux/pob-redux?style=flat-square&label=release)](../../releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/pobredux/pob-redux/total?style=flat-square&label=downloads)](../../releases)
-[![AUR](https://img.shields.io/aur/version/pob-redux-bin?style=flat-square&label=AUR)](https://aur.archlinux.org/packages/pob-redux-bin)
+[![Latest release](https://img.shields.io/github/v/release/minimalguru-dev/pob-forge?style=flat-square&label=release)](../../releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/minimalguru-dev/pob-forge/total?style=flat-square&label=downloads)](../../releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2a2a30?style=flat-square)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-2a2a30?style=flat-square)
 
 A desktop app for planning Path of Exile 1 and 2 builds. It runs Path of Building Community's own
 calculation code, so every number matches Path of Building, and it opens the same build files.
 
-[![PoB Redux: a new interface for Path of Building, for Path of Exile 1 and 2](https://pobredux.com/assets/og.png)](https://pobredux.com)
-
 ## Download
 
-[pobredux.com](https://pobredux.com) picks the right file for your system. Every file is also on the
-[Releases](../../releases/latest) page.
+Every installer is on the [Releases](../../releases/latest) page.
 
 | System | File | Install |
 |---|---|---|
-| Windows 10 or 11 | `PoB.Redux_<version>_x64-setup.exe` | Run it. It installs for your user only and fetches WebView2 if Windows lacks it. |
-| macOS, Apple Silicon | `PoB.Redux_<version>_aarch64.dmg` | Drag the app to Applications. See [macOS says the app cannot be opened](#macos-says-the-app-cannot-be-opened). |
-| Arch Linux | [`pob-redux-bin`](https://aur.archlinux.org/packages/pob-redux-bin) on the AUR | `yay -S pob-redux-bin` or `paru -S pob-redux-bin` |
-| Fedora, openSUSE | `PoB.Redux-<version>-1.x86_64.rpm` | Install with your package manager. |
-| Debian, Ubuntu | `PoB.Redux_<version>_amd64.deb` | Install with your package manager. |
-| Any other Linux | `PoB.Redux_<version>_amd64.AppImage` | `chmod +x` the file, then run it. |
-| Linux on ARM64 | `PoB.Redux-<version>-1.aarch64.rpm`, `PoB.Redux_<version>_arm64.deb` or `PoB.Redux_<version>_aarch64.AppImage` | Same as the x86_64 files above. |
-| Chromebook | `PoB.Redux_<version>_amd64.deb`, or `_arm64.deb` on an ARM Chromebook | Turn on Linux in ChromeOS Settings, then open the file in the Files app and choose **Install with Linux**. |
+| Windows 10 or 11 | `PoB.Forge_<version>_x64-setup.exe` | Run it. It installs for your user only and fetches WebView2 if Windows lacks it. |
+| macOS, Apple Silicon | `PoB.Forge_<version>_aarch64.dmg` | Drag the app to Applications. See [macOS says the app cannot be opened](#macos-says-the-app-cannot-be-opened). |
+| Fedora, openSUSE | `PoB.Forge-<version>-1.x86_64.rpm` | Install with your package manager. |
+| Debian, Ubuntu | `PoB.Forge_<version>_amd64.deb` | Install with your package manager. |
+| Any other Linux | `PoB.Forge_<version>_amd64.AppImage` | `chmod +x` the file, then run it. |
+| Linux on ARM64 | `PoB.Forge-<version>-1.aarch64.rpm`, `PoB.Forge_<version>_arm64.deb` or `PoB.Forge_<version>_aarch64.AppImage` | Same as the x86_64 files above. |
+| Chromebook | `PoB.Forge_<version>_amd64.deb`, or `_arm64.deb` on an ARM Chromebook | Turn on Linux in ChromeOS Settings, then open the file in the Files app and choose **Install with Linux**. |
 
 There is no build for Intel Macs.
 
@@ -55,7 +50,6 @@ Builds are saved in the same folders Path of Building uses, so either app can op
 When a new version is out, a banner appears at the top of the window.
 
 - **Windows, macOS and the AppImage:** press **Update**, then **Restart** if the app asks.
-- **AUR:** update `pob-redux-bin` with your AUR helper, for example `yay -Syu`.
 - **.deb and .rpm:** press **Download** and install the new package.
 
 To check by hand, open Settings (the gear in the title bar, or Ctrl+,) and press **Check for updates**.
@@ -132,10 +126,10 @@ On macOS 15 or later, open System Settings → Privacy & Security and click **Op
 
 The AppImage, and any install on NVIDIA's own driver, start with WebKit's DMA-BUF renderer turned off,
 because it showed a black window there. Other installs draw with the GPU. If your window is black,
-start the app with `WEBKIT_DISABLE_DMABUF_RENDERER=1`, and without `POB_REDUX_GPU=1`. If the window is
+start the app with `WEBKIT_DISABLE_DMABUF_RENDERER=1`, and without `POB_FORGE_GPU=1`. If the window is
 still black, [open an issue](../../issues) with your distribution and graphics card.
 
-`POB_REDUX_GPU=1` turns the GPU renderer back on where the app turned it off. Tree zooming is sharper
+`POB_FORGE_GPU=1` turns the GPU renderer back on where the app turned it off. Tree zooming is sharper
 with it, but it can show a black window.
 
 ### An API key will not save on Linux
@@ -172,7 +166,7 @@ Lua; do not reimplement them in Rust or TypeScript.
 
 ## Credits
 
-Every number PoB Redux shows comes from
+Every number PoB Forge shows comes from
 [Path of Building Community](https://github.com/PathOfBuildingCommunity). This app runs and bundles
 the Lua code and game data of their
 [Path of Exile 1](https://github.com/PathOfBuildingCommunity/PathOfBuilding) and

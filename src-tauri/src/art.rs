@@ -6,14 +6,13 @@ use std::time::Duration;
 use tauri::http::{header, HeaderValue, Request, Response, StatusCode};
 use tauri::{Manager, UriSchemeContext, UriSchemeResponder, Wry};
 
-const ART_BASE: &str = "https://art.pobredux.com";
 const MAP_REVALIDATE_TIMEOUT: Duration = Duration::from_secs(5);
 
 fn client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
-            .user_agent(concat!("pob-redux/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("pob-forge/", env!("CARGO_PKG_VERSION")))
             .timeout(Duration::from_secs(20))
             .build()
             .expect("art http client")
@@ -35,7 +34,7 @@ fn not_found() -> Response<Vec<u8>> {
 }
 
 async fn download(segments: &[&str], version: Option<&str>) -> Option<Vec<u8>> {
-    let mut url = reqwest::Url::parse(ART_BASE).ok()?;
+    let mut url = reqwest::Url::parse(crate::brand::cdn_url()?).ok()?;
     url.path_segments_mut().ok()?.extend(segments);
     if let Some(v) = version {
         url.query_pairs_mut().append_pair("v", v);
@@ -79,15 +78,22 @@ mod write_tests {
 async fn map(cache: &Path, game: &str) -> Response<Vec<u8>> {
     let file = cache.join("maps").join(format!("{game}.json"));
     let etag_file = file.with_extension("etag");
-    let mut req = client().get(format!("{ART_BASE}/maps/{game}/latest.json"));
-    if file.is_file() {
-        req = req.timeout(MAP_REVALIDATE_TIMEOUT);
-        let etag = std::fs::read_to_string(&etag_file).ok();
-        if let Some(value) = etag.and_then(|e| HeaderValue::from_str(e.trim()).ok()) {
-            req = req.header(header::IF_NONE_MATCH, value);
+    // Without a CDN the cached copy, if any, is all there is.
+    let req = crate::brand::cdn_url().map(|base| {
+        let mut req = client().get(format!("{base}/maps/{game}/latest.json"));
+        if file.is_file() {
+            req = req.timeout(MAP_REVALIDATE_TIMEOUT);
+            let etag = std::fs::read_to_string(&etag_file).ok();
+            if let Some(value) = etag.and_then(|e| HeaderValue::from_str(e.trim()).ok()) {
+                req = req.header(header::IF_NONE_MATCH, value);
+            }
         }
-    }
-    if let Ok(res) = req.send().await {
+        req
+    });
+    if let Some(Ok(res)) = match req {
+        Some(req) => Some(req.send().await),
+        None => None,
+    } {
         if res.status().is_success() {
             let etag = res.headers().get(header::ETAG).cloned();
             if let Ok(bytes) = res.bytes().await {
@@ -152,7 +158,7 @@ async fn route(cache: &Path, rel: &str) -> Response<Vec<u8>> {
     }
 }
 
-/// `pobart://localhost/maps/<game>.json` and `/<game>/<tag>/<Art path>`, cached from art.pobredux.com.
+/// `pobart://localhost/maps/<game>.json` and `/<game>/<tag>/<Art path>`, cached from the CDN.
 pub fn serve(ctx: UriSchemeContext<'_, Wry>, request: Request<Vec<u8>>, responder: UriSchemeResponder) {
     let cache = ctx.app_handle().path().app_cache_dir().ok().map(|dir| dir.join("art"));
     let rel = crate::percent_decode(request.uri().path().trim_start_matches('/'));

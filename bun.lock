@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "pob-redux",
+      "name": "pob-forge",
       "dependencies": {
         "@ai-sdk/openai-compatible": "^3.0.71",
         "@fontsource-variable/geist": "^5.3.0",

@@ -145,7 +145,7 @@ Ambition), Replica Soul Tether (Corrupted Soul), Voll's Protector (Inner Convict
 (Corrupted Soul, Divine Flesh, Eternal Youth, Immortal Ambition, Vaal Pact). Skin of the Lords has one variant for
 each tree keystone except Chaos Inoculation and Necromantic Aegis.
 
-## keystoneRules in PoB Redux
+## keystoneRules in PoB Forge
 
 `build_summary` also returns `keystoneRules`: plain rules for keystones that change which lines matter. They come
 from `keystone.rules` in `crates/pob-engine/lua/bridge.lua`, which reads PoB's modifiers, so an item-granted
@@ -185,7 +185,7 @@ recommending recovery lines.
   list), `Data/Uniques/jewel.lua`, `belt.lua`, `body.lua`, `shield.lua`, `Data/Uniques/Special/Generated.lua`
   (item sources), `Modules/Data.lua` (`data.keystones`), `Modules/ModParser.lua`, `Modules/CalcPerform.lua`,
   `Modules/CalcDefence.lua`.
-- PoB Redux: `crates/pob-engine/lua/bridge.lua` (`keystone.profile`, `keystone.names`, `keystone.rules`).
+- PoB Forge: `crates/pob-engine/lua/bridge.lua` (`keystone.profile`, `keystone.names`, `keystone.rules`).
 - Corpus: `S:\_projects_\_poe2_\corpus\poe1\index.json` (327 ladder characters without the `no-dps` flag) and
   `xml/*.xml`, each loaded through `pobctl eval` and read with `build_summary`.
 - poedb: https://poedb.tw/us/Keystone (49 / 8 / 15 counts, timeless conqueror names),

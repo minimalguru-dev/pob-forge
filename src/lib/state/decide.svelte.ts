@@ -2,7 +2,7 @@ import { clearKey, setKey } from "$lib/ai/providers";
 import { decide, decideConfigure, decideSelect, decideStatus, type BackendStatus, type DecideStatus } from "$lib/ai/decide";
 import { m } from "$lib/paraglide/messages";
 
-const KEY = "pob-redux:experimental";
+const KEY = "pob-forge:experimental";
 
 class DecideStore {
   status = $state<DecideStatus | null>(null);

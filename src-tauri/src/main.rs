@@ -10,7 +10,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 /// The AppImage carries Ubuntu 22.04's libwayland ahead of the host's on the
 /// library path, and a newer Mesa refuses to create an EGL display against it
 /// (tauri-apps/tauri#15976). Until the bundler can leave those libraries out,
-/// restart once with the host's copies preloaded. POB_REDUX_NO_PRELOAD=1 skips
+/// restart once with the host's copies preloaded. POB_FORGE_NO_PRELOAD=1 skips
 /// this.
 #[cfg(target_os = "linux")]
 fn preload_host_wayland() {
@@ -18,8 +18,8 @@ fn preload_host_wayland() {
     use std::path::Path;
 
     if std::env::var_os("APPIMAGE").is_none()
-        || std::env::var_os("POB_REDUX_PRELOADED").is_some()
-        || std::env::var_os("POB_REDUX_NO_PRELOAD").is_some()
+        || std::env::var_os("POB_FORGE_PRELOADED").is_some()
+        || std::env::var_os("POB_FORGE_NO_PRELOAD").is_some()
     {
         return;
     }
@@ -57,7 +57,7 @@ fn preload_host_wayland() {
     let err = std::process::Command::new(exe)
         .args(std::env::args_os().skip(1))
         .env("LD_PRELOAD", preload)
-        .env("POB_REDUX_PRELOADED", "1")
+        .env("POB_FORGE_PRELOADED", "1")
         .exec();
     eprintln!("could not restart with the host's wayland libraries preloaded: {err}");
 }
@@ -69,11 +69,11 @@ fn main() {
         // WebKitGTK's DMA-BUF path paints a black window from the AppImage's bundled WebKit and on NVIDIA's driver.
         let dmabuf_breaks = std::env::var_os("APPIMAGE").is_some() || std::path::Path::new("/sys/module/nvidia").exists();
         if dmabuf_breaks
-            && std::env::var_os("POB_REDUX_GPU").is_none()
+            && std::env::var_os("POB_FORGE_GPU").is_none()
             && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none()
         {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
     }
-    pob_redux_lib::run()
+    pob_forge_lib::run()
 }

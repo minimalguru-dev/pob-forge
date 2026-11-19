@@ -2,7 +2,7 @@
  * Call the running app's MCP tools from a terminal, the same registry the
  * chat panel uses, without spending API credit on the assistant.
  *
- * Start the app with the server on: `POB_REDUX_MCP=7315 bun run tauri dev`
+ * Start the app with the server on: `POB_FORGE_MCP=7315 bun run tauri dev`
  * (or toggle it in Options), then:
  *
  *   bun scripts/mcp-call.ts tools                      # names and one-line descriptions
@@ -19,7 +19,7 @@
  * server answers slow tools with a task and destructive ones with a
  * confirmation.
  *
- * The bearer token comes from POB_REDUX_MCP_TOKEN, else the app's own
+ * The bearer token comes from POB_FORGE_MCP_TOKEN, else the app's own
  * `mcp-token` file.
  */
 import { homedir } from "node:os";
@@ -51,14 +51,14 @@ const wantElicit = bool("--elicit");
 const MCP = `http://127.0.0.1:${port}/mcp`;
 
 function token(): string {
-  const fromEnv = process.env.POB_REDUX_MCP_TOKEN;
+  const fromEnv = process.env.POB_FORGE_MCP_TOKEN;
   if (fromEnv) return fromEnv.trim();
   const appData = process.env.APPDATA ?? join(homedir(), ".config");
-  const path = join(appData, "dev.pobredux.desktop", "mcp-token");
+  const path = join(appData, "dev.minimalguru.pobforge", "mcp-token");
   try {
     return readFileSync(path, "utf8").trim();
   } catch {
-    throw new Error(`no token: set POB_REDUX_MCP_TOKEN or start the app once so it writes ${path}`);
+    throw new Error(`no token: set POB_FORGE_MCP_TOKEN or start the app once so it writes ${path}`);
   }
 }
 
@@ -105,7 +105,7 @@ async function rpc(method: string, params: Record<string, unknown> = {}): Promis
   try {
     res = await fetch(MCP, { method: "POST", headers, body: JSON.stringify(body) });
   } catch (e) {
-    throw new Error(`no MCP server at ${MCP}: start the app with POB_REDUX_MCP=${port} or turn it on in Options (${String(e)})`);
+    throw new Error(`no MCP server at ${MCP}: start the app with POB_FORGE_MCP=${port} or turn it on in Options (${String(e)})`);
   }
   if (res.status === 401 || res.status === 403) {
     throw new Error(`${res.status} ${await res.text()}`);

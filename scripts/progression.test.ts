@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { emptyPlan, LEGACY_STORAGE_KEY, loadPlan, numberStat } from "../src/lib/progression/model";
 
 // Diffs, readiness checks, priorities and history validation live in src-tauri/src/progression.rs
-// and are tested there with `cargo test -p pob-redux --lib progression`.
+// and are tested there with `cargo test -p pob-forge --lib progression`.
 
 type Call = [string, Record<string, unknown> | undefined];
 function fakeTauri(replies: Record<string, unknown>) {

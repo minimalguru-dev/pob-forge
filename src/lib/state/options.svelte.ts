@@ -1,7 +1,7 @@
 import { engine, type AppOptions } from "$lib/engine.svelte";
 import { build } from "$lib/state/build.svelte";
 
-const KEY = "pob-redux:options";
+const KEY = "pob-forge:options";
 
 /**
  * App options live on PoB's `main` for the session (number formatting, gem

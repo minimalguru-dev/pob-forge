@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { build } from "$lib/state/build.svelte";
 
-const KEY = "pob-redux:mcp";
+const KEY = "pob-forge:mcp";
 export const MCP_DEFAULT_PORT = 7315;
 
 export interface McpStatus {
@@ -20,7 +20,7 @@ export function mcpConfigJson(status: McpStatus | null): string {
   return JSON.stringify(
     {
       mcpServers: {
-        "pob-redux": {
+        "pob-forge": {
           type: "http",
           url: status?.url ?? `http://127.0.0.1:${MCP_DEFAULT_PORT}/mcp`,
           headers: { Authorization: `Bearer ${status?.token ?? "<start the server to see the token>"}` },
@@ -68,7 +68,7 @@ class McpStore {
     });
     if (this.enabled) await this.start();
     else await this.refresh();
-    // POB_REDUX_MCP may have started it before the UI was up
+    // POB_FORGE_MCP may have started it before the UI was up
     if (this.status?.running) {
       this.enabled = true;
       this.port = this.status.port;

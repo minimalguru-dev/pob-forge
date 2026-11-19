@@ -141,7 +141,7 @@ async fn open_window(app: &AppHandle) -> Result<(), String> {
     }
     let s = settings(app);
     let builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::default())
-        .title("PoB Redux Overlay")
+        .title("PoB Forge Overlay")
         .decorations(false)
         .always_on_top(true)
         .skip_taskbar(true)

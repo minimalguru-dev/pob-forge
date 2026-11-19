@@ -13,7 +13,7 @@ set -u
 # Absolute, so a bare filename in the working directory is still executable.
 app=$(readlink -f -- "${1:?usage: smoke-appimage.sh <AppImage> [out.png]}")
 out=${2:-smoke.png}
-title=${SMOKE_TITLE:-PoB Redux}
+title=${SMOKE_TITLE:-PoB Forge}
 map_timeout=${SMOKE_MAP_TIMEOUT:-150}
 paint_timeout=${SMOKE_PAINT_TIMEOUT:-90}
 floor=${SMOKE_MIN_BRIGHTNESS:-0.01}

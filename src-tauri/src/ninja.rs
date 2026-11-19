@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::game::Game;
 
 const HOST: &str = "https://poe.ninja/";
-const UA: &str = concat!("PoB Redux/", env!("CARGO_PKG_VERSION"), " (+https://pobredux.com)");
+const UA: &str = concat!("PoB Forge/", env!("CARGO_PKG_VERSION"), " (+https://github.com/minimalguru-dev/pob-forge)");
 
 const NO_PROFILE: &str = "poe.ninja has no profile for that account. Check the name, including its #1234 part.";
 const LIMITED: &str = "poe.ninja is limiting requests. Wait a minute, then try again.";

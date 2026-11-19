@@ -1,5 +1,5 @@
 /**
- * Print a POB_REDUX_CHAT_LOG transcript in a readable form: the user turns,
+ * Print a POB_FORGE_CHAT_LOG transcript in a readable form: the user turns,
  * every tool call with a trimmed result, and the assistant text.
  *
  *   bun scripts/chat-transcript.ts <log.json> [--full]

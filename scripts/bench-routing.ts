@@ -9,7 +9,7 @@
  *   ... --strategy noul      # one yes/no per tool instead of one pick-one question
  *   ... --verbose            # list every miss at the app's threshold
  *
- * Tool definitions come from the running app (POB_REDUX_MCP=7315 bun run tauri dev) and are cached in
+ * Tool definitions come from the running app (POB_FORGE_MCP=7315 bun run tauri dev) and are cached in
  * target/routing-defs.json; --offline reads the cache. Raw answers go to target/bench-routing-<strategy>.jsonl.
  * --app sends each request through the app's decide_ask over WebView2 remote debugging
  * (WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333), so the key never leaves the app.

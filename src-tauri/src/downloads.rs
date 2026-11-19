@@ -11,17 +11,17 @@ use tauri::AppHandle;
 
 use crate::game::Game;
 
-const BASE: &str = "https://art.pobredux.com";
 const PARALLEL: usize = 6;
 
-/// `art.pobredux.com`, or `POB_REDUX_DOWNLOAD_URL` when testing against another server.
-pub fn base_url() -> String {
-    std::env::var("POB_REDUX_DOWNLOAD_URL").unwrap_or_else(|_| BASE.to_string())
+/// The build's CDN, or `POB_FORGE_DOWNLOAD_URL` when testing against another server.
+/// Every file is checked against its hash, so the override cannot swap content.
+pub fn base_url() -> Option<String> {
+    std::env::var("POB_FORGE_DOWNLOAD_URL").ok().or_else(|| crate::brand::cdn_url().map(str::to_string))
 }
 
 /// Dev builds read what `bun run sync` built instead of downloading, unless a download is being tested.
 pub fn dev_files() -> bool {
-    cfg!(debug_assertions) && std::env::var_os("POB_REDUX_DOWNLOAD_URL").is_none()
+    cfg!(debug_assertions) && std::env::var_os("POB_FORGE_DOWNLOAD_URL").is_none()
 }
 
 #[derive(Serialize, Clone)]
@@ -51,7 +51,7 @@ pub struct Job {
 /// Downloads every job, checking its hash; returns the first error, which stops the rest.
 pub async fn fetch_all(jobs: Vec<Job>, progress: Arc<dyn Fn(u64) + Send + Sync>) -> Result<(), String> {
     let client = reqwest::Client::builder()
-        .user_agent(concat!("pob-redux/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("pob-forge/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(120))
         .build()

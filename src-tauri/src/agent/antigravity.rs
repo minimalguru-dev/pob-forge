@@ -15,7 +15,7 @@ use super::which::Launch;
 use super::AgentStatus;
 
 pub(crate) const VERSION: &str = "agy_acp_server_1.1.1";
-const MARKER: &str = ".pob-redux-signed-in";
+const MARKER: &str = ".pob-forge-signed-in";
 
 pub(crate) struct Asset {
     url: &'static str,

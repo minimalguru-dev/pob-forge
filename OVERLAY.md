@@ -1,14 +1,14 @@
 # In-game overlay (preview)
 
 A small panel that sits over Path of Exile while you play. It shows what an item or a map you copy does to the
-build open in PoB Redux, follows your zone and level from the game's log, and lists the next steps towards your
+build open in PoB Forge, follows your zone and level from the game's log, and lists the next steps towards your
 Progression target. Every number comes from Path of Building's own calculation.
 
 ## Turn it on
 
 1. Open Settings (Ctrl+,) → **Overlay** and turn on **Turn on the overlay**.
 2. Play in **Windowed Fullscreen**. A window cannot sit over the game in exclusive fullscreen.
-3. Open your build in PoB Redux. The overlay compares everything against the open build.
+3. Open your build in PoB Forge. The overlay compares everything against the open build.
 
 | Shortcut | Default | What it does |
 |---|---|---|
@@ -66,7 +66,7 @@ isn't affiliated with or endorsed by Grinding Gear Games in any way.
 - macOS draws the overlay opaque; transparent windows there need a Tauri feature this build does not enable.
 - The overlay does not know whether the game has focus, so it stays up when you alt-tab. Hide it with the shortcut.
 - PoE2's experience penalty is not modelled; the leveling panel shows the level gap instead.
-- The item and map cards use the build open in PoB Redux, not your live character. Keep it in step.
+- The item and map cards use the build open in PoB Forge, not your live character. Keep it in step.
 
 ## Development
 
@@ -79,7 +79,7 @@ isn't affiliated with or endorsed by Grinding Gear Games in any way.
 | Window UI | `src/OverlayWindow.svelte`, formulas in `src/lib/overlay/leveling.ts` |
 
 ```sh
-cargo test -p pob-redux --lib overlay gamelog
+cargo test -p pob-forge --lib overlay gamelog
 POB_ROOT=src-tauri/resources/pob1 cargo test -p pob-engine --test item_evaluate --test map_evaluate
 bun test scripts/leveling.test.ts
 ```

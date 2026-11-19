@@ -141,5 +141,5 @@ and [10-progression-curve.md](10-progression-curve.md) for the stage targets.
 
 - PoB PoE1: `Modules/ConfigOptions.lua` (resistance penalty default Act 10,
   -60%), `Modules/CalcSetup.lua` (enemy curse limit 1).
-- PoB Redux tools: `src-tauri/src/tools.rs`, `crates/pob-engine/lua/bridge.lua`.
+- PoB Forge tools: `src-tauri/src/tools.rs`, `crates/pob-engine/lua/bridge.lua`.
 - Our PoE1 corpus: `corpus/poe1/index.json`.

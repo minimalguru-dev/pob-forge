@@ -16,7 +16,7 @@
   import { parsePobText, stripPobText } from "$lib/pobtext";
   import { m } from "$lib/paraglide/messages";
 
-  const COLLAPSED_KEY = "pob-redux:stats-collapsed";
+  const COLLAPSED_KEY = "pob-forge:stats-collapsed";
   let collapsed = $state<Set<string>>(new Set());
   try {
     collapsed = new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]"));

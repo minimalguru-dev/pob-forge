@@ -34,7 +34,7 @@ Only these sources, by the project's rule for PoE1:
 
 - **PoB's own PoE1 data and code** in `src-tauri/resources/pob1`, which is what the
   app calculates with.
-- **Our PoE1 build corpus** in the private `pobredux/corpus` repository (`poe1/`):
+- **Our PoE1 build corpus** in the private build corpus repository (`poe1/`):
   327 poe.ninja ladder characters from Allflame (the top of each ascendancy: 8
   softcore, 4 hardcore, 4 solo self-found) and 136 loadouts from Maxroll guides,
   loaded through the same PoB. Numbers from it are counted, and quoted as "N of M".

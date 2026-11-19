@@ -4,12 +4,12 @@ use std::sync::OnceLock;
 use regex::Regex;
 use tauri::{AppHandle, Manager, Runtime};
 
-const LOG_NAME: &str = "pob-redux";
+const LOG_NAME: &str = "pob-forge";
 const LOG_TAIL_LINES: usize = 600;
 
 pub fn log_plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
     use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
-    let level = match std::env::var("POB_REDUX_LOG").ok().as_deref() {
+    let level = match std::env::var("POB_FORGE_LOG").ok().as_deref() {
         Some("trace") => log::LevelFilter::Trace,
         Some("debug") => log::LevelFilter::Debug,
         Some("warn") => log::LevelFilter::Warn,
@@ -142,7 +142,7 @@ fn log_files(app: &AppHandle) -> Vec<PathBuf> {
 }
 
 pub fn write_report(app: &AppHandle, path: &str, facts: &[(&str, String)], secrets: &[String]) -> Result<(), String> {
-    let mut out = String::from("PoB Redux diagnostics\n\n");
+    let mut out = String::from("PoB Forge diagnostics\n\n");
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     out.push_str(&format!("{:<24}{}\n", "Written (unix time)", secs));
     for (label, value) in facts {

@@ -8,13 +8,13 @@ import type { ToolDef } from "../src/lib/ai/tools";
 export type McpTool = { name: string; description: string; annotations?: { readOnlyHint?: boolean } };
 
 function token(): string {
-  const fromEnv = process.env.POB_REDUX_MCP_TOKEN;
+  const fromEnv = process.env.POB_FORGE_MCP_TOKEN;
   if (fromEnv) return fromEnv.trim();
   const appData = process.env.APPDATA ?? join(homedir(), ".config");
-  return readFileSync(join(appData, "dev.pobredux.desktop", "mcp-token"), "utf8").trim();
+  return readFileSync(join(appData, "dev.minimalguru.pobforge", "mcp-token"), "utf8").trim();
 }
 
-export async function listTools(port = process.env.POB_REDUX_MCP ?? "7315"): Promise<McpTool[]> {
+export async function listTools(port = process.env.POB_FORGE_MCP ?? "7315"): Promise<McpTool[]> {
   const res = await fetch(`http://127.0.0.1:${port}/mcp`, {
     method: "POST",
     headers: {
@@ -31,7 +31,7 @@ export async function listTools(port = process.env.POB_REDUX_MCP ?? "7315"): Pro
       params: {
         _meta: {
           "io.modelcontextprotocol/protocolVersion": "2026-07-28",
-          "io.modelcontextprotocol/clientInfo": { name: "pob-redux-scripts", version: "0" },
+          "io.modelcontextprotocol/clientInfo": { name: "pob-forge-scripts", version: "0" },
           "io.modelcontextprotocol/clientCapabilities": {},
         },
       },

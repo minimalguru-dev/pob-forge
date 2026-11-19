@@ -86,7 +86,7 @@
   }
 
   // Share link (pobb.in and friends), as PoB's own Share button.
-  const SITE_KEY = "pob-redux:share-site";
+  const SITE_KEY = "pob-forge:share-site";
   let shareSite = $state<ShareSite>("pobb.in");
   try {
     const saved = localStorage.getItem(SITE_KEY);
@@ -118,7 +118,7 @@
   let folderDraft = $state("");
 
   // recent builds (paths, most recent first)
-  const RECENT_KEY = "pob-redux:recent";
+  const RECENT_KEY = "pob-forge:recent";
   let recent = $state<string[]>([]);
   try {
     recent = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
@@ -221,8 +221,8 @@
   let plannerDir = $state("");
   let gbCollapsed = $state<Set<string>>(new Set());
   try {
-    plannerDir = localStorage.getItem("pob-redux:planner-dir") ?? "";
-    gbCollapsed = new Set(JSON.parse(localStorage.getItem("pob-redux:gb-collapsed") ?? "[]"));
+    plannerDir = localStorage.getItem("pob-forge:planner-dir") ?? "";
+    gbCollapsed = new Set(JSON.parse(localStorage.getItem("pob-forge:gb-collapsed") ?? "[]"));
   } catch {}
 
   const gameBuildGroups = $derived.by(() => {
@@ -240,13 +240,13 @@
     s.has(author) ? s.delete(author) : s.add(author);
     gbCollapsed = s;
     try {
-      localStorage.setItem("pob-redux:gb-collapsed", JSON.stringify([...s]));
+      localStorage.setItem("pob-forge:gb-collapsed", JSON.stringify([...s]));
     } catch {}
   }
 
   let folderCollapsed = $state<Set<string>>(new Set());
   try {
-    folderCollapsed = new Set(JSON.parse(localStorage.getItem("pob-redux:folders-collapsed") ?? "[]"));
+    folderCollapsed = new Set(JSON.parse(localStorage.getItem("pob-forge:folders-collapsed") ?? "[]"));
   } catch {}
   const folderOpen = (folder: string) => !!filter.trim() || !folderCollapsed.has(folder);
 
@@ -255,7 +255,7 @@
     s.has(folder) ? s.delete(folder) : s.add(folder);
     folderCollapsed = s;
     try {
-      localStorage.setItem("pob-redux:folders-collapsed", JSON.stringify([...s]));
+      localStorage.setItem("pob-forge:folders-collapsed", JSON.stringify([...s]));
     } catch {}
   }
 
@@ -305,7 +305,7 @@
       folderCollapsed = new Set([...folderCollapsed].map((f) => (inFolder(f, folder) ? next + f.slice(folder.length) : f)));
       try {
         localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
-        localStorage.setItem("pob-redux:folders-collapsed", JSON.stringify([...folderCollapsed]));
+        localStorage.setItem("pob-forge:folders-collapsed", JSON.stringify([...folderCollapsed]));
       } catch {}
       const open = build.info?.file;
       if (open && moved.has(open)) await build.loadFile(moved.get(open)!);
@@ -337,7 +337,7 @@
   function setPlannerDir(dir: string) {
     plannerDir = dir.trim();
     try {
-      localStorage.setItem("pob-redux:planner-dir", plannerDir);
+      localStorage.setItem("pob-forge:planner-dir", plannerDir);
     } catch {}
     refresh();
   }
@@ -556,7 +556,7 @@
     leagueUrl: string;
     updated: string | null;
   }
-  const CHAR_KEY = "pob-redux:character-import";
+  const CHAR_KEY = "pob-forge:character-import";
   let charAccount = $state("");
   let charRealm = $state("pc");
   let charSource = $state<CharSource>("ggg");

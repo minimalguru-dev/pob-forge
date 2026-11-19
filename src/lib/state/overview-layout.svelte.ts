@@ -2,7 +2,7 @@ export type PanelId = "gear" | "skills" | "health" | "defences" | "passives";
 export type Column = "left" | "right";
 export type Layout = Record<Column, PanelId[]>;
 
-const KEY = "pob-redux:overview-layout";
+const KEY = "pob-forge:overview-layout";
 const COLUMNS: Column[] = ["left", "right"];
 const DEFAULT: Layout = { left: ["gear", "skills"], right: ["health", "defences", "passives"] };
 

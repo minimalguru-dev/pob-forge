@@ -101,7 +101,7 @@ bumpFile(CARGO, "Cargo.toml", /(\[workspace\.package\][^[]*?\nversion\s*=\s*")[^
 bumpFile(
   LOCK,
   "Cargo.lock",
-  /(name = "pob-(?:engine|redux|sync)"\r?\nversion = ")[^"]+(")/,
+  /(name = "pob-(?:engine|forge|sync)"\r?\nversion = ")[^"]+(")/,
   `$1${next}$2`,
   3,
 );

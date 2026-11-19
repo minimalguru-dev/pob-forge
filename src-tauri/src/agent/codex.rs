@@ -12,8 +12,8 @@ use super::which::Launch;
 use super::{AgentEvent, AgentStatus, Outcome, Session};
 use crate::ai::ModelInfo;
 
-const SERVER: &str = "pobredux";
-const TOKEN_ENV: &str = "POB_REDUX_MCP_TOKEN";
+const SERVER: &str = "pobforge";
+const TOKEN_ENV: &str = "POB_FORGE_MCP_TOKEN";
 
 pub(crate) fn isolated_launch(mut launch: Launch, home: &std::path::Path) -> Launch {
     let removed = ["OPENAI_API_KEY", "CODEX_API_KEY", "OPENAI_BASE_URL", "OPENAI_ORG_ID", "OPENAI_PROJECT_ID"];
@@ -33,7 +33,7 @@ fn refusal(method: &str) -> Value {
     } else if method.contains("elicitation") {
         json!({ "result": { "action": "decline", "content": null } })
     } else {
-        json!({ "error": { "code": -32601, "message": "not supported by PoB Redux" } })
+        json!({ "error": { "code": -32601, "message": "not supported by PoB Forge" } })
     }
 }
 
@@ -51,7 +51,7 @@ async fn start(launch: &Launch, overrides: &[String], env: &[(&str, &str)], cwd:
         .request(
             "initialize",
             json!({
-                "clientInfo": { "name": "pob_redux", "title": "PoB Redux", "version": env!("CARGO_PKG_VERSION") },
+                "clientInfo": { "name": "pob_forge", "title": "PoB Forge", "version": env!("CARGO_PKG_VERSION") },
                 "capabilities": { "experimentalApi": true },
             }),
         )

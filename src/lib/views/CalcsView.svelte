@@ -47,7 +47,7 @@
     });
   });
 
-  const SECTION_OPEN_KEY = "pob-redux:calcs-section-open";
+  const SECTION_OPEN_KEY = "pob-forge:calcs-section-open";
   let sectionOpenOverrides = $state<Record<string, boolean>>({});
   try {
     const stored = JSON.parse(localStorage.getItem(SECTION_OPEN_KEY) ?? "{}");

@@ -1,4 +1,6 @@
-// First import: it overwrites Paraglide's getLocale() before any component module loads.
+// Runs first: stores read their saved keys when their modules load.
+import "$lib/storage-migration.run";
+// Next: it overwrites Paraglide's getLocale() before any component module loads.
 import "$lib/state/locale.svelte";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";

@@ -31,7 +31,7 @@ end
 do
 	local io_open, io_lines, os_remove, os_rename = io.open, io.lines, os.remove, os.rename
 	local l_loadfile, l_dofile = loadfile, dofile
-	local cacheDir = userDir .. "/pob-redux-cache"
+	local cacheDir = userDir .. "/pob-forge-cache"
 	local function underRoot(abs)
 		return abs:sub(1, #root) == root
 	end

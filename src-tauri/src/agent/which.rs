@@ -139,7 +139,7 @@ pub(crate) fn restore_host_env(cmd: &mut std::process::Command) {
     let Some(mount) = appimage_mount() else {
         return;
     };
-    let preloaded = std::env::var_os("POB_REDUX_PRELOADED").is_some();
+    let preloaded = std::env::var_os("POB_FORGE_PRELOADED").is_some();
     for (key, value) in host_env(&mount, preloaded, std::env::vars_os()) {
         match value {
             Some(v) => cmd.env(key, v),
@@ -150,7 +150,7 @@ pub(crate) fn restore_host_env(cmd: &mut std::process::Command) {
 
 fn host_env(mount: &Path, preloaded: bool, vars: impl Iterator<Item = (OsString, OsString)>) -> Vec<(OsString, Option<OsString>)> {
     let mut out: Vec<(OsString, Option<OsString>)> =
-        ["APPIMAGE", "APPDIR", "ARGV0", "OWD", "POB_REDUX_PRELOADED"].into_iter().map(|k| (k.into(), None)).collect();
+        ["APPIMAGE", "APPDIR", "ARGV0", "OWD", "POB_FORGE_PRELOADED"].into_iter().map(|k| (k.into(), None)).collect();
     for (key, value) in vars {
         let ours = |p: &PathBuf| {
             p.starts_with(mount)
@@ -432,7 +432,7 @@ pub(crate) fn find(name: &str, configured: Option<&str>) -> Option<Launch> {
 mod tests {
     #[test]
     fn npm_shim_resolves_to_its_script() {
-        let dir = std::env::temp_dir().join(format!("pobredux-shim-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("pobforge-shim-{}", std::process::id()));
         let pkg = dir.join("node_modules").join("@openai").join("codex").join("bin");
         std::fs::create_dir_all(&pkg).unwrap();
         std::fs::write(pkg.join("codex.js"), "").unwrap();
@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     fn npm_codex_prefers_the_native_binary() {
-        let dir = std::env::temp_dir().join(format!("pobredux-codex-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("pobforge-codex-{}", std::process::id()));
         let openai = dir.join("node_modules").join("@openai");
         let script = openai.join("codex").join("bin").join("codex.js");
         let triple = if cfg!(target_arch = "aarch64") { ("arm64", "aarch64-pc-windows-msvc") } else { ("x64", "x86_64-pc-windows-msvc") };

@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use crate::sites;
 
-const UA: &str = "pob-redux/0.1 Path of Building";
+const UA: &str = "pob-forge/0.1 Path of Building";
 const MAX_PLANNERS: usize = 8;
 
 #[derive(Serialize, Clone, Debug)]

@@ -12,7 +12,7 @@ local dkjson = require("dkjson")
 
 local main = launch.main
 local build = main.modes["BUILD"]
-main.__reduxBuildGeneration = 0
+main.__forgeBuildGeneration = 0
 main.notSupportedModTooltips = true
 main.notSupportedTooltipText = " ^8(not calculated)"
 
@@ -124,7 +124,7 @@ local function refresh()
 end
 
 local function ensureBuild(p)
-	if p and p.generation ~= nil and p.generation ~= main.__reduxBuildGeneration then
+	if p and p.generation ~= nil and p.generation ~= main.__forgeBuildGeneration then
 		error("the build changed; paste the item again", 0)
 	end
 	if not build or not build.calcsTab or not build.calcsTab.mainOutput then
@@ -724,7 +724,7 @@ local function openBuild(path, name, xml)
 	main:SetMode("BUILD", path, name, xml)
 	local ok, err = pcall(frame)
 	main.OpenMessagePopup = showMessage
-	main.__reduxBuildGeneration = main.__reduxBuildGeneration + 1
+	main.__forgeBuildGeneration = main.__forgeBuildGeneration + 1
 	build = main.modes["BUILD"]
 	if not ok or launch.promptMsg or main.mode ~= "BUILD" or not (build.calcsTab and build.calcsTab.mainOutput) then
 		local message = reason or (not ok and tostring(err))
@@ -906,7 +906,7 @@ M.get_build = function()
 		mainSocketGroup = build.mainSocketGroup,
 		treeVersion = spec.treeVersion,
 		rev = build.outputRevision,
-		generation = main.__reduxBuildGeneration,
+		generation = main.__forgeBuildGeneration,
 		unsaved = build.unsaved == true,
 		title = __window_title,
 		targetVersion = build.targetVersion,
@@ -3274,7 +3274,7 @@ function itemUtil.squireSaver(state)
 end
 
 function itemUtil.squireState()
-	local state = build.__reduxSquire
+	local state = build.__forgeSquire
 	if not state then
 		state = { slots = {} }
 		for _, node in ipairs(build.xmlSectionList or {}) do
@@ -3286,7 +3286,7 @@ function itemUtil.squireState()
 				end
 			end
 		end
-		build.__reduxSquire = state
+		build.__forgeSquire = state
 	end
 	-- An empty kit writes no section, so builds without a Squire save unchanged.
 	if build.savers then build.savers.Squire = next(state.slots) and itemUtil.squireSaver(state) or nil end
@@ -4791,7 +4791,7 @@ M.item_preview = function(p)
 		end
 	end
 	return { tooltip = M.item_tooltip({ raw = p.raw, slotName = false, dbMode = false }), slots = slots,
-		generation = main.__reduxBuildGeneration, rev = build.outputRevision }
+		generation = main.__forgeBuildGeneration, rev = build.outputRevision }
 end
 
 -- What an item copied from the game (Ctrl+C) would change, per slot it fits: PoB's own
@@ -4839,7 +4839,7 @@ M.item_evaluate = function(p)
 		tooLowLevel = levelReq > (build.characterLevel or 1),
 		before = before,
 		slots = slots,
-		generation = main.__reduxBuildGeneration, rev = build.outputRevision,
+		generation = main.__forgeBuildGeneration, rev = build.outputRevision,
 	}
 end
 
@@ -8069,7 +8069,7 @@ M.export_game_build = function(p)
 		end
 		return { files = out }
 	end
-	local buildName = build.buildName or "PoB Redux build"
+	local buildName = build.buildName or "PoB Forge build"
 	local names = mode ~= "current" and M.get_loadouts().loadouts or {}
 	if #names < 2 then return result({ file(buildName, snapshot()) }) end
 

@@ -3,12 +3,14 @@ import { openUrl } from "$lib/engine.svelte";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 
-const KEY = "pob-redux:update";
-const DOWNLOAD_URL = "https://pobredux.com/#download";
+const KEY = "pob-forge:update";
+const DOWNLOAD_URL = "https://github.com/minimalguru-dev/pob-forge/releases/latest";
+/** Only release builds signed with this app's own updater key set this (see release.yml). */
+const ENABLED = import.meta.env.VITE_UPDATER === "true";
 
 export type UpdatePhase = "idle" | "checking" | "available" | "downloading" | "ready" | "error";
-/** `self`: the app installs the update. `aur`: pacman does. `package`: a .deb or .rpm the user downloads. */
-export type UpdateMethod = "self" | "aur" | "package";
+/** `self`: the app installs the update. `package`: a .deb or .rpm the user downloads. */
+export type UpdateMethod = "self" | "package";
 
 /**
  * App auto-update. Checks once shortly after boot, then only when asked.
@@ -40,7 +42,7 @@ class UpdateStore {
   }
 
   init() {
-    if (import.meta.env.VITE_PROGRESSION_VALIDATION === "true") return;
+    if (!ENABLED) return;
     try {
       this.dismissed = localStorage.getItem(KEY);
     } catch {}
@@ -64,8 +66,8 @@ class UpdateStore {
 
   /** `manual` surfaces "you are up to date" and any error; the boot check is silent. */
   async check(manual = true) {
-    if (import.meta.env.VITE_PROGRESSION_VALIDATION === "true") {
-      this.error = "Progression Preview uses manual builds from the fork; upstream auto-updates are disabled.";
+    if (!ENABLED) {
+      this.error = "This build does not update itself. Download new versions from the Releases page.";
       this.phase = "error";
       return;
     }

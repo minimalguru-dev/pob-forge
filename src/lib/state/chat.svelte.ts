@@ -35,8 +35,8 @@ import { build } from "$lib/state/build.svelte";
 import { appOptions } from "$lib/state/options.svelte";
 import { gems } from "$lib/state/gems.svelte";
 
-const KEY = "pob-redux:chat";
-const WINDOW_KEY = "pob-redux:assistant-window";
+const KEY = "pob-forge:chat";
+const WINDOW_KEY = "pob-forge:assistant-window";
 /**
  * Tool rounds allowed per message. Assembling a skill setup honestly costs a
  * lot of them: a search per candidate gem, a socket group and an add per skill,
@@ -322,7 +322,7 @@ class ChatStore {
   undoWarning = $state<string | null>(null);
   /** Tool names, for the `/` menu. */
   toolNames = $state<ToolDef[]>([]);
-  /** Dev hook: transcript file written when a run ends (POB_REDUX_CHAT_LOG). */
+  /** Dev hook: transcript file written when a run ends (POB_FORGE_CHAT_LOG). */
   logPath: string | null = null;
   /** Where the always-on run log lands; known after the first run. */
   logFile = $state<string | null>(null);
@@ -1671,7 +1671,7 @@ class ChatStore {
   diagnostics(): string {
     const e = this.entry();
     const lines = [
-      `PoB Redux assistant, ${e.at}`,
+      `PoB Forge assistant, ${e.at}`,
       `provider: ${e.provider}   model: ${e.model}${e.effort ? `   effort: ${e.effort}` : ""}`,
       e.error ? `error: ${e.error}` : "",
       e.errorDetail && e.errorDetail !== e.error ? `detail: ${e.errorDetail}` : "",

@@ -56,7 +56,7 @@ pub fn from_args() -> Option<Link> {
 }
 
 fn handoff_file() -> PathBuf {
-    std::env::temp_dir().join("pob-redux-links.json")
+    std::env::temp_dir().join("pob-forge-links.json")
 }
 
 pub fn instance_running() -> bool {

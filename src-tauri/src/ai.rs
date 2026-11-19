@@ -22,7 +22,7 @@ use tauri::{AppHandle, Manager};
 use crate::agent::{self, AgentStatus, Cli, CLIS};
 
 #[cfg(windows)]
-const SERVICE: &str = "dev.pobredux.desktop";
+const SERVICE: &str = "dev.minimalguru.pobforge";
 
 #[derive(Serialize, Clone, Copy, PartialEq)]
 #[serde(rename_all = "kebab-case")]
@@ -104,7 +104,21 @@ fn entry(app: &AppHandle, id: &str) -> Result<keyring::Entry, String> {
 /// The fallback file wins: it only exists when the store refused the newer key,
 /// so any copy still in the store is older.
 pub(crate) fn stored_key(app: &AppHandle, id: &str) -> Option<String> {
-    key_file::read(app, id).or_else(|| entry(app, id).ok().and_then(|e| e.get_password().ok()))
+    key_file::read(app, id).or_else(|| entry(app, id).ok().and_then(|e| e.get_password().ok())).or_else(|| legacy_key(app, id))
+}
+
+/// A key saved before the rename sits under an older keyring service. Copy it
+/// to the current one and drop the old entry, so clearing the key later sticks.
+fn legacy_key(app: &AppHandle, id: &str) -> Option<String> {
+    let (old, key) = crate::legacy::OLD_IDENTIFIERS.iter().find_map(|service| {
+        let old = keyring::Entry::new(service, id).ok()?;
+        let key = old.get_password().ok()?;
+        Some((old, key))
+    })?;
+    if entry(app, id).and_then(|e| e.set_password(&key).map_err(|e| e.to_string())).is_ok() {
+        let _ = old.delete_credential();
+    }
+    Some(key)
 }
 
 pub(crate) fn stored_keys(app: &AppHandle) -> Vec<String> {
@@ -136,7 +150,13 @@ mod key_file {
 
     pub fn read(app: &AppHandle, id: &str) -> Option<String> {
         let data = std::fs::read(path(app, id)?).ok()?;
-        String::from_utf8(dpapi(&data, false).ok()?).ok()
+        if let Ok(plain) = dpapi(&data, false) {
+            return String::from_utf8(plain).ok();
+        }
+        // Files copied over from before the rename were sealed with the old entropy; reseal them.
+        let key = String::from_utf8(dpapi_with(&data, false, crate::legacy::OLD_KEY_ENTROPY).ok()?).ok()?;
+        let _ = write(app, id, &key);
+        Some(key)
     }
 
     pub fn write(app: &AppHandle, id: &str, key: &str) -> Result<(), String> {
@@ -155,9 +175,13 @@ mod key_file {
     }
 
     pub(super) fn dpapi(data: &[u8], protect: bool) -> std::io::Result<Vec<u8>> {
+        dpapi_with(data, protect, super::SERVICE)
+    }
+
+    fn dpapi_with(data: &[u8], protect: bool, entropy: &str) -> std::io::Result<Vec<u8>> {
         let blob = |d: &[u8]| CRYPT_INTEGER_BLOB { cbData: d.len() as u32, pbData: d.as_ptr() as *mut u8 };
         let input = blob(data);
-        let entropy = blob(super::SERVICE.as_bytes());
+        let entropy = blob(entropy.as_bytes());
         let mut out = CRYPT_INTEGER_BLOB::default();
         // SAFETY: `input` and `entropy` point into slices that outlive the call,
         // and neither function writes through them. On success Windows allocates
@@ -605,7 +629,7 @@ mod tests {
         if cfg!(target_os = "linux") && std::env::var_os("CI").is_some() {
             return;
         }
-        let e = keyring::Entry::new("dev.pobredux.desktop.selftest", "probe").expect("open entry");
+        let e = keyring::Entry::new("dev.minimalguru.pobforge.selftest", "probe").expect("open entry");
         let _ = e.delete_credential();
         e.set_password("secret-value-1234").expect("set");
         assert_eq!(e.get_password().expect("get"), "secret-value-1234");

@@ -3,7 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { WeaponSetMode } from "$lib/engine.svelte";
 import { CURSORS, cursorValue } from "$lib/cursors";
 
-const KEY = "pob-redux:ui";
+const KEY = "pob-forge:ui";
 /** Must match the window's minimum size in tauri.conf.json. */
 const LAYOUT_MIN_W = 1100;
 const LAYOUT_MIN_H = 680;

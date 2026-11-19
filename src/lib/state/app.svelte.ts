@@ -64,7 +64,7 @@ class AppStore {
     // shared items added in this app are ours to restore (PoB's own
     // settings file, which also holds shared items, is never written)
     try {
-      const raws: string[] = JSON.parse(localStorage.getItem("pob-redux:shared-items") ?? "[]");
+      const raws: string[] = JSON.parse(localStorage.getItem("pob-forge:shared-items") ?? "[]");
       for (const raw of raws) await engine.addSharedItem({ raw }).catch(() => {});
     } catch {}
     const session = first ? await sessionInfo().catch(() => null) : null;

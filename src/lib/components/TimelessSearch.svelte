@@ -15,7 +15,7 @@
 
   let { onclose }: { onclose: () => void } = $props();
 
-  const LEAGUE_KEY = "pob-redux:trade-league";
+  const LEAGUE_KEY = "pob-forge:trade-league";
 
   function savedLeague() {
     try {

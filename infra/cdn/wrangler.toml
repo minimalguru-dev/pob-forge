@@ -1,0 +1,13 @@
+name = "pob-forge-cdn"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "pob-forge"
+
+[vars]
+# Repository whose latest release holds latest.json for the updater.
+UPDATE_REPO = "minimalguru-dev/pob-forge"
+# Server to copy files from on first request while the bucket fills (README.md). Empty: bucket only.
+ORIGIN = ""

@@ -46,10 +46,34 @@ CI type-checks and compiles on every push. Installers are built only when a `v*`
 If `NoDefaultCurrentDirectoryInExePath` is set in your shell, unset it before the first build. LuaJIT's
 `msvcbuild.bat` needs cmd.exe to find `minilua` in the current directory.
 
+### Build-time settings
+
+These are read when the app is compiled. A build without them leaves the feature off rather than
+talking to a server it does not own. CI reads them from repository variables of the same name.
+
+| Variable | Effect |
+|---|---|
+| `POB_FORGE_CDN_URL` | The CDN (`infra/cdn`) for tree art, item art and timeless jewel data. `bun run sync` also needs it when tree art is missing locally |
+| `POB_FORGE_GGG_CLIENT_ID` | pathofexile.com OAuth client registered for this app. Without it, account sign-in, character import and trade sign-in stay off |
+| `POB_FORGE_CONTACT` | Contact GGG's API rules require in the OAuth user agent. Default: the repository's issues page |
+
+## Releasing
+
+1. Once: run `bun tauri signer generate -w ~/.tauri/pob-forge.key`. Keep the private key and its
+   password out of the repository. In the GitHub repository, add the secrets `TAURI_SIGNING_PRIVATE_KEY`
+   (the key file's contents) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the variable
+   `TAURI_UPDATER_PUBKEY` (the `.pub` file's contents).
+2. Once: deploy the CDN and set `POB_FORGE_CDN_URL`; see [infra/cdn/README.md](infra/cdn/README.md).
+3. `bun run release:tag patch` (or `minor`, `major`, `x.y.z`) bumps the version, commits, tags and
+   pushes. Publish the draft release the workflow creates. Installed copies find it through `update/latest.json` on the CDN, or the
+   release's own `latest.json`.
+
+Builds made without the release workflow do not update themselves.
+
 ## Layout
 
 ```
-pob-redux/
+pob-forge/
   crates/pob-engine/   headless PoB: LuaJIT host shim, JSON bridge, worker engine pool, `pobctl` CLI
   crates/pob-sync/     copies a PathOfBuilding-PoE2 checkout into src-tauri/resources/pob
   src-tauri/           Tauri app: engine thread, commands, `pob://` asset protocol, MCP server
@@ -69,7 +93,7 @@ bun run i18n          # compile messages into src/lib/paraglide (bun run check a
 
 To translate, copy a key and its English text into your language's file and replace the text. Keep
 every `{placeholder}` exactly as it appears in English; the compiler rejects a message that invents
-one. Leave proper nouns alone: Path of Building, PoB Redux, Discord, Wraeclast and key names such as
+one. Leave proper nouns alone: Path of Building, PoB Forge, Discord, Wraeclast and key names such as
 `Ctrl+B`. Where a string names something from the game, prefer the wording the game itself uses in
 that language.
 
@@ -136,14 +160,14 @@ With the app running and its MCP server on, `bun run mcp` calls the same tools a
 
 ## Where builds are stored
 
-PoB Redux reads and writes the same folder as Path of Building:
+PoB Forge reads and writes the same folder as Path of Building:
 `Documents/Path of Building (PoE2)/Builds`. It reads PoB's `Settings.xml` to find a custom build path,
 and never writes that file.
 
 | Variable | Effect |
 |---|---|
-| `POB_REDUX_USER_DIR` | Parent folder for `Path of Building (PoE2)/`. Default: Documents |
-| `POB_REDUX_POB_ROOT` | Use this PoB data folder instead of the bundled one |
-| `POB_REDUX_OPEN` | Build XML to open at launch. The first argument does the same |
-| `POB_REDUX_POOL` | Worker engines for node power and gem scoring. They boot on the first scan and are released two minutes after the last. Default: half the cores, at most 8 |
-| `POB_REDUX_MCP` | Start the MCP server on this port at launch, whatever the saved setting says |
+| `POB_FORGE_USER_DIR` | Parent folder for `Path of Building (PoE2)/`. Default: Documents |
+| `POB_FORGE_POB_ROOT` | Use this PoB data folder instead of the bundled one |
+| `POB_FORGE_OPEN` | Build XML to open at launch. The first argument does the same |
+| `POB_FORGE_POOL` | Worker engines for node power and gem scoring. They boot on the first scan and are released two minutes after the last. Default: half the cores, at most 8 |
+| `POB_FORGE_MCP` | Start the MCP server on this port at launch, whatever the saved setting says |

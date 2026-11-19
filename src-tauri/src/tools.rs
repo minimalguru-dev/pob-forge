@@ -16,7 +16,7 @@ use crate::game::Game;
 /// Same shape as `rmcp::model::JsonObject`, without depending on rmcp here.
 pub(crate) type JsonObject = Map<String, Value>;
 
-const INSTRUCTIONS: &str = "This server drives the build that is open in PoB Redux (Path of Building for \
+const INSTRUCTIONS: &str = "This server drives the build that is open in PoB Forge (Path of Building for \
 Path of Exile 2). Every number comes from Path of Building's own calculation engine, and every change is \
 shown in the app immediately. Start with get_character and get_stats to see what is loaded, or load_build \
 to open a share code, a pobb.in / Maxroll / poe.ninja / poe2db.tw / Pastebin / Rentry link, a local .xml \
@@ -46,7 +46,7 @@ against the previous state, and rollback restores a checkpoint if the result is 
 trees and gear sets with the list/select/create/copy/rename/delete _spec and _item_set tools. Use \
 save_build or export_build to persist the result. The user is watching the app while you work.";
 
-const INSTRUCTIONS_POE1: &str = "This server drives the build that is open in PoB Redux (Path of Building for \
+const INSTRUCTIONS_POE1: &str = "This server drives the build that is open in PoB Forge (Path of Building for \
 Path of Exile 1). Every number comes from Path of Building's own calculation engine, and every change is \
 shown in the app immediately. Start with get_character and get_stats to see what is loaded, or load_build \
 to open a share code, a pobb.in / Maxroll / Mobalytics / poe.ninja / Pastebin / Rentry link, a local .xml \

@@ -19,15 +19,12 @@ use crate::character::query_value;
 use crate::game::Game;
 use crate::AppState;
 
-const CLIENT_ID: &str = "pobredux";
 const SCOPES: &str = "account:profile account:characters account:trade";
 /// GGG registered these loopback ports for the client; no other redirect is accepted.
 const PORTS: [u16; 3] = [49095, 49096, 49097];
 const AUTHORIZE: &str = "https://www.pathofexile.com/oauth/authorize";
 const TOKEN: &str = "https://www.pathofexile.com/oauth/token";
 const API: &str = "https://api.pathofexile.com";
-/// GGG's API rules fix this format for every OAuth client.
-const UA: &str = concat!("OAuth pobredux/", env!("CARGO_PKG_VERSION"), " (contact: contact@pobredux.com)");
 const SECRET: &str = "ggg-oauth";
 const SIGN_IN_WAIT: Duration = Duration::from_secs(300);
 /// GGG ends a public client's sign-in seven days after the consent, however often the token is renewed.
@@ -35,7 +32,7 @@ const SIGN_IN_LIFETIME: u64 = 7 * 24 * 60 * 60;
 const SIGNED_OUT: &str = "Sign in with Path of Exile first.";
 const EXPIRED: &str = "The Path of Exile sign-in has expired. Sign in again.";
 const NEEDS_TRADE: &str = "Sign in with Path of Exile again to allow trade searches.";
-const PREVIEW_AUTH_DISABLED: &str = "Path of Exile account access is disabled in this preview until its OAuth client registration is resolved. Import a PoB code or XML instead.";
+const AUTH_DISABLED: &str = "Path of Exile account access is off in this build: it has no pathofexile.com OAuth client of its own yet. Import a PoB code or XML instead.";
 /// A trade request may only go to these addresses, so nothing else can be sent the token.
 const TRADE_API: [&str; 6] = [
     "https://www.pathofexile.com/api/trade2/search/",
@@ -147,7 +144,7 @@ fn now() -> u64 {
 }
 
 fn client() -> Result<reqwest::Client, String> {
-    reqwest::Client::builder().user_agent(UA).redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(20)).build().map_err(|e| e.to_string())
+    reqwest::Client::builder().user_agent(user_agent()).redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(20)).build().map_err(|e| e.to_string())
 }
 
 #[derive(Deserialize)]
@@ -190,7 +187,7 @@ async fn request_token(form: String) -> Result<TokenResponse, TokenError> {
 /// `stale` is a token the API just refused, which forces a refresh unless another call already made one.
 async fn access_token(app: &AppHandle, state: &GggState, stale: Option<&str>) -> Result<String, String> {
     if !ggg_auth_available(app.clone()) {
-        return Err(PREVIEW_AUTH_DISABLED.into());
+        return Err(AUTH_DISABLED.into());
     }
     let mut store = state.store(app).await;
     let session = store.session.clone().ok_or(SIGNED_OUT)?;
@@ -201,7 +198,7 @@ async fn access_token(app: &AppHandle, state: &GggState, stale: Option<&str>) ->
         store.clear(app);
         return Err(EXPIRED.into());
     };
-    match request_token(format!("client_id={CLIENT_ID}&grant_type=refresh_token&refresh_token={}", query_value(&refresh))).await {
+    match request_token(format!("client_id={}&grant_type=refresh_token&refresh_token={}", client_id(), query_value(&refresh))).await {
         Ok(tokens) => {
             let access = tokens.access_token.clone();
             store.set(app, Session::new(tokens, Some(session)));
@@ -330,12 +327,12 @@ async fn answer(mut stream: TcpStream, csrf: &str) -> Option<Result<String, Stri
     let target = request.strip_prefix("GET ")?.split(' ').next()?;
     let outcome = callback(target, csrf);
     let (status, text) = match &outcome {
-        Some(Ok(_)) => ("200 OK", "Signed in. You can close this tab and go back to PoB Redux."),
-        Some(Err(_)) => ("200 OK", "The sign-in did not finish. Go back to PoB Redux and try again."),
+        Some(Ok(_)) => ("200 OK", "Signed in. You can close this tab and go back to PoB Forge."),
+        Some(Err(_)) => ("200 OK", "The sign-in did not finish. Go back to PoB Forge and try again."),
         None => ("404 Not Found", "Not found."),
     };
     let body = format!(
-        "<!doctype html><meta charset=\"utf-8\"><title>PoB Redux</title>\
+        "<!doctype html><meta charset=\"utf-8\"><title>PoB Forge</title>\
          <body style=\"margin:0;height:100vh;display:grid;place-items:center;background:#111;color:#ddd;font:15px system-ui,sans-serif\"><p>{text}</p>"
     );
     let reply = format!(
@@ -390,14 +387,23 @@ pub async fn ggg_account(app: AppHandle, state: State<'_, GggState>) -> Result<O
 
 #[tauri::command]
 pub fn ggg_auth_available(app: AppHandle) -> bool {
-    !crate::is_progression_preview(&app)
+    crate::brand::ggg_client_id().is_some() && !crate::is_progression_preview(&app)
+}
+
+fn client_id() -> &'static str {
+    crate::brand::ggg_client_id().unwrap_or_default()
+}
+
+/// GGG's API rules fix this format for every OAuth client.
+fn user_agent() -> String {
+    format!("OAuth {}/{} (contact: {})", client_id(), env!("CARGO_PKG_VERSION"), crate::brand::ggg_contact())
 }
 
 /// `None` when the user cancelled, or started another sign-in that replaced this one.
 #[tauri::command]
 pub async fn ggg_sign_in(app: AppHandle, state: State<'_, GggState>) -> Result<Option<Account>, String> {
     if !ggg_auth_available(app.clone()) {
-        return Err(PREVIEW_AUTH_DISABLED.into());
+        return Err(AUTH_DISABLED.into());
     }
     let (cancel, cancelled) = oneshot::channel();
     *state.pending.lock().unwrap() = Some(cancel);
@@ -407,7 +413,8 @@ pub async fn ggg_sign_in(app: AppHandle, state: State<'_, GggState>) -> Result<O
     let challenge = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
     let csrf = random_hex(16)?;
     let url = format!(
-        "{AUTHORIZE}?client_id={CLIENT_ID}&response_type=code&scope={}&state={csrf}&redirect_uri={}&code_challenge={challenge}&code_challenge_method=S256",
+        "{AUTHORIZE}?client_id={}&response_type=code&scope={}&state={csrf}&redirect_uri={}&code_challenge={challenge}&code_challenge_method=S256",
+        client_id(),
         query_value(SCOPES),
         query_value(&redirect)
     );
@@ -422,7 +429,8 @@ pub async fn ggg_sign_in(app: AppHandle, state: State<'_, GggState>) -> Result<O
         _ = cancelled => return Ok(None),
     };
     let form = format!(
-        "client_id={CLIENT_ID}&grant_type=authorization_code&code={}&redirect_uri={}&scope={}&code_verifier={verifier}",
+        "client_id={}&grant_type=authorization_code&code={}&redirect_uri={}&scope={}&code_verifier={verifier}",
+        client_id(),
         query_value(&code),
         query_value(&redirect),
         query_value(SCOPES)

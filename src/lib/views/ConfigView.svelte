@@ -18,7 +18,7 @@
   let customBlocks = $state<CustomModBlock[]>([]);
   let relevantOnly = $state(true);
   let filter = $state("");
-  const COLLAPSED_KEY = "pob-redux:config-collapsed";
+  const COLLAPSED_KEY = "pob-forge:config-collapsed";
   let collapsed = $state<Set<string>>(new Set());
   try {
     collapsed = new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]"));

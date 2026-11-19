@@ -21,7 +21,7 @@ The previous `90cd6bb` installer predates this hardening. The new code is not ev
 
 ## Dependency review
 
-The review queried Bun's audit and OSV for 657 Cargo registry package versions. Public version metadata only was submitted. A genuine Cargo resolver update generated the lockfile in [CI](https://github.com/minimalguru-dev/pob-redux/actions/runs/43723959255), rather than hand-editing package checksums. Native validation uses `--locked`.
+The review queried Bun's audit and OSV for 657 Cargo registry package versions. Public version metadata only was submitted. A genuine Cargo resolver update generated the lockfile in [CI](https://github.com/minimalguru-dev/pob-forge/actions/runs/43723959255), rather than hand-editing package checksums. Native validation uses `--locked`.
 
 | Dependency | Patched version |
 | --- | --- |

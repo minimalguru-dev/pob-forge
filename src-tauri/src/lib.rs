@@ -2,6 +2,9 @@ use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 mod art;
+mod brand;
+mod legacy;
+mod window_state;
 mod downloads;
 mod game_data;
 mod tree_art;
@@ -82,7 +85,7 @@ fn session_marker(app: &tauri::AppHandle) -> Option<PathBuf> {
 }
 
 fn safe_mode() -> bool {
-    std::env::args().any(|a| a == "--safe-mode") || std::env::var_os("POB_REDUX_SAFE_MODE").is_some()
+    std::env::args().any(|a| a == "--safe-mode") || std::env::var_os("POB_FORGE_SAFE_MODE").is_some()
 }
 
 /// A leftover marker means a crash, unless another instance runs or another version (an update) wrote it.
@@ -164,9 +167,9 @@ impl AppState {
 }
 
 /// Worker engines for parallel scoring: half the cores, capped — each is a
-/// ~240 MB Lua state, booted on first use. `POB_REDUX_POOL=n` overrides.
+/// ~240 MB Lua state, booted on first use. `POB_FORGE_POOL=n` overrides.
 fn pool_size() -> usize {
-    if let Some(n) = std::env::var("POB_REDUX_POOL").ok().and_then(|v| v.parse::<usize>().ok()) {
+    if let Some(n) = std::env::var("POB_FORGE_POOL").ok().and_then(|v| v.parse::<usize>().ok()) {
         return n.clamp(1, 16);
     }
     let cores = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
@@ -348,20 +351,20 @@ struct AppPaths {
     default_builds_dir: String,
     sync: Option<Value>,
     /// A build file to open once the engine is ready: first CLI argument
-    /// ending in .xml (file association / drag onto the exe) or POB_REDUX_OPEN.
+    /// ending in .xml (file association / drag onto the exe) or POB_FORGE_OPEN.
     open_on_start: Option<String>,
-    /// Dev hook: initial tab (POB_REDUX_VIEW), used by the screenshot harness.
+    /// Dev hook: initial tab (POB_FORGE_VIEW), used by the screenshot harness.
     initial_view: Option<String>,
-    /// Dev hook: open the assistant panel on boot (POB_REDUX_CHAT).
+    /// Dev hook: open the assistant panel on boot (POB_FORGE_CHAT).
     /// Set it to "settings" to open the provider sheet too.
     chat_open: Option<String>,
-    /// Dev hook: send one message on boot (POB_REDUX_CHAT_ASK).
+    /// Dev hook: send one message on boot (POB_FORGE_CHAT_ASK).
     chat_ask: Option<String>,
-    /// Dev hook: skip the write-approval gate for that run (POB_REDUX_CHAT_ALLOW).
+    /// Dev hook: skip the write-approval gate for that run (POB_FORGE_CHAT_ALLOW).
     chat_allow: Option<String>,
-    /// Dev hook: write the transcript here when a run ends (POB_REDUX_CHAT_LOG).
+    /// Dev hook: write the transcript here when a run ends (POB_FORGE_CHAT_LOG).
     chat_log: Option<String>,
-    /// Dev hooks: provider id and model to select on boot (POB_REDUX_CHAT_PROVIDER, POB_REDUX_CHAT_MODEL).
+    /// Dev hooks: provider id and model to select on boot (POB_FORGE_CHAT_PROVIDER, POB_FORGE_CHAT_MODEL).
     chat_provider: Option<String>,
     chat_model: Option<String>,
 }
@@ -370,25 +373,17 @@ fn open_on_start() -> Option<String> {
     std::env::args()
         .skip(1)
         .find(|a| a.to_ascii_lowercase().ends_with(".xml") && Path::new(a).is_file())
-        .or_else(|| std::env::var("POB_REDUX_OPEN").ok().filter(|p| Path::new(p).is_file()))
+        .or_else(|| std::env::var("POB_FORGE_OPEN").ok().filter(|p| Path::new(p).is_file()))
 }
 
 /// How this copy gets updates. The updater replaces the running binary, which on
-/// Linux only works for an AppImage. An AUR install updates through pacman, and
-/// a .deb or .rpm install has to fetch the new package.
+/// Linux only works for an AppImage; a .deb or .rpm install has to fetch the new package.
 #[tauri::command]
 fn update_method() -> &'static str {
     if !cfg!(target_os = "linux") || std::env::var_os("APPIMAGE").is_some() {
         return "self";
     }
-    let from_aur = std::fs::read_dir("/var/lib/pacman/local")
-        .map(|dir| dir.flatten().any(|e| e.file_name().to_string_lossy().starts_with("pob-redux-bin-")))
-        .unwrap_or(false);
-    if from_aur {
-        "aur"
-    } else {
-        "package"
-    }
+    "package"
 }
 
 #[tauri::command]
@@ -405,13 +400,13 @@ fn app_paths(state: State<'_, AppState>) -> AppPaths {
         default_builds_dir: builds_dir(&state.user_dir, state.game()).to_string_lossy().to_string(),
         sync,
         open_on_start: open_on_start(),
-        initial_view: std::env::var("POB_REDUX_VIEW").ok(),
-        chat_open: std::env::var("POB_REDUX_CHAT").ok(),
-        chat_ask: std::env::var("POB_REDUX_CHAT_ASK").ok(),
-        chat_allow: std::env::var("POB_REDUX_CHAT_ALLOW").ok(),
-        chat_log: std::env::var("POB_REDUX_CHAT_LOG").ok(),
-        chat_provider: std::env::var("POB_REDUX_CHAT_PROVIDER").ok(),
-        chat_model: std::env::var("POB_REDUX_CHAT_MODEL").ok(),
+        initial_view: std::env::var("POB_FORGE_VIEW").ok(),
+        chat_open: std::env::var("POB_FORGE_CHAT").ok(),
+        chat_ask: std::env::var("POB_FORGE_CHAT_ASK").ok(),
+        chat_allow: std::env::var("POB_FORGE_CHAT_ALLOW").ok(),
+        chat_log: std::env::var("POB_FORGE_CHAT_LOG").ok(),
+        chat_provider: std::env::var("POB_FORGE_CHAT_PROVIDER").ok(),
+        chat_model: std::env::var("POB_FORGE_CHAT_MODEL").ok(),
     }
 }
 
@@ -559,7 +554,7 @@ async fn share_build_code(state: State<'_, AppState>, site: String, code: String
         return Err("nothing to share: the build code is empty".into());
     }
     let client = reqwest::Client::builder()
-        .user_agent("pob-redux/0.1 Path of Building")
+        .user_agent("pob-forge/0.1 Path of Building")
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| e.to_string())?;
@@ -682,7 +677,7 @@ pub(crate) async fn fetch_code(url: &str) -> Result<FetchedCode, String> {
     let (site, download) =
         sites::download_url(url).ok_or_else(|| format!("Unrecognised build link. Supported sites: {}.", sites::SUPPORTED))?;
     let client = reqwest::Client::builder()
-        .user_agent("pob-redux/0.1 Path of Building")
+        .user_agent("pob-forge/0.1 Path of Building")
         .timeout(std::time::Duration::from_secs(20))
         .build()
         .map_err(|e| e.to_string())?;
@@ -1045,11 +1040,11 @@ fn find_pob_root(app: &tauri::AppHandle, game: Game) -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.join("Launch.lua").is_file())
 }
 
-/// The game to boot: `POB_REDUX_GAME`, then the link or build file the app
+/// The game to boot: `POB_FORGE_GAME`, then the link or build file the app
 /// was opened with, then the saved choice. With none of those the app boots
 /// PoE2 and asks (`first_run`).
 fn startup_game(app: &tauri::AppHandle, link: Option<&links::Link>) -> (Game, bool) {
-    if let Some(g) = std::env::var("POB_REDUX_GAME").ok().and_then(|v| Game::from_id(&v)) {
+    if let Some(g) = std::env::var("POB_FORGE_GAME").ok().and_then(|v| Game::from_id(&v)) {
         return (g, false);
     }
     if let Some(link) = link {
@@ -1135,13 +1130,13 @@ fn build_xml_game(xml: String) -> Option<Game> {
 }
 
 fn find_user_dir(app: &tauri::AppHandle) -> PathBuf {
-    if let Ok(p) = std::env::var("POB_REDUX_USER_DIR") {
+    if let Ok(p) = std::env::var("POB_FORGE_USER_DIR") {
         return PathBuf::from(p);
     }
     app.path()
         .document_dir()
         .or_else(|_| app.path().app_data_dir())
-        .unwrap_or_else(|_| std::env::temp_dir().join("pob-redux"))
+        .unwrap_or_else(|_| std::env::temp_dir().join("pob-forge"))
 }
 
 fn percent_decode(s: &str) -> String {
@@ -1264,6 +1259,8 @@ pub fn run() {
     }
     diagnostics::install_panic_hook();
     pob_engine::install_tls_provider();
+    let context = tauri::generate_context!();
+    legacy::migrate(&context.config().identifier);
 
     tauri::Builder::default()
         .plugin(diagnostics::log_plugin())
@@ -1315,12 +1312,13 @@ pub fn run() {
             app.manage(decide::DecideState::new(&app.handle().clone()));
             app.manage(voice::VoiceState::new());
             app.manage(ggg::GggState::default());
+            window_state::restore(app.handle());
             #[cfg(desktop)]
             overlay::setup(app.handle());
             #[cfg(desktop)]
             gamelog::setup(app.handle());
-            // POB_REDUX_MCP=<port> brings the MCP server up at launch (scripts, tests)
-            if let Some(port) = std::env::var("POB_REDUX_MCP").ok().and_then(|v| v.parse::<u16>().ok()) {
+            // POB_FORGE_MCP=<port> brings the MCP server up at launch (scripts, tests)
+            if let Some(port) = std::env::var("POB_FORGE_MCP").ok().and_then(|v| v.parse::<u16>().ok()) {
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     if let Err(e) = mcp::start_with_handle(&handle, port).await {
@@ -1459,9 +1457,16 @@ pub fn run() {
             threads::thread_save,
             threads::thread_delete,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|app, event| {
+            if let tauri::RunEvent::WindowEvent { label, event: tauri::WindowEvent::CloseRequested { .. }, .. } = &event {
+                if label == "main" {
+                    if let Some(window) = app.get_webview_window(label) {
+                        window_state::save(&window);
+                    }
+                }
+            }
             if let tauri::RunEvent::WindowEvent { label, event: tauri::WindowEvent::Destroyed, .. } = &event {
                 if label == "main" {
                     trade::close(app);
@@ -1489,7 +1494,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("pob-redux-test-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("pob-forge-test-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

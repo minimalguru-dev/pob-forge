@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- App icon source: `bun tauri icon src-tauri/icons/source.svg` regenerates every size. -->
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26221f" />
+      <stop offset="1" stop-color="#151311" />
+    </linearGradient>
+    <radialGradient id="glow" cx="0.66" cy="0.66" r="0.42">
+      <stop offset="0" stop-color="#ee7340" stop-opacity="0.28" />
+      <stop offset="1" stop-color="#ee7340" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect x="32" y="32" width="960" height="960" rx="216" fill="url(#ground)" />
+  <rect x="32" y="32" width="960" height="960" rx="216" fill="url(#glow)" />
+  <rect x="33.5" y="33.5" width="957" height="957" rx="214.5" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3" />
+  <g transform="translate(512 512) scale(0.74) translate(-512 -512)">
+    <path fill="#f1ece6" d="M218 182H806A56 56 0 0 1 862 238V382H162V238A56 56 0 0 1 218 182Z" />
+    <path fill="#f1ece6" d="M282 422H422V842H338A56 56 0 0 1 282 786Z" />
+    <path fill="#ee7340" d="M672 482L842 652L672 822L502 652Z" />
+  </g>
+</svg>

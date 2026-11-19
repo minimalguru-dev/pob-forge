@@ -16,6 +16,12 @@ on:
 permissions:
   contents: write
 
+# The CDN (infra/cdn) and the pathofexile.com OAuth client are repository variables;
+# a build without them leaves downloads and account sign-in off.
+env:
+  POB_FORGE_CDN_URL: ${{ vars.POB_FORGE_CDN_URL }}
+  POB_FORGE_GGG_CLIENT_ID: ${{ vars.POB_FORGE_GGG_CLIENT_ID }}
+
 jobs:
   # One job makes the draft, so parallel builds cannot each create their own for the same tag.
   draft:
@@ -42,7 +48,7 @@ jobs:
           id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n 1)
           if [ -z "$id" ]; then
             notes=$(bun scripts/release-notes.mjs "$TAG")
-            id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f name="PoB Redux $TAG" -f body="$notes" -F draft=true -F prerelease=false --jq .id)
+            id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f name="PoB Forge $TAG" -f body="$notes" -F draft=true -F prerelease=false --jq .id)
           fi
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
@@ -119,7 +125,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
-          shared-key: pob-redux-${{ runner.arch }}
+          shared-key: pob-forge-${{ runner.arch }}
           cache-on-failure: true
 
       - name: Linux dependencies
@@ -136,8 +142,28 @@ jobs:
           cargo run -p pob-sync -- --source upstream/PathOfBuilding-PoE2
           cargo run -p pob-sync -- --game poe1 --source upstream/PathOfBuilding
 
-      - name: Check the downloadable files are on R2
+      - name: Check the downloadable files are on the CDN
         run: bun scripts/downloads.ts check
+
+      # The updater's public key and the CDN mirror of latest.json are repository
+      # variables, so the checked-in config never trusts a key it does not own.
+      - name: Configure the updater
+        shell: bash
+        env:
+          PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+        run: |
+          if [ -z "$PUBKEY" ]; then
+            echo "::error::Set the TAURI_UPDATER_PUBKEY repository variable (bun tauri signer generate) before releasing."
+            exit 1
+          fi
+          bun -e '
+            const path = "src-tauri/tauri.conf.json";
+            const conf = await Bun.file(path).json();
+            conf.plugins.updater.pubkey = process.env.PUBKEY;
+            const cdn = (process.env.POB_FORGE_CDN_URL ?? "").replace(/\/+$/, "");
+            if (cdn) conf.plugins.updater.endpoints.unshift(`${cdn}/update/latest.json`);
+            await Bun.write(path, JSON.stringify(conf, null, 2) + "\n");
+          '
 
       # Builds, signs the updater artifacts with the minisign key and uploads them with latest.json to the draft.
       - uses: tauri-apps/tauri-action@v1
@@ -145,6 +171,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_UPDATER: "true"
         with:
           releaseId: ${{ needs.draft.outputs.id }}
           uploadUpdaterJson: true
@@ -153,7 +180,7 @@ jobs:
       # A bundle whose resources are not sealed opens as "damaged" once downloaded.
       - name: Verify the macOS signature
         if: runner.os == 'macOS'
-        run: codesign --verify --deep --strict -vv "target/release/bundle/macos/PoB Redux.app"
+        run: codesign --verify --deep --strict -vv "target/release/bundle/macos/PoB Forge.app"
 
       # Launch the AppImage on a virtual display and refuse a black window, the
       # failure WebKitGTK produces when its GPU path breaks. The script waits for
@@ -164,7 +191,7 @@ jobs:
         if: runner.os == 'Linux'
         continue-on-error: true
         env:
-          POB_REDUX_GAME: poe2
+          POB_FORGE_GAME: poe2
           APPIMAGE_EXTRACT_AND_RUN: "1"
         run: |
           sudo apt-get install -y xvfb imagemagick xdotool

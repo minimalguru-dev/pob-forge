@@ -130,8 +130,6 @@
   "status_rev": "рев",
   "status_assistant": "Панель ассистента",
   "status_assistant_title": "Панель ассистента (Ctrl+L)",
-  "status_discord": "Discord",
-  "status_discord_title": "Discord PoB Redux",
 
   "sidebar_build": "Сборка",
   "sidebar_rename_title": "Нажмите, чтобы переименовать. Файл переименуется вместе с ней.",
@@ -192,8 +190,6 @@
   "update_available": "Версия",
   "update_available_suffix": "доступна.",
   "update_install": "Обновить",
-  "update_aur_before": "Обновите",
-  "update_aur_after": "через ваш помощник AUR.",
   "update_download": "Скачать",
   "update_download_title": "Установку из пакета заменяет менеджер пакетов, а не приложение",
   "update_later": "Позже",
@@ -211,7 +207,7 @@
 
   "app_safe_mode": "Безопасный режим: последняя сборка не была открыта заново",
   "app_recover_title": "Открыть последнюю сборку заново?",
-  "app_recover_message": "PoB Redux завершился неожиданно, пока была открыта {build}. Если при повторном открытии приложение снова закроется, выберите «Начать с пустого»; сборка будет сохранена в вашу папку сборок как восстановленная копия.",
+  "app_recover_message": "PoB Forge завершился неожиданно, пока была открыта {build}. Если при повторном открытии приложение снова закроется, выберите «Начать с пустого»; сборка будет сохранена в вашу папку сборок как восстановленная копия.",
   "app_recover_build_fallback": "сборка",
   "app_recover_ok": "Открыть заново",
   "app_recover_cancel": "Начать с пустого",

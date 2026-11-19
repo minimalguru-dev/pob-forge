@@ -9,11 +9,11 @@ fn progression_lua_compiles() {
 }
 
 #[test]
-#[ignore = "requires synced PoE1 data; run with POB_REDUX_POB_ROOT and --ignored"]
+#[ignore = "requires synced PoE1 data; run with POB_FORGE_POB_ROOT and --ignored"]
 fn progression_uses_pob_without_changing_live_build() {
-    let root = PathBuf::from(std::env::var("POB_REDUX_POB_ROOT").expect("set POB_REDUX_POB_ROOT"));
+    let root = PathBuf::from(std::env::var("POB_FORGE_POB_ROOT").expect("set POB_FORGE_POB_ROOT"));
     let root = if root.is_absolute() { root } else { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").join(root) };
-    let user_dir = std::env::temp_dir().join(format!("redux-progression-test-{}", std::process::id()));
+    let user_dir = std::env::temp_dir().join(format!("forge-progression-test-{}", std::process::id()));
     let engine = Engine::boot(EngineConfig { pob_root: root, user_dir, cache_dir: None, data_dir: None }).unwrap();
     let call = |method: &str, params: Value| engine.call(method, &params).unwrap_or_else(|error| panic!("{method}: {error}"));
     call("new_build", json!({"name": "Progression regression fixture"}));

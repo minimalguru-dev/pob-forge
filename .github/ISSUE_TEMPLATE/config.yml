@@ -1,10 +1,10 @@
 blank_issues_enabled: false
 contact_links:
   - name: Questions and help
-    url: https://discord.pobredux.com/
-    about: Ask on the PoB Redux Discord.
+    url: https://github.com/minimalguru-dev/pob-forge/discussions
+    about: Ask in Discussions.
   - name: Security vulnerability
-    url: https://github.com/pobredux/pob-redux/security/advisories/new
+    url: https://github.com/minimalguru-dev/pob-forge/security/advisories/new
     about: Report it privately. Do not open a public issue.
   - name: Wrong number that Path of Building shows too (Path of Exile 2)
     url: https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2/issues

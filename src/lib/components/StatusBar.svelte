@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { openUrl, poolStatus, telemetry, type EngineStatus, type AppPaths, type PoolStatus } from "$lib/engine.svelte";
+  import { poolStatus, telemetry, type EngineStatus, type AppPaths, type PoolStatus } from "$lib/engine.svelte";
   import { build } from "$lib/state/build.svelte";
   import { mcp } from "$lib/state/mcp.svelte";
   import { chat } from "$lib/state/chat.svelte";
@@ -8,8 +8,6 @@
   import { m } from "$lib/paraglide/messages";
 
   let { status, paths }: { status: EngineStatus | null; paths: AppPaths | null } = $props();
-
-  const DISCORD_URL = "https://discord.pobredux.com/";
 
   // Workers spawn on demand and boot in the background; poll only while one is
   // booting, and look again whenever engine activity starts or stops.
@@ -90,14 +88,6 @@
   >
     <Icon name="chat-text" size={15} />
   </button>
-  <button
-    class="seg iconbtn discord"
-    onclick={() => openUrl(DISCORD_URL).catch(() => {})}
-    title={m.status_discord_title()}
-    aria-label={m.status_discord()}
-  >
-    <Icon name="discord-logo" size={15} />
-  </button>
 </footer>
 
 <style>
@@ -150,10 +140,6 @@
   .iconbtn:hover:not(:disabled) {
     color: var(--fg-0);
     background: var(--bg-2);
-  }
-  .iconbtn.discord,
-  .iconbtn.discord:hover:not(:disabled) {
-    color: #5865f2;
   }
   .err {
     color: var(--bad);

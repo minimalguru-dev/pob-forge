@@ -8,6 +8,8 @@ permissions:
 concurrency:
   group: progression-windows-${{ github.ref }}
   cancel-in-progress: true
+env:
+  POB_FORGE_CDN_URL: ${{ vars.POB_FORGE_CDN_URL }}
 jobs:
   windows:
     runs-on: windows-latest
@@ -64,14 +66,14 @@ jobs:
           cargo test --locked -p pob-engine
       - name: Validate Progression against real PoB
         env:
-          POB_REDUX_POB_ROOT: src-tauri/resources/pob1
+          POB_FORGE_POB_ROOT: src-tauri/resources/pob1
         run: |
           Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
           cargo test --locked -p pob-engine --test progression -- --ignored --nocapture
       - name: Rust application regression tests
         run: |
           Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
-          cargo test --locked -p pob-redux --lib
+          cargo test --locked -p pob-forge --lib
       - name: Build isolated unsigned Windows installer
         env:
           VITE_PROGRESSION_VALIDATION: "true"

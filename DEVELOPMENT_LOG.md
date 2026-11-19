@@ -1,4 +1,4 @@
-# Development log — PoB Redux Progression
+# Development log — PoB Forge Progression
 
 Ovaj dokument je aktualni pregled za sljedećeg razvojnog agenta. Dopunjavati pri važnoj odluci, ispravku, commitu i završenoj validaciji. Ne tvrditi da je build ili runtime test prošao bez rezultata. Za pogreške i prevenciju vidi [mistakes.md](mistakes.md); za ponašanje proizvoda vidi [PROGRESSION.md](PROGRESSION.md).
 
@@ -136,3 +136,16 @@ Native: slijediti CONTRIBUTING.md i Windows workflow. Nakon synca postaviti `POB
 - Overlay (`overlay.rs`, `gamelog.rs`, `OverlayWindow.svelte`): opt-in, prozirni always-on-top prozor, globalni prečaci Alt+Shift+O / Alt+Shift+I, clipboard watcher samo dok je overlay vidljiv i samo za tekst koji počinje s `Item Class:`, praćenje `Client.txt` od zadnjih 512 KiB. Bez čitanja memorije igre i bez slanja inputa.
 - Provjereno uživo nad pokrenutom igrom (PoE1): item kartica, map kartica i leveling panel iz stvarnog `Client.txt`. Progression panel u overlayu nije viđen uživo jer nema spremljenog para snapshotova; logika je ista kao u Progression tabu.
 - Nije provjereno: macOS (overlay je tamo neproziran), PoE2 klijent uživo, ne-engleski klijenti, CI za ovu granu.
+
+## Rebrand u PoB Forge — 2026-11-19
+
+- **Zahtjev:** korisnik želi projekt kao vlastiti proizvod: novo ime, suptilno drugačiji UI, QoL, bez upstream brendiranja. Odluke korisnika: ime **PoB Forge**; atribucija samo u `LICENSE` (MIT to zahtijeva; dodan i korisnikov copyright red, Juddov i PoB Community ostaju); vlastiti Cloudflare update/art server. Git povijest nije prepisivana.
+- **Identitet:** productName/naslovi/poruke `PoB Forge`; identifier `dev.minimalguru.pobforge`; Cargo paket `pob-forge` (`pob_forge_lib`); env prefiks `POB_FORGE_*`; localStorage `pob-forge:`; MCP server ime `pobforge` (postojeće AI klijent konfiguracije treba ponovno dodati). Preview identity (`dev.minimalguru.pob-progression-preview`) ostaje.
+- **Upstream servisi uklonjeni:** updater endpoint/pubkey, `art.pobredux.com`, Discord gumb, AUR paket i workflow, FUNDING, pobredux.com linkovi, privatni corpus repo (sada `vars.CORPUS_REPOSITORY`). GGG OAuth client ID više nije u kodu (vidi mistakes.md).
+- **Build-time postavke** (`src-tauri/src/brand.rs`): `POB_FORGE_CDN_URL`, `POB_FORGE_GGG_CLIENT_ID`, `POB_FORGE_CONTACT`. Bez CDN-a tree-art/data download u release buildu prijavljuje jasnu grešku; dev buildovi koriste lokalni sync. `pob-sync` treba `POB_FORGE_CDN_URL` samo kad offline tree art nedostaje lokalno.
+- **Updater:** `tauri.conf.json` ima prazan pubkey i GitHub endpoint. `release.yml` traži varijablu `TAURI_UPDATER_PUBKEY`, upisuje je i CDN endpoint prije builda te postavlja `VITE_UPDATER=true`; buildovi bez toga ne provjeravaju update.
+- **CDN:** `infra/cdn` Worker nad R2: hashirani tree/data, item art s pull-through kopiranjem s `ORIGIN`, `update/latest.json` proxy na zadnji GitHub release. Nije deployan; nema Cloudflare pristupa iz ove sesije.
+- **Migracija podataka:** `legacy.rs` prije kreiranja prozora kopira (ne premješta) config/data/local/cache mape starog identifiera (WebView profil bez cache mapa); `storage-migration.ts` preimenuje stare localStorage ključeve; keyring/DPAPI ključevi čitaju se sa starog namespacea i prepisuju.
+- **UI/QoL:** tamna tema prebačena na topli charcoal (hue 58) s ember brand/focus bojom, light tema dobiva isti akcent; novi logo (čekić + žar) i sve ikone generirane iz `src-tauri/icons/source.svg`; Progression tab ima vlastitu ikonu (zastava); glavni prozor pamti veličinu, poziciju i maksimizirano stanje (`window_state.rs`, provjera da je naslovna traka na nekom monitoru).
+- **Validacija lokalno (Windows, necommitano stanje):** `cargo check --locked --workspace --all-targets` prolazi; `cargo test -p pob-forge --lib` 90 passed, 1 ignored (postojeći voice); `bun test scripts` 27 pass; `bun run check` 0/0; `bun run build` prolazi; Playwright 6 pass (Edge). Vizualno provjereni naslovna traka i Progression u tamnoj i svijetloj temi kroz privremeni browser harness (obrisan).
+- **Nije provjereno:** native desktop pokretanje novog builda, stvarna migracija s korisnikovim starim podacima, Worker na Cloudflareu, release workflow, CI na GitHubu. Repozitorij na GitHubu još se zove `pob-redux`; linkovi u kodu pretpostavljaju `minimalguru-dev/pob-forge` (GitHub preusmjerava nakon preimenovanja).

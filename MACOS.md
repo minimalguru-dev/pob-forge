@@ -13,12 +13,12 @@ the same as every other platform, so a Path of Building install shares the same 
 
 Until the app is signed with a Developer ID and notarized, Gatekeeper blocks it on first launch. On
 macOS 15 Sequoia or later, open System Settings, go to **Privacy & Security**, scroll to the note that
-PoB Redux was blocked and click **Open Anyway**, then confirm. macOS 11 to 14 still let you right-click
+PoB Forge was blocked and click **Open Anyway**, then confirm. macOS 11 to 14 still let you right-click
 the app and choose **Open**, which shows the same warning with an Open button. Clearing the quarantine
 flag works on any version:
 
 ```sh
-xattr -dr com.apple.quarantine "/Applications/PoB Redux.app"
+xattr -dr com.apple.quarantine "/Applications/PoB Forge.app"
 ```
 
 ## Building it
@@ -57,7 +57,7 @@ pinned in `pob-sync.toml`, or point `POB_SOURCE` at them:
 cd ..
 git clone https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2.git
 git clone https://github.com/PathOfBuildingCommunity/PathOfBuilding.git
-cd pob-redux
+cd pob-forge
 bun install
 bun run sync          # vendors both into src-tauri/resources. Run before the first build.
 bun run tauri build   # .app and .dmg land in target/release/bundle/
@@ -74,7 +74,7 @@ bundle is sealed, and a downloaded copy fails Gatekeeper as "damaged" instead of
 above. To check a build:
 
 ```sh
-codesign --verify --deep --strict -vv "target/release/bundle/macos/PoB Redux.app"
+codesign --verify --deep --strict -vv "target/release/bundle/macos/PoB Forge.app"
 ```
 
 Hardened runtime is off. An ad-hoc build with it on is killed at launch, before the engine boots, and

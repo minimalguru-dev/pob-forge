@@ -1,8 +1,12 @@
-// Uploading needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET; checking needs nothing.
+// Uploading needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET; checking needs POB_FORGE_CDN_URL.
 import { S3Client } from "bun";
 
-const BASE = "https://art.pobredux.com";
+const BASE = (process.env.POB_FORGE_CDN_URL ?? "").trim().replace(/\/+$/, "");
 const mode = process.argv[2];
+if (mode === "check" && !BASE) {
+  console.error("set POB_FORGE_CDN_URL to the CDN (infra/cdn) to check it");
+  process.exit(2);
+}
 if (mode !== "check" && mode !== "upload") {
   console.error("usage: bun scripts/downloads.ts check | upload");
   process.exit(2);

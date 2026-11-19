@@ -1,6 +1,6 @@
 /**
  * Guard the chat panel's tool lists against the live registry. Needs the app
- * running with the MCP server on (`POB_REDUX_MCP=7315 bun run tauri dev`).
+ * running with the MCP server on (`POB_FORGE_MCP=7315 bun run tauri dev`).
  *
  *   bun run check:tools
  *

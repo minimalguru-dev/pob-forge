@@ -60,7 +60,7 @@ export function numberStat(stats: Stats, key: string): number | null {
 }
 
 /** Where the view kept history before it moved to the app's data folder; read once to migrate. */
-export const LEGACY_STORAGE_KEY = "pob-redux:progression:poe1:v1";
+export const LEGACY_STORAGE_KEY = "pob-forge:progression:poe1:v1";
 export const CHANGED_EVENT = "progression:changed";
 
 /** History is stored by the app, so the Progression tab, the overlay and the assistant see the same plan. */

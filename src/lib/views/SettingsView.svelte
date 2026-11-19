@@ -25,7 +25,7 @@
   async function saveReport() {
     reportNote = "";
     try {
-      const path = await save({ defaultPath: "pob-redux-diagnostics.txt", filters: [{ name: m.settings_report_filetype(), extensions: ["txt"] }] });
+      const path = await save({ defaultPath: "pob-forge-diagnostics.txt", filters: [{ name: m.settings_report_filetype(), extensions: ["txt"] }] });
       if (!path) return;
       await exportDiagnostics(path);
       reportNote = m.settings_report_saved();
@@ -37,7 +37,7 @@
   const mcpUrl = $derived(mcp.status?.running ? mcp.status.url : null);
   const mcpToken = $derived(mcp.status?.token ?? "");
   const claudeCmd = $derived(
-    mcpUrl ? `claude mcp add --transport http pob-redux ${mcpUrl} --header "Authorization: Bearer ${mcpToken}"` : "",
+    mcpUrl ? `claude mcp add --transport http pob-forge ${mcpUrl} --header "Authorization: Bearer ${mcpToken}"` : "",
   );
   const jsonCfg = $derived(mcpUrl ? mcpConfigJson(mcp.status) : "");
   let copied = $state("");
@@ -623,8 +623,6 @@
                 <span>{m.update_available()} <span class="mono" style:color="var(--ok)">{appUpdate.version}</span> {m.update_available_suffix()}</span>
                 {#if appUpdate.method === "self"}
                   <button class="btn sm" onclick={() => appUpdate.install()}>{m.update_install()}</button>
-                {:else if appUpdate.method === "aur"}
-                  <span class="dim">{m.update_aur_before()} <span class="mono">pob-redux-bin</span> {m.update_aur_after()}</span>
                 {:else}
                   <button class="btn sm" onclick={() => appUpdate.openReleases()} title={m.update_download_title()}>{m.update_download()}</button>
                 {/if}

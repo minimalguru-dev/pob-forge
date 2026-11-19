@@ -11,7 +11,7 @@ use super::which::Launch;
 use super::{AgentEvent, AgentStatus, Outcome, Session};
 use crate::ai::ModelInfo;
 
-const SERVER: &str = "pobredux";
+const SERVER: &str = "pobforge";
 const OPENCODE_FREE: &str = "OpenCode's free models only work inside OpenCode itself. Pick a model from a provider you signed in to.";
 
 enum Check {
@@ -54,7 +54,7 @@ pub(crate) static GROK: Spec = Spec {
     args: &["--permission-mode", "default", "agent", "stdio"],
     auth: Some("cached_token"),
     key: Some(("XAI_API_KEY", "xai.api_key")),
-    env: &[("GROK_OAUTH2_REFERRER", "pob-redux")],
+    env: &[("GROK_OAUTH2_REFERRER", "pob-forge")],
     login: Some("grok login"),
     check: Check::GrokModels,
     list_models: None,
@@ -66,7 +66,7 @@ pub(crate) static OPENCODE: Spec = Spec {
     args: &["acp"],
     auth: Some("opencode-login"),
     key: None,
-    env: &[("OPENCODE_CONFIG_CONTENT", r#"{"tools":{"*":false,"pobredux_*":true},"permission":{"*":"deny","pobredux_*":"allow"}}"#)],
+    env: &[("OPENCODE_CONFIG_CONTENT", r#"{"tools":{"*":false,"pobforge_*":true},"permission":{"*":"deny","pobforge_*":"allow"}}"#)],
     login: Some("opencode auth login"),
     check: Check::OpenCodeAuth,
     list_models: None,
@@ -251,7 +251,7 @@ pub(crate) async fn sign_in(spec: &Spec, launch: &Launch, cwd: &std::path::Path,
                     "terminal": false,
                     "session": { "configOptions": { "boolean": {} } },
                 },
-                "clientInfo": { "name": "pob-redux", "title": "PoB Redux", "version": env!("CARGO_PKG_VERSION") },
+                "clientInfo": { "name": "pob-forge", "title": "PoB Forge", "version": env!("CARGO_PKG_VERSION") },
             }),
             Some(Duration::from_secs(180)),
         )
@@ -307,7 +307,7 @@ async fn open(spec: &Spec, launch: &Launch, cwd: &std::path::Path, mcp: Value, a
                     "terminal": false,
                     "session": { "configOptions": { "boolean": {} } },
                 },
-                "clientInfo": { "name": "pob-redux", "title": "PoB Redux", "version": env!("CARGO_PKG_VERSION") },
+                "clientInfo": { "name": "pob-forge", "title": "PoB Forge", "version": env!("CARGO_PKG_VERSION") },
             }),
             Some(Duration::from_secs(180)),
         )
@@ -643,8 +643,8 @@ mod tests {
         let pick = |call: serde_json::Value, options: &serde_json::Value| {
             h("session/request_permission", &json!({ "toolCall": call, "options": options }))["result"]["outcome"]["optionId"].clone()
         };
-        assert_eq!(pick(json!({ "title": "get_stats (pobredux MCP Server)" }), &options), "a");
-        assert_eq!(pick(json!({ "name": "mcp__pobredux__get_stats" }), &options), "a");
+        assert_eq!(pick(json!({ "title": "get_stats (pobforge MCP Server)" }), &options), "a");
+        assert_eq!(pick(json!({ "name": "mcp__pobforge__get_stats" }), &options), "a");
         assert_eq!(pick(json!({ "title": "rm -rf /", "kind": "execute" }), &options), "r");
         assert_eq!(pick(json!({ "title": "Write file" }), &json!([])), "reject-once");
         assert_eq!(h("fs/read_text_file", &json!({}))["error"]["code"], -32601);

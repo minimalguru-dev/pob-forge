@@ -12,10 +12,10 @@ use crate::game::Game;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-const UA: &str = "pob-redux/0.1 Path of Building";
+const UA: &str = "pob-forge/0.1 Path of Building";
 
-const BY_SLUG: &str = "query PobReduxDocumentBySlug($input: Poe2UserGeneratedDocumentInputBySlug!) { poe2 { documents { userGeneratedDocumentBySlug(input: $input) { error errorMessage data { id data { pobCode buildVariants { values { id } } } } } } } }";
-const BY_SLUG_POE1: &str = "query PobReduxDocumentBySlug($input: PoeUserGeneratedDocumentInputBySlug!) { poe { documents { userGeneratedDocumentBySlug(input: $input) { error errorMessage data { id data { pobCode } } } } } }";
+const BY_SLUG: &str = "query PobForgeDocumentBySlug($input: Poe2UserGeneratedDocumentInputBySlug!) { poe2 { documents { userGeneratedDocumentBySlug(input: $input) { error errorMessage data { id data { pobCode buildVariants { values { id } } } } } } } }";
+const BY_SLUG_POE1: &str = "query PobForgeDocumentBySlug($input: PoeUserGeneratedDocumentInputBySlug!) { poe { documents { userGeneratedDocumentBySlug(input: $input) { error errorMessage data { id data { pobCode } } } } } }";
 const EXPORT: &str = "query Poe2UgDocumentWidgetBuildPlannerExportQuery($input: Poe2UserGeneratedDocumentInputById!, $variantId: String!) { poe2 { documents { userGeneratedDocumentById(input: $input) { error errorMessage data { exportToGame(variantId: $variantId) } } } } }";
 
 #[derive(Serialize, Clone, Debug)]
@@ -113,7 +113,7 @@ pub async fn resolve(url: &str) -> Result<Resolved, String> {
         Game::Poe1 => (BY_SLUG_POE1, "poe"),
         Game::Poe2 => (BY_SLUG, "poe2"),
     };
-    let data = query(&client, game, &slug, "PobReduxDocumentBySlug", by_slug, json!({ "input": { "slug": slug, "type": "builds" } })).await?;
+    let data = query(&client, game, &slug, "PobForgeDocumentBySlug", by_slug, json!({ "input": { "slug": slug, "type": "builds" } })).await?;
     let doc = &data[root]["documents"]["userGeneratedDocumentBySlug"];
     if let Some(e) = doc_error(doc) {
         return Err(if e.starts_with("NOT_FOUND") { format!("Mobalytics has no build at {page}") } else { format!("Mobalytics: {e}") });

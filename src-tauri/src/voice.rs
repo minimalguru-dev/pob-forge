@@ -95,7 +95,7 @@ pub async fn voice_install(app: AppHandle, on_progress: Channel<Progress>) -> Re
     let part = path.with_extension("bin.part");
 
     let client = reqwest::Client::builder()
-        .user_agent(concat!("pob-redux/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("pob-forge/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| e.to_string())?;
     let mut res = client.get(MODEL.url).send().await.map_err(|e| format!("could not reach Hugging Face: {e}"))?;
@@ -403,7 +403,7 @@ mod tests {
         assert!(!is_hallucination("Thank you, now equip Adonia's Ego."));
     }
 
-    /// `VOICE_MODEL=<ggml .bin> VOICE_WAV=<16-bit PCM .wav> cargo test -p pob-redux --lib voice -- --ignored --nocapture`
+    /// `VOICE_MODEL=<ggml .bin> VOICE_WAV=<16-bit PCM .wav> cargo test -p pob-forge --lib voice -- --ignored --nocapture`
     #[test]
     #[ignore]
     fn transcribes_a_wav() {

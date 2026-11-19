@@ -51,7 +51,7 @@
     { id: "party", label: m.view_party(), key: "8", icon: "users-three" },
     { id: "optimise", label: m.view_optimise(), key: "9", icon: "chart-line-up" },
     { id: "compare", label: m.view_compare(), key: "", icon: "scales" },
-    ...(game.isPoe1 ? [{ id: "progression" as const, label: m.view_progression(), key: "", icon: "chart-line-up" as const }] : []),
+    ...(game.isPoe1 ? [{ id: "progression" as const, label: m.view_progression(), key: "", icon: "flag" as const }] : []),
   ]);
 
   function tabTitle(t: { label: string; key: string }) {
@@ -63,7 +63,7 @@
   // the build name lives in the sidebar; the OS title carries it for the taskbar
   $effect(() => {
     const name = build.info?.name;
-    win.setTitle(name ? `${name}${build.info?.unsaved ? " •" : ""} — PoB Redux` : "PoB Redux").catch(() => {});
+    win.setTitle(name ? `${name}${build.info?.unsaved ? " •" : ""} — PoB Forge` : "PoB Forge").catch(() => {});
   });
 
   onMount(() => {
@@ -147,7 +147,7 @@
 <header class="titlebar" data-tauri-drag-region>
   <div class="brand" class:wide={!ui.sidebarCollapsed} data-tauri-drag-region>
     <LogoMark class="mark" />
-    <span class="name">PoB <span class="thin">Redux</span></span>
+    <span class="name">PoB <span class="thin">Forge</span></span>
     <button
       class="sb"
       class:on={!ui.sidebarCollapsed}

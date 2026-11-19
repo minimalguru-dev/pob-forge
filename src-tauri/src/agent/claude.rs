@@ -14,8 +14,8 @@ use super::which::Launch;
 use super::{AgentEvent, AgentStatus, Outcome, Session};
 use crate::ai::ModelInfo;
 
-const SERVER: &str = "pobredux";
-const TOKEN_ENV: &str = "POB_REDUX_MCP_TOKEN";
+const SERVER: &str = "pobforge";
+const TOKEN_ENV: &str = "POB_FORGE_MCP_TOKEN";
 /// Set when the app itself was started from a Claude Code session; they would tie the child to that session.
 const INHERITED: &[&str] = &[
     "CLAUDECODE",
@@ -153,7 +153,7 @@ impl Proc {
             .env("ENABLE_CLAUDEAI_MCP_SERVERS", "false")
             .env("MCP_TOOL_TIMEOUT", "3600000")
             .env("CLAUDE_CODE_AUTO_CONNECT_IDE", "0")
-            .env("CLAUDE_AGENT_SDK_CLIENT_APP", concat!("pob-redux/", env!("CARGO_PKG_VERSION")));
+            .env("CLAUDE_AGENT_SDK_CLIENT_APP", concat!("pob-forge/", env!("CARGO_PKG_VERSION")));
         if let Some(effort) = &cfg.effort {
             cmd.args(["--effort", effort]);
         }
@@ -352,7 +352,7 @@ impl Proc {
     async fn refuse(&mut self, msg: &Value) -> Result<(), String> {
         let id = msg["request_id"].clone();
         let reply = match msg["request"]["subtype"].as_str() {
-            Some("can_use_tool") => json!({ "subtype": "success", "request_id": id, "response": { "behavior": "deny", "message": "Not available in PoB Redux." } }),
+            Some("can_use_tool") => json!({ "subtype": "success", "request_id": id, "response": { "behavior": "deny", "message": "Not available in PoB Forge." } }),
             Some("elicitation") => json!({ "subtype": "success", "request_id": id, "response": { "action": "decline" } }),
             _ => json!({ "subtype": "error", "request_id": id, "error": "not supported" }),
         };

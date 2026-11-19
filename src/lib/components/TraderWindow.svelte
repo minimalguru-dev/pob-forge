@@ -58,7 +58,7 @@
     RELIC: "var(--c-gem)",
   };
 
-  const KEY = "pob-redux:trader";
+  const KEY = "pob-forge:trader";
 
   interface Saved {
     league: string;
@@ -118,7 +118,7 @@
         return { ...fallback, ...old };
       }
       // Carry over the league the old single-slot dialog remembered.
-      const old = localStorage.getItem("pob-redux:trade-league");
+      const old = localStorage.getItem("pob-forge:trade-league");
       if (old) fallback.league = old;
     } catch {}
     return fallback;
@@ -180,7 +180,7 @@
     };
     try {
       localStorage.setItem(KEY, JSON.stringify(state));
-      localStorage.setItem("pob-redux:trade-league", league);
+      localStorage.setItem("pob-forge:trade-league", league);
     } catch {}
   }
 

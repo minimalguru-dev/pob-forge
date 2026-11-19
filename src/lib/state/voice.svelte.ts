@@ -3,7 +3,7 @@ import { build } from "$lib/state/build.svelte";
 import { game } from "$lib/state/game.svelte";
 import { m } from "$lib/paraglide/messages";
 
-const KEY = "pob-redux:voice";
+const KEY = "pob-forge:voice";
 
 interface VoiceStatus {
   installed: boolean;

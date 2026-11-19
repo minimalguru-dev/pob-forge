@@ -20,7 +20,7 @@ import { game } from "$lib/state/game.svelte";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { emit } from "@tauri-apps/api/event";
 
-const AUTOSAVE_KEY = "pob-redux:autosave";
+const AUTOSAVE_KEY = "pob-forge:autosave";
 
 /** One snapshot per game; PoE2 keeps the key from before there were two. */
 export function autosaveKey() {

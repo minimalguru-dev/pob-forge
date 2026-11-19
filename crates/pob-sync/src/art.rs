@@ -10,7 +10,13 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
-pub const ART_BASE: &str = "https://art.pobredux.com/tree";
+/// The CDN tree art is downloaded from (`infra/cdn`), from `POB_FORGE_CDN_URL`.
+fn art_base() -> Result<String> {
+    match std::env::var("POB_FORGE_CDN_URL") {
+        Ok(base) if !base.trim().is_empty() => Ok(format!("{}/tree", base.trim().trim_end_matches('/'))),
+        _ => bail!("tree art is missing locally and POB_FORGE_CDN_URL is not set, so it cannot be downloaded"),
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct Art {
@@ -152,7 +158,7 @@ fn write_if_changed(path: &Path, bytes: &[u8]) -> Result<()> {
 fn fetch(key: &str, hash: &str, store: &Path) -> Result<()> {
     fs::create_dir_all(store)?;
     let part = store.join(format!("{key}.part"));
-    let url = format!("{ART_BASE}/{key}");
+    let url = format!("{}/{key}", art_base()?);
     // Cloudflare sometimes resets an HTTP/2 stream, which curl only retries with --retry-all-errors.
     let status = Command::new("curl")
         .args(["-fsSL", "--retry", "5", "--retry-delay", "2", "--retry-all-errors", "-o"])

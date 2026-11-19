@@ -151,7 +151,7 @@ app's numbers to move.
   `Modules/Build.lua` (legacy load and save of the choices, quest points), `Classes/ImportTab.lua` (`Eramir` maps to
   `None`), `changelog.txt` (3.25 bandit update). Which lines PoB calculates was checked by running each line through
   `modLib.parseMod` with `pobctl eval`.
-- PoB Redux: `crates/pob-engine/lua/bridge.lua` (`set_config`, `get_config`, `build_summary`, `sanity_check`).
+- PoB Forge: `crates/pob-engine/lua/bridge.lua` (`set_config`, `get_config`, `build_summary`, `sanity_check`).
 - Corpus: `S:\_projects_\_poe2_\corpus\poe1\xml\*.xml` (`bandit`, `pantheonMajorGod`, `pantheonMinorGod` on the
   `Build` element) for the 327 ladder characters in `index.json` without the `no-dps` flag, and the 28 guide files.
 - poedb: https://poedb.tw/us/Deal_with_the_Bandits (1 passive point), https://poedb.tw/us/Pantheon (unlocking in

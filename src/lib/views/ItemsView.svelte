@@ -357,7 +357,7 @@
   }
 
   // shared items (main.sharedItemList; app-added ones persisted locally)
-  const SHARED_KEY = "pob-redux:shared-items";
+  const SHARED_KEY = "pob-forge:shared-items";
   let shared = $state<SharedItem[]>([]);
   $effect(() => {
     build.rev;
@@ -617,7 +617,7 @@
   }
 
   type Column = "slots" | "list";
-  const COLUMNS_KEY = "pob-redux:items-columns";
+  const COLUMNS_KEY = "pob-forge:items-columns";
   const SLOTS_WIDTH = 380;
   const MIN_SLOTS = 280;
   const MIN_LIST = 220;

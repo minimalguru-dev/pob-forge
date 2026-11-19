@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "$lib/engine.svelte";
 
-const KEY = "pob-redux:trade-window";
+const KEY = "pob-forge:trade-window";
 
 class TradeWindow {
   inApp = $state(false);

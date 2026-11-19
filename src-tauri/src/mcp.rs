@@ -234,7 +234,7 @@ pub async fn mcp_start(app: AppHandle, port: u16) -> Result<McpStatus, String> {
     start_with_handle(&app, port).await
 }
 
-/// Start (or restart) the server on `port`. Also used by the `POB_REDUX_MCP`
+/// Start (or restart) the server on `port`. Also used by the `POB_FORGE_MCP`
 /// launch hook, which brings the server up without the UI.
 pub async fn start_with_handle(app: &AppHandle, port: u16) -> Result<McpStatus, String> {
     if port < 1024 {
@@ -326,7 +326,7 @@ fn to_response(out: Result<(Value, bool), ToolError>) -> Result<CallToolResult, 
 impl ServerHandler for PobMcp {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().enable_tasks().build())
-            .with_server_info(Implementation::new("pob-redux", env!("CARGO_PKG_VERSION")))
+            .with_server_info(Implementation::new("pob-forge", env!("CARGO_PKG_VERSION")))
             .with_instructions(instructions(self.ctx.game()))
     }
 

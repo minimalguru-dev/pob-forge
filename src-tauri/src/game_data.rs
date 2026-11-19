@@ -73,7 +73,8 @@ async fn download(app: &AppHandle, game: Game, pob_root: &Path) -> Status {
     let Some(dir) = dir(app, game) else {
         return Status { error: Some("no app data folder".into()), ..Status::new(game, "failed") };
     };
-    let base = downloads::base_url();
+    let cdn = downloads::base_url();
+    let base = cdn.as_deref().unwrap_or_default();
     let jobs: Vec<Job> = list
         .files
         .iter()
@@ -84,6 +85,9 @@ async fn download(app: &AppHandle, game: Game, pob_root: &Path) -> Status {
     let total: u64 = jobs.iter().map(|j| j.size).sum();
     if jobs.is_empty() {
         return Status::new(game, "ready");
+    }
+    if cdn.is_none() {
+        return Status { error: Some(crate::brand::NO_CDN.into()), ..Status::new(game, "failed") };
     }
     publish(app, Status { total, ..Status::new(game, "downloading") });
     let reporter = app.clone();

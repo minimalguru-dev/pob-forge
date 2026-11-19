@@ -1,15 +1,15 @@
 name: Bug report
-description: Something in PoB Redux does not work as it should.
+description: Something in PoB Forge does not work as it should.
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Search the [open issues](https://github.com/pobredux/pob-redux/issues) first. For questions and help, ask on [Discord](https://discord.pobredux.com/).
+        Search the [open issues](https://github.com/minimalguru-dev/pob-forge/issues) first. For questions and help, use [Discussions](https://github.com/minimalguru-dev/pob-forge/discussions).
   - type: input
     id: version
     attributes:
-      label: PoB Redux version
+      label: PoB Forge version
       description: Open Settings (the gear in the title bar). The version is under Updates.
       placeholder: "0.2.19"
     validations:
@@ -31,7 +31,7 @@ body:
       options:
         - Windows installer (.exe)
         - macOS (.dmg)
-        - AUR (pob-redux-bin)
+        - AUR (pob-forge-bin)
         - Debian or Ubuntu (.deb)
         - Fedora or openSUSE (.rpm)
         - AppImage
@@ -74,7 +74,7 @@ body:
     attributes:
       label: Does Path of Building show the same number?
       description: >-
-        Only for a wrong number. PoB Redux runs Path of Building's own calculations, so a number that is
+        Only for a wrong number. PoB Forge runs Path of Building's own calculations, so a number that is
         also wrong in Path of Building needs a report to Path of Building instead.
       options:
         - The problem is not a wrong number

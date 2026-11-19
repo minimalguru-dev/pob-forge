@@ -11,41 +11,42 @@
    Every colour is authored in oklch(L C H): L is perceived lightness, so the
    ramps step evenly and a hue can be moved without changing how heavy it
    looks. Each theme owns a hue family rather than inverting another's —
-   dark is cool violet-grey (286), light is warm paper and warm ink (78-88),
-   wraeclast is brown and parchment (62-74). Ground and line steps are a
-   lightness ladder at one hue; ink clears 4.5:1 on dark grounds and 7:1 on
-   paper, with ramp-4 left below it because it marks disabled text. The warm
+   dark is warm charcoal (58) lit by an ember accent, light is warm paper
+   and warm ink (78-88), wraeclast is brown and parchment (62-74). Ground
+   and line steps are a lightness ladder at one hue; ink clears 4.5:1 on
+   dark grounds and 7:1 on paper, with ramp-4 left below it because it marks
+   disabled text. The warm
    accents (unique, currency, spirit, rare, lightning) are spread across hue
    so they stay apart on paper, where contrast pins them to one lightness. */
 :root,
 .scope-dark {
   color-scheme: dark;
 
-  --bg-0: oklch(15.0% 0.002 286);
-  --bg-1: oklch(17.4% 0.004 286);
-  --bg-2: oklch(19.7% 0.006 286);
-  --bg-3: oklch(22.4% 0.008 286);
-  --bg-hover: oklch(24.6% 0.009 286);
-  --bg-active: oklch(27.1% 0.011 286);
+  --bg-0: oklch(15.0% 0.002 58);
+  --bg-1: oklch(17.4% 0.004 58);
+  --bg-2: oklch(19.7% 0.006 58);
+  --bg-3: oklch(22.4% 0.008 58);
+  --bg-hover: oklch(24.6% 0.009 58);
+  --bg-active: oklch(27.1% 0.011 58);
 
-  --line-0: oklch(22.9% 0.010 286);
-  --line-1: oklch(27.5% 0.011 286);
-  --line-2: oklch(33.2% 0.014 286);
+  --line-0: oklch(22.9% 0.010 58);
+  --line-1: oklch(27.5% 0.011 58);
+  --line-2: oklch(33.2% 0.014 58);
 
-  --fg-0: oklch(96.2% 0.003 286);
+  --fg-0: oklch(96.2% 0.003 58);
   /* The contrast control lifts fg-1..4 from the ramp toward fg-0, so the ramp
      holds the unlifted end and fg-1..4 are whatever the control resolved to. */
-  --ramp-1: oklch(78.8% 0.011 286);
-  --ramp-2: oklch(63.7% 0.015 286);
-  --ramp-3: oklch(58.5% 0.014 286);
-  --ramp-4: oklch(46.0% 0.013 286);
+  --ramp-1: oklch(78.8% 0.011 58);
+  --ramp-2: oklch(63.7% 0.015 58);
+  --ramp-3: oklch(58.5% 0.014 58);
+  --ramp-4: oklch(46.0% 0.013 58);
   --fg-1: var(--ramp-1);
   --fg-2: var(--ramp-2);
   --fg-3: var(--ramp-3);
   --fg-4: var(--ramp-4);
 
-  --focus: oklch(71.6% 0.147 270);
-  --brand: oklch(62% 0.2 264);
+  --focus: oklch(74.0% 0.140 52);
+  --brand: oklch(69% 0.175 45);
   --ok: oklch(78.4% 0.145 152);
   --warn: oklch(79.0% 0.130 79);
   --bad: oklch(68.8% 0.166 22);
@@ -62,7 +63,7 @@
   --c-unique: oklch(68.8% 0.133 58);
   --c-rare: oklch(82.0% 0.137 95);
   --c-magic: oklch(68.5% 0.167 276);
-  --c-normal: oklch(88.1% 0.007 286);
+  --c-normal: oklch(88.1% 0.007 58);
   --c-gem: oklch(79.4% 0.132 173);
   --c-spirit: oklch(86.4% 0.117 84);
   --c-currency: oklch(74.1% 0.117 72);
@@ -106,8 +107,8 @@
   --ramp-3: oklch(45.8% 0.013 78);
   --ramp-4: oklch(57.4% 0.018 78);
 
-  --focus: oklch(47.0% 0.221 266);
-  --brand: oklch(52% 0.22 265);
+  --focus: oklch(50.0% 0.170 45);
+  --brand: oklch(55% 0.180 42);
   --ok: oklch(44.5% 0.108 150);
   --warn: oklch(45.8% 0.098 65);
   --bad: oklch(47.4% 0.172 27);

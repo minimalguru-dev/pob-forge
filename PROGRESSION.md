@@ -46,9 +46,9 @@ All other imported assumptions remain, including custom mods, explicit enemy dam
 
 ## Local data and boundaries
 
-History is stored by the app in `progression-poe1.json` in its local data folder, so the Progression tab, the overlay and the assistant read the same plan. History saved by earlier previews under the local-storage key `pob-redux:progression:poe1:v1` is moved there once; the old copy is left in place. It stores up to 20 snapshots and a maximum serialized size of 4 MiB. There is no silent eviction: a full or oversized history is refused and the previous plan remains intact. Invalid or unsupported history is not overwritten; it is reported and capture stays disabled. Backup imports are untrusted historical data: re-capture their XML to verify numbers with the current engine.
+History is stored by the app in `progression-poe1.json` in its local data folder, so the Progression tab, the overlay and the assistant read the same plan. History saved by earlier previews under the local-storage key `pob-forge:progression:poe1:v1` is moved there once; the old copy is left in place. It stores up to 20 snapshots and a maximum serialized size of 4 MiB. There is no silent eviction: a full or oversized history is refused and the previous plan remains intact. Invalid or unsupported history is not overwritten; it is reported and capture stays disabled. Backup imports are untrusted historical data: re-capture their XML to verify numbers with the current engine.
 
-History includes full build XML, which can contain character/build names and notes. It stays local unless the user exports it. Progression adds no telemetry or automatic network requests. Explicit URL imports use Redux's existing supported fetcher. No new GGG API client, session-cookie collection, game-memory access, screen capture, game-file modification or input automation is added. The opt-in in-game overlay reads the clipboard only while it is showing, and only acts on item text the game copied; see [OVERLAY.md](OVERLAY.md). GGG's [third-party policy](https://www.pathofexile.com/developer/docs#policy) remains authoritative; this is not a claim of GGG endorsement.
+History includes full build XML, which can contain character/build names and notes. It stays local unless the user exports it. Progression adds no telemetry or automatic network requests. Explicit URL imports use the app's existing supported fetchers. No new GGG API client, session-cookie collection, game-memory access, screen capture, game-file modification or input automation is added. The opt-in in-game overlay reads the clipboard only while it is showing, and only acts on item text the game copied; see [OVERLAY.md](OVERLAY.md). GGG's [third-party policy](https://www.pathofexile.com/developer/docs#policy) remains authoritative; this is not a claim of GGG endorsement.
 
 The preview disables PoE account authorization until the fork has an appropriate OAuth registration. Code/XML/URL imports do not require that account. Application credentials use the actual application identifier. Codex uses a separate preview profile and requires the operating-system credential store; it does not inherit the user's OpenAI API-key environment. Sign in through the assistant settings for this profile. AI requests can send conversation and accessed build data to the selected provider. Other vendor CLI profiles are not covered by the Codex isolation change. See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for the review scope and remaining limitations.
 
@@ -69,17 +69,17 @@ bun run test:progression:ui
 bun run build
 bun run sync
 cargo test -p pob-engine
-cargo test -p pob-redux --lib
+cargo test -p pob-forge --lib
 ```
 
 Run the real-engine test after syncing PoE1. In PowerShell:
 
 ```powershell
-$env:POB_REDUX_POB_ROOT = 'src-tauri/resources/pob1'
+$env:POB_FORGE_POB_ROOT = 'src-tauri/resources/pob1'
 cargo test -p pob-engine --test progression -- --ignored --nocapture
 ```
 
-The integration test creates its own temporary build and user directory. It checks configured-stat parity, exact boss-scenario parity against direct PoB config changes, successful and failed capture non-mutation, preservation of Compare state and repeatable XML import. It does not use player data. Unit tests cover item rolls/variants, tree/mastery differences, unknown stats, ordering, history round trips, corruption and storage failures. Upstream's private `pobredux/corpus` is not bundled or accessible to this fork; its golden suites require the owner's corpus key.
+The integration test creates its own temporary build and user directory. It checks configured-stat parity, exact boss-scenario parity against direct PoB config changes, successful and failed capture non-mutation, preservation of Compare state and repeatable XML import. It does not use player data. Unit tests cover item rolls/variants, tree/mastery differences, unknown stats, ordering, history round trips, corruption and storage failures. The private build corpus is not bundled; the golden suites require the owner's corpus key.
 
 `.github/workflows/progression-windows.yml` provides a Windows build with pinned PoB data, frontend checks, frontend unit tests, Rust regressions and the real-engine integration test. It uploads an **unsigned validation installer** as a GitHub Actions artifact; it does not publish a production release. A dedicated Tauri config gives it a separate application identity and URL scheme, and `VITE_PROGRESSION_VALIDATION=true` disables upstream auto-updates so they cannot replace the preview. PoB's normal build folder remains shared, so use test copies when editing builds through other tabs.
 
@@ -93,6 +93,6 @@ bun run tauri build --bundles nsis --config src-tauri/tauri.progression.conf.jso
 
 The Windows CI also removes that environment variable in each Cargo process: an empty value still prevents LuaJIT's build script from finding its local `minilua.exe`. Keep patch files as LF as prescribed by `.gitattributes`.
 
-Preview code revision `90cd6bb` passed [Linux validation](https://github.com/minimalguru-dev/pob-redux/actions/runs/43718155297) and [Windows validation](https://github.com/minimalguru-dev/pob-redux/actions/runs/43718149574), including real-PoE1 parity/non-mutation tests on both platforms. The Windows run produced the [unsigned NSIS installer](https://github.com/minimalguru-dev/pob-redux/actions/runs/43718149574/artifacts/14164402860). This does not certify native desktop interaction or an actual player's build. See DEVELOPMENT_LOG.md for exact counts, hash and unavailable checks.
+Preview code revision `90cd6bb` passed [Linux validation](https://github.com/minimalguru-dev/pob-forge/actions/runs/43718155297) and [Windows validation](https://github.com/minimalguru-dev/pob-forge/actions/runs/43718149574), including real-PoE1 parity/non-mutation tests on both platforms. The Windows run produced the [unsigned NSIS installer](https://github.com/minimalguru-dev/pob-forge/actions/runs/43718149574/artifacts/14164402860). This does not certify native desktop interaction or an actual player's build. See DEVELOPMENT_LOG.md for exact counts, hash and unavailable checks.
 
 The Progression tab label participates in upstream localization; new preview explanations currently use English. Complete translation, per-item counterfactual simulation, budget/market integration and automated character synchronization are outside this minimal module.

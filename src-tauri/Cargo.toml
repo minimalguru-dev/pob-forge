@@ -1,5 +1,5 @@
 [package]
-name = "pob-redux"
+name = "pob-forge"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,7 +7,7 @@ description = "Path of Building for Path of Exile 1 and 2, rebuilt: Rust + Tauri
 authors = ["Judd <ipajudd@gmail.com>"]
 
 [lib]
-name = "pob_redux_lib"
+name = "pob_forge_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
@@ -33,6 +33,7 @@ serde.workspace = true
 serde_json.workspace = true
 log.workspace = true
 walkdir.workspace = true
+dirs = "7"
 rmcp = { version = "3.2", default-features = false, features = ["server", "transport-streamable-http-server"] }
 axum = "0.8"
 getrandom = "0.4"

@@ -26,7 +26,7 @@ fn main() {
     // A release build embeds `dist/`, and only `bun run build` refreshes it.
     // A `cargo build --release` on its own ships whatever frontend happens to
     // be there, which once meant a three-day-old panel. Refuse a stale one.
-    if std::env::var("CARGO_FEATURE_CUSTOM_PROTOCOL").is_ok() && std::env::var("POB_REDUX_ALLOW_STALE_DIST").is_err() {
+    if std::env::var("CARGO_FEATURE_CUSTOM_PROTOCOL").is_ok() && std::env::var("POB_FORGE_ALLOW_STALE_DIST").is_err() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
         let dist = root.join("dist").join("index.html");
         let src = newest(&root.join("src"));
@@ -34,7 +34,7 @@ fn main() {
             (None, _) => panic!("dist/ is missing: run `bun run build` before a release build, or use `bun run tauri build`"),
             (Some(d), Some(s)) if s > d => {
                 let msg = "dist/ is older than src/: run `bun run build` before a release build, or use `bun run tauri build` \
-                           (set POB_REDUX_ALLOW_STALE_DIST=1 to build anyway)";
+                           (set POB_FORGE_ALLOW_STALE_DIST=1 to build anyway)";
                 // A debug build with the default features is a test or CLI
                 // build; warn there, refuse only what would ship.
                 if std::env::var("PROFILE").as_deref() == Ok("release") {
@@ -45,7 +45,7 @@ fn main() {
             _ => {}
         }
         println!("cargo:rerun-if-changed=../dist/index.html");
-        println!("cargo:rerun-if-env-changed=POB_REDUX_ALLOW_STALE_DIST");
+        println!("cargo:rerun-if-env-changed=POB_FORGE_ALLOW_STALE_DIST");
     }
     let windows = tauri_build::WindowsAttributes::new().app_manifest(include_str!("windows-app-manifest.xml"));
     tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(windows)).expect("tauri-build failed");

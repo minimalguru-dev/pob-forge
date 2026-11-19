@@ -10,7 +10,7 @@
   let { target, onclose }: { target: BuySimilarTarget; onclose: () => void } = $props();
 
   type Row = { checked: boolean; min: string; max: string };
-  const KEY = "pob-redux:buy-similar";
+  const KEY = "pob-forge:buy-similar";
 
   let info = $state<BuySimilarInfo | null>(null);
   let error = $state<string | null>(null);
@@ -38,7 +38,7 @@
     let saved: { realm?: string; league?: string; listed?: number } = {};
     try {
       saved = JSON.parse(localStorage.getItem(prefsKey()) ?? "{}");
-      league = saved.league ?? localStorage.getItem("pob-redux:trade-league") ?? "";
+      league = saved.league ?? localStorage.getItem("pob-forge:trade-league") ?? "";
     } catch {}
     engine
       .tradeLeagues()

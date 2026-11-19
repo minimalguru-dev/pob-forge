@@ -130,8 +130,6 @@
   "status_rev": "Rev",
   "status_assistant": "Assistenz-Panel",
   "status_assistant_title": "Assistenz-Panel (Strg+K)",
-  "status_discord": "Discord",
-  "status_discord_title": "PoB Redux Discord",
 
   "sidebar_build": "Build",
   "sidebar_rename_title": "Zum Umbenennen klicken. Die Datei wird mit umbenannt.",
@@ -192,8 +190,6 @@
   "update_available": "Version",
   "update_available_suffix": "ist verfügbar.",
   "update_install": "Aktualisieren",
-  "update_aur_before": "Aktualisieren Sie",
-  "update_aur_after": "mit Ihrem AUR-Helfer.",
   "update_download": "Herunterladen",
   "update_download_title": "Eine Paketinstallation wird von ihrem Paketmanager ersetzt, nicht von der App",
   "update_later": "Später",
@@ -211,7 +207,7 @@
 
   "app_safe_mode": "Abgesicherter Modus: Der letzte Build wurde nicht wieder geöffnet",
   "app_recover_title": "Letzten Build wieder öffnen?",
-  "app_recover_message": "PoB Redux wurde unerwartet beendet, während {build} geöffnet war. Stürzt die App beim erneuten Öffnen wieder ab, wählen Sie Leer starten; der Build wird dann als wiederhergestellte Kopie in Ihrem Build-Ordner gespeichert.",
+  "app_recover_message": "PoB Forge wurde unerwartet beendet, während {build} geöffnet war. Stürzt die App beim erneuten Öffnen wieder ab, wählen Sie Leer starten; der Build wird dann als wiederhergestellte Kopie in Ihrem Build-Ordner gespeichert.",
   "app_recover_build_fallback": "ein Build",
   "app_recover_ok": "Wieder öffnen",
   "app_recover_cancel": "Leer starten",
