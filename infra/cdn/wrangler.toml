@@ -2,6 +2,11 @@ name = "pob-forge-cdn"
 main = "src/index.js"
 compatibility_date = "2026-11-01"
 
+# Cloudflare creates the DNS record and certificate for a custom domain on deploy.
+routes = [{ pattern = "cdn.netrum.eu", custom_domain = true }]
+workers_dev = false
+preview_urls = false
+
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "pob-forge"

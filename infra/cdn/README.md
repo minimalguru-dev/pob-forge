@@ -13,14 +13,15 @@ every installer, and the updater manifest. Both fit Cloudflare's free tier.
 ## Set up
 
 1. Create an R2 bucket named `pob-forge` (or change `bucket_name` in `wrangler.toml`).
-2. Deploy: `bunx wrangler login`, then `bunx wrangler deploy` in this folder. Note the
-   `https://pob-forge-cdn.<account>.workers.dev` address it prints, or add a custom domain.
+2. Deploy: `bun x wrangler login`, then `bun x wrangler deploy` in this folder. The Worker answers on
+   the custom domain in `wrangler.toml` (`cdn.netrum.eu`, whose zone must be on the same account);
+   the workers.dev address is off.
 3. Upload the files `bun run sync` produced. Create an R2 API token with write access, then from the
    repository root:
 
    ```sh
    R2_ACCOUNT_ID=… R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=… R2_BUCKET=pob-forge bun run downloads upload
-   POB_FORGE_CDN_URL=https://pob-forge-cdn.<account>.workers.dev bun run downloads check
+   POB_FORGE_CDN_URL=https://cdn.netrum.eu bun run downloads check
    ```
 
 4. In the GitHub repository, set the variable `POB_FORGE_CDN_URL` to the Worker's address. Release and
@@ -28,10 +29,11 @@ every installer, and the updater manifest. Both fit Cloudflare's free tier.
 
 ## Moving files from another server
 
-Set `ORIGIN` in `wrangler.toml` to the server you are moving from and deploy again. Every file the
+Deploy with the server you are moving from as `ORIGIN`: `bun x wrangler deploy --var ORIGIN:<url>`
+keeps the address out of the repository (setting it in `wrangler.toml` works too). Every file the
 bucket lacks is then fetched there once, stored, and served from the bucket afterwards. Item-art maps
-are refreshed from `ORIGIN` at most once an hour. Clear `ORIGIN` and deploy once the bucket holds
-everything you need; from then on nothing is fetched from elsewhere.
+are refreshed from `ORIGIN` at most once an hour. A deploy without `--var` clears `ORIGIN`; do that
+once the bucket holds everything you need, and from then on nothing is fetched from elsewhere.
 
 ## Updates
 
