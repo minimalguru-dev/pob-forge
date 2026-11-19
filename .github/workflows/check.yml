@@ -3,11 +3,7 @@ name: check
 # Fast validation for ordinary commits. Installers are built and published only
 # by release.yml, on a tag.
 #
-# This used to build both platforms' installers on every push, which cost about
-# 24 billed minutes a time (Windows bills at 2x) to produce artifacts nobody
-# installed. Compiling and testing on Linux catches the same class of mistake
-# for a fraction of that; anything Windows-specific surfaces on the tag build,
-# which publishes a draft and so cannot ship broken without review.
+# Runs on Windows, the platform this fork ships; there is no Linux build.
 on:
   push:
     branches: [main]
@@ -16,7 +12,10 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-22.04
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     env:
       # Secrets cannot appear in `if:`; pull requests from forks get none.
       HAS_CORPUS: ${{ secrets.CORPUS_DEPLOY_KEY != '' }}
@@ -71,6 +70,7 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
       - uses: dtolnay/rust-toolchain@stable
+      - uses: ilammy/msvc-dev-cmd@v1
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
@@ -79,10 +79,14 @@ jobs:
           # Pull requests restore the cache but must not overwrite main's.
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Linux dependencies
+      # libclang for whisper.cpp's bindings. The Windows build steps run without
+      # NoDefaultCurrentDirectoryInExePath (as progression-windows.yml does); every later
+      # bash step sources BASH_ENV, which unsets it.
+      - name: Native compiler environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libasound2-dev libclang-dev
+          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> "$GITHUB_ENV"
+          echo "unset NoDefaultCurrentDirectoryInExePath" > "$RUNNER_TEMP/bash_env"
+          echo "BASH_ENV=$RUNNER_TEMP/bash_env" >> "$GITHUB_ENV"
 
       - run: bun install --frozen-lockfile
 

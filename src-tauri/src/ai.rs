@@ -276,12 +276,8 @@ pub(crate) fn store_secret(app: &AppHandle, id: &str, secret: &str) -> Result<()
     Err(keyring_error(err))
 }
 
-/// keyring's own errors leave out the fix: on Linux, that a D-Bus Secret
-/// Service has to be running; on Windows, what error 8 means.
+/// keyring's own errors leave out the fix: on Windows, what error 8 means.
 fn keyring_error(e: keyring::Error) -> String {
-    if cfg!(target_os = "linux") {
-        return format!("{e}. Storing a key needs a Secret Service (gnome-keyring or KWallet) on the session bus.");
-    }
     #[cfg(windows)]
     if let keyring::Error::PlatformFailure(inner) = &e {
         if inner.downcast_ref::<keyring::windows::Error>().is_some_and(|w| w.0 == 8) {
@@ -600,11 +596,6 @@ mod tests {
     /// service name so it can never touch a key the user actually stored.
     #[test]
     fn os_store_round_trips() {
-        // A headless CI runner has no D-Bus secret service for keyring to reach,
-        // so there is nothing to round-trip through. Still runs on a real desktop.
-        if cfg!(target_os = "linux") && std::env::var_os("CI").is_some() {
-            return;
-        }
         let e = keyring::Entry::new("dev.pobredux.desktop.selftest", "probe").expect("open entry");
         let _ = e.delete_credential();
         e.set_password("secret-value-1234").expect("set");

@@ -71,7 +71,7 @@ jobs:
           VITE_PROGRESSION_VALIDATION: "true"
         run: |
           Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
-          bun run tauri build --bundles nsis --config src-tauri/tauri.progression.conf.json
+          bun run tauri build --bundles nsis --config src-tauri/tauri.alpha.conf.json
       - name: Verify locked dependencies
         run: git diff --exit-code -- Cargo.lock
       - uses: actions/upload-artifact@v7

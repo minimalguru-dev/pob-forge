@@ -621,13 +621,7 @@
             <div class="row">
               {#if appUpdate.phase === "available"}
                 <span>{m.update_available()} <span class="mono" style:color="var(--ok)">{appUpdate.version}</span> {m.update_available_suffix()}</span>
-                {#if appUpdate.method === "self"}
-                  <button class="btn sm" onclick={() => appUpdate.install()}>{m.update_install()}</button>
-                {:else if appUpdate.method === "aur"}
-                  <span class="dim">{m.update_aur_before()} <span class="mono">pob-redux-bin</span> {m.update_aur_after()}</span>
-                {:else}
-                  <button class="btn sm" onclick={() => appUpdate.openReleases()} title={m.update_download_title()}>{m.update_download()}</button>
-                {/if}
+                <button class="btn sm" onclick={() => appUpdate.install()}>{m.update_install()}</button>
               {:else if appUpdate.phase === "downloading"}
                 <span class="dim">
                   {m.update_downloading()} <span class="mono">{appUpdate.version}</span>

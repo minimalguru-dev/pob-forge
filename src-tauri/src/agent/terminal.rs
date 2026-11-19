@@ -55,34 +55,6 @@ pub(crate) fn open(title: &str, _ps: &str, sh: &str, path: &OsString) -> Result<
     Ok(())
 }
 
-#[cfg(all(unix, not(target_os = "macos")))]
-pub(crate) fn open(_title: &str, _ps: &str, sh: &str, path: &OsString) -> Result<(), String> {
-    let script = format!("{sh}; echo; echo 'Done. You can close this window.'; exec \"${{SHELL:-sh}}\"");
-    let tries: [(&str, &[&str]); 12] = [
-        ("x-terminal-emulator", &["-e", "sh", "-c"]),
-        ("xdg-terminal-exec", &["sh", "-c"]),
-        ("gnome-terminal", &["--", "sh", "-c"]),
-        ("ptyxis", &["--", "sh", "-c"]),
-        ("kgx", &["--", "sh", "-c"]),
-        ("konsole", &["-e", "sh", "-c"]),
-        ("xfce4-terminal", &["-x", "sh", "-c"]),
-        ("kitty", &["sh", "-c"]),
-        ("alacritty", &["-e", "sh", "-c"]),
-        ("wezterm", &["start", "--", "sh", "-c"]),
-        ("foot", &["sh", "-c"]),
-        ("xterm", &["-e", "sh", "-c"]),
-    ];
-    for (term, args) in tries {
-        let mut cmd = std::process::Command::new(term);
-        super::which::restore_host_env(&mut cmd);
-        if let Ok(child) = cmd.args(args).arg(&script).env("PATH", path).spawn() {
-            reap(child);
-            return Ok(());
-        }
-    }
-    Err(format!("No terminal program was found. Run this yourself: {sh}"))
-}
-
 #[cfg(test)]
 mod tests {
     #[test]

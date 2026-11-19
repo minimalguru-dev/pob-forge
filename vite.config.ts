@@ -23,7 +23,7 @@ export default defineConfig({
     watch: { ignored: ["**/src-tauri/**", "**/crates/**", "**/target/**"] },
   },
   build: {
-    // WebView2 on Windows, WebKitGTK on Linux: both are evergreen. The floor is
+    // WebView2 on Windows, WKWebView on macOS: both are evergreen. The floor is
     // set by `color-mix(in oklab, ...)` and `oklch()`, which the themes rely on.
     target: ["es2022", "chrome111", "safari16.4"],
     outDir: "dist",

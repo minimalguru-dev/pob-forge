@@ -1,5 +1,6 @@
 {
-  "productName": "PoB Redux Progression Preview",
+  "productName": "PoB Redux Alpha",
+  "version": "0.6.0-alpha.1",
   "identifier": "dev.minimalguru.pob-progression-preview",
   "bundle": { "createUpdaterArtifacts": false },
   "plugins": { "deep-link": { "desktop": { "schemes": ["pob-progression-preview"] } } }

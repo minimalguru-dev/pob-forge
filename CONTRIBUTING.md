@@ -21,9 +21,7 @@ You need:
 - CMake and libclang. The first build of the app also compiles whisper.cpp for voice input. On
   Windows, the "C++ Clang tools" component of Visual Studio provides libclang.
 - Bun 1.4 or newer. This is what CI uses.
-- Tauri's platform prerequisites. Windows: WebView2. Linux: `libwebkit2gtk-4.1-dev`,
-  `libappindicator3-dev`, `librsvg2-dev`, `patchelf`, `libssl-dev`, `libasound2-dev`,
-  `libclang-dev`. macOS: the Command Line Tools, with the licence accepted
+- Tauri's platform prerequisites. Windows: WebView2. macOS: the Command Line Tools, with the licence accepted
   (`sudo xcodebuild -license accept`); the system WKWebView needs nothing installed. See
   [MACOS.md](MACOS.md).
 - Checkouts of [PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)

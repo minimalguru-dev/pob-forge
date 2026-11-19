@@ -101,16 +101,14 @@ fn read_pack(path: &Path, header: &str) -> Option<(Vec<u8>, HashMap<String, Pack
     Some((data, packed))
 }
 
-// An AppImage mounts at a new path on every launch (`APPDIR`), so that part of the root is left out of the key.
-fn install_key(root: &str, appdir: Option<&str>) -> String {
-    let inside = appdir.map(|dir| dir.trim_end_matches('/')).filter(|dir| !dir.is_empty()).and_then(|dir| root.strip_prefix(dir));
-    format!("{:08x}", crc32fast::hash(inside.unwrap_or(root).as_bytes()))
+fn install_key(root: &str) -> String {
+    format!("{:08x}", crc32fast::hash(root.as_bytes()))
 }
 
 impl LuaCache {
     /// `runtime` names the LuaJIT build; bytecode from another build is dropped.
     pub fn open(cache_dir: &Path, root: &str, runtime: &str) -> Self {
-        let dir = cache_dir.join(install_key(root, std::env::var("APPDIR").ok().as_deref()));
+        let dir = cache_dir.join(install_key(root));
         let header = format!("pob-lua-pack 1 {runtime}");
         let (pack, packed) = read_pack(&dir.join(PACK), &header).unwrap_or_default();
         Self {
@@ -368,15 +366,6 @@ mod tests {
         let mut cache = open(&dir, "test");
         assert_eq!(cache.lookup(&abs), Some(&b"one"[..]));
         let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn keys_an_appimage_by_the_path_inside_its_mount() {
-        let first = install_key("/tmp/.mount_one/usr/lib/app/pob", Some("/tmp/.mount_one"));
-        let second = install_key("/tmp/.mount_two/usr/lib/app/pob", Some("/tmp/.mount_two/"));
-        assert_eq!(first, second);
-        assert_ne!(first, install_key("/tmp/.mount_one/usr/lib/app/pob1", Some("/tmp/.mount_one")));
-        assert_eq!(install_key("/opt/app/pob", Some("/tmp/.mount_one")), install_key("/opt/app/pob", None));
     }
 
     #[test]

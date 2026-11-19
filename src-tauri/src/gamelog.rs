@@ -120,12 +120,6 @@ pub fn candidates(game: Game) -> Vec<PathBuf> {
     for lib in steam_libraries() {
         paths.push(lib.join(format!(r"steamapps\common\{folder}\logs\Client.txt")));
     }
-    if let Some(home) = std::env::var_os("HOME") {
-        // Linux and macOS through Steam's Proton or the native client.
-        let home = PathBuf::from(home);
-        paths.push(home.join(format!(".steam/steam/steamapps/common/{folder}/logs/Client.txt")));
-        paths.push(home.join(format!(".local/share/Steam/steamapps/common/{folder}/logs/Client.txt")));
-    }
     let mut found: Vec<(PathBuf, std::time::SystemTime)> = paths
         .into_iter()
         .filter_map(|p| std::fs::metadata(&p).ok().filter(|m| m.is_file()).map(|m| (p, m.modified().unwrap_or(std::time::UNIX_EPOCH))))

@@ -6,12 +6,6 @@ import { join } from "node:path";
 const BUNDLES = [
   { suffix: "_x64-setup.exe", keys: ["windows-x86_64", "windows-x86_64-nsis"] },
   { suffix: "_aarch64.app.tar.gz", keys: ["darwin-aarch64", "darwin-aarch64-app"] },
-  { suffix: "_amd64.AppImage", keys: ["linux-x86_64", "linux-x86_64-appimage"] },
-  { suffix: "_amd64.deb", keys: ["linux-x86_64-deb"] },
-  { suffix: ".x86_64.rpm", keys: ["linux-x86_64-rpm"] },
-  { suffix: "_aarch64.AppImage", keys: ["linux-aarch64", "linux-aarch64-appimage"] },
-  { suffix: "_arm64.deb", keys: ["linux-aarch64-deb"] },
-  { suffix: ".aarch64.rpm", keys: ["linux-aarch64-rpm"] },
 ];
 
 const args = process.argv.slice(2);

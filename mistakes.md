@@ -144,3 +144,10 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - Runs 43725402086 (Windows) and 43725407072 (Linux) failed only in the new OAuth redirect test: reqwest rustls-no-provider panicked because the test bypassed application startup.
 - Production run() already calls pob_engine::install_tls_provider(). The test now calls that same initialization before constructing the real HTTP client. Redirect protection remains unchanged; no TLS checks are disabled.
 - Prevention: when testing a production client outside the application entry point, reproduce its required initialization. Revalidate on both platforms rather than marking the test ignored.
+
+## Line-range cut removed the next function's attribute
+
+- Removing `update_method` from `src-tauri/src/lib.rs` with a scripted cut ("from this line up to the line of `fn app_paths`") also removed the `#[tauri::command]` above `app_paths`. `cargo check` failed: `cannot find macro __tauri_command_name_app_paths` at the `generate_handler!` list.
+- Cause: the end marker was the function line, not the attribute above it, so the attribute fell inside the removed range.
+- Fix: restored the attribute; `cargo check --workspace --all-targets` and the app tests passed.
+- Prevention: end a scripted cut on the next item's first attribute or doc comment, or diff the result before compiling. The compiler catches a lost `#[tauri::command]` only when the command is registered; a lost `#[test]` or `#[cfg]` would compile silently.

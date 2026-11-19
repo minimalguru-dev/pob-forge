@@ -5,8 +5,7 @@ Apple Silicon (arm64). Intel Macs are not built.
 ## Running it
 
 Download the `.dmg`, drag the app to Applications, done. Nothing else to install: the app uses the
-system WKWebView, so there is no equivalent of the WebView2 download on Windows or the
-`libwebkit2gtk` packages on Linux.
+system WKWebView, so there is no equivalent of the WebView2 download on Windows.
 
 Builds live in `~/Documents/Path of Building (PoE2)/Builds` and `~/Documents/Path of Building/Builds`,
 the same as every other platform, so a Path of Building install shares the same files.
