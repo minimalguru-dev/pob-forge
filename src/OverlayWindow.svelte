@@ -8,6 +8,7 @@
   import { m } from "$lib/paraglide/messages";
   import { gemSchedule, poe1QuestPoints, poe1XpMultiplier, poeVaultUrl, resPenalty, type LevelGem, type LogState } from "$lib/overlay/leveling";
   import { CHANGED_EVENT, progression, type Check } from "$lib/progression/model";
+  import PriceCard from "$lib/overlay/PriceCard.svelte";
 
   let plan = $state<{ current: string; target: string; next: Check[]; blocked: number } | null>(null);
 
@@ -90,6 +91,8 @@
 
   let interact = $state(false);
   let card = $state<Card | null>(null);
+  /** The item text of an open price check; it stays until closed. */
+  let price = $state<{ raw: string; key: number } | null>(null);
   let busy = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const s = $derived(overlay.settings);
@@ -150,7 +153,7 @@
 
   let closeButton = $state<HTMLButtonElement | null>(null);
   let stack = $state<HTMLDivElement | null>(null);
-  const anyPanel = $derived(busy || !!card || (!!s?.leveling && (!!log?.zone || interact)) || (!!s?.progression && !!plan) || interact);
+  const anyPanel = $derived(busy || !!card || !!price || (!!s?.leveling && (!!log?.zone || interact)) || (!!s?.progression && !!plan) || interact);
 
   /** Rust lets clicks reach this one button while the rest of the overlay passes them to the game. */
   function reportCloseButton() {
@@ -178,6 +181,11 @@
     document.body.style.background = "transparent";
     const offs: Promise<() => void>[] = [
       listen<{ raw: string; kind: string }>("overlay:item", (e) => void evaluate(e.payload.raw, e.payload.kind)),
+      listen<{ raw: string }>("overlay:price", (e) => {
+        card = null;
+        price = { raw: e.payload.raw, key: Date.now() };
+      }),
+      listen<string>("overlay:price-error", (e) => show({ kind: "error", message: e.payload })),
       listen<boolean>("overlay:interact", (e) => {
         interact = e.payload;
         if (!interact && card) show(card);
@@ -214,7 +222,7 @@
   {/if}
 
   <div class="stack" bind:this={stack}>
-  {#if anyPanel}
+  {#if anyPanel && !price}
     <button
       class="close"
       bind:this={closeButton}
@@ -222,6 +230,12 @@
       aria-label={m.overlay_close()}
       onclick={() => void invoke("overlay_hide")}
     >✕</button>
+  {/if}
+
+  {#if price}
+    {#key price.key}
+      <section class="panel"><PriceCard raw={price.raw} onclose={() => (price = null)} /></section>
+    {/key}
   {/if}
 
   {#if busy}

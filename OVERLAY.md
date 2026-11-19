@@ -26,6 +26,21 @@ speed, with the best slot first. It also warns when the item needs a higher leve
 has. This is PoB's own "Equipping this item" calculation (`item_evaluate`); the build does not change. Jewels that
 rebuild the passive tree (Timeless, Impossible Escape and similar) are not scored; compare them in the Items tab.
 
+**Price check (Windows).** Hover an item in the game and press **Ctrl+D**. The app presses Ctrl+C once so the
+game copies the item, then opens a price card you can click, over the game. Esc or ✕ closes it and gives focus back
+to the game.
+
+- **poe.ninja** prices currency, fragments, scarabs, essences, divination cards, gems (by level, quality and
+  corruption) and uniques (six-links separately on PoE1), for the league you pick. A stack shows its total.
+- **Trade site.** For equipment, PoB's own Buy Similar search (the same one as the Items tab) is built from the item:
+  a unique by name, a rare by its base type and searchable mods at 90% of their rolls. Untick mods or change the
+  minimums and press **Search** again. The ten cheapest listings show with their age; **Open on the trade site** opens
+  the full search in the trade window.
+- Searches are anonymous: no sign-in and no cookies. pathofexile.com allows about five searches every ten seconds;
+  when a limit is reached the card says how long to wait instead of sending more.
+- Ctrl+D is taken only while the game window has focus, so it keeps working in other programs. Change it or turn the
+  price check off in Settings → Overlay.
+
 **Map check.** Ctrl+C on a map. On Path of Exile 1 the mods PoB knows are set in the Config tab's map mod options on a
 temporary copy of the build, so the change to DPS, EHP, maximum hits and maximum resistances is PoB's own. A map tier
 of 11+ counts as red, 6–10 as yellow, 1–5 as white, and rolled ranges take the top of the roll. Mods PoB does not
@@ -55,8 +70,11 @@ blockers and the next four priorities, the same rules the tab shows.
   `Item Class:`, which is what the game writes on Ctrl+C. Other clipboard text is ignored and never logged or stored.
   When the overlay is hidden or off, the clipboard is not read.
 - It reads the game's own log file, which the game writes for players.
-- It never reads the game's memory, injects anything into the game, or sends keys or clicks to it. One keypress of
-  yours does one thing in the overlay.
+- It never reads the game's memory or injects anything into the game. The one input it sends is the price check's
+  Ctrl+C, once, right after you press the price check shortcut in the game, so the game copies the item under the
+  cursor. That copy is a client-side action; the overlay sends no clicks and nothing that acts in the game.
+- A price check sends the item's search to pathofexile.com's trade site and asks poe.ninja for its price tables.
+  Nothing else leaves your computer.
 
 GGG's [third-party policy](https://www.pathofexile.com/developer/docs#policy) remains authoritative. This product
 isn't affiliated with or endorsed by Grinding Gear Games in any way.
@@ -64,7 +82,11 @@ isn't affiliated with or endorsed by Grinding Gear Games in any way.
 ## Limits
 
 - macOS draws the overlay opaque; transparent windows there need a Tauri feature this build does not enable.
-- The overlay does not know whether the game has focus, so it stays up when you alt-tab. Hide it with the shortcut.
+- The overlay stays up when you alt-tab; only the price shortcut follows the game's focus. Hide it with the shortcut.
+- The price check needs Windows: other systems have no way here to have the game copy an item. Ctrl+C on an item
+  still gives the item check everywhere.
+- The trade search reads equipment, jewels and flasks through PoB's item parser. Currency, gems and cards are priced
+  by poe.ninja only.
 - PoE2's experience penalty is not modelled; the leveling panel shows the level gap instead.
 - The item and map cards use the build open in PoB Forge, not your live character. Keep it in step.
 

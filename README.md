@@ -103,9 +103,10 @@ every change first.
 ### In-game overlay
 
 An optional panel over the game, off until you turn it on in Settings > Overlay. Ctrl+C on an item shows what it does
-to the open build in every slot it fits; Ctrl+C on a map shows which of its mods are dangerous for the build. It follows
+to the open build in every slot it fits; Ctrl+C on a map shows which of its mods are dangerous for the build. On
+Windows, Ctrl+D prices the item under the cursor from poe.ninja and the trade site, with mod filters you can change. It follows
 your zone and level from the game's log for leveling, and lists the next steps towards your Progression target. It
-reads only what you copy and the game's log file. See [OVERLAY.md](OVERLAY.md).
+reads only what you copy and the game's log file; the one key it presses is the price check's Ctrl+C. See [OVERLAY.md](OVERLAY.md).
 
 ### MCP server
 

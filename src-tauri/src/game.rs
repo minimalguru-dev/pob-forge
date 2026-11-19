@@ -134,6 +134,9 @@ pub struct OverlaySettings {
     pub progression: bool,
     /// How long an item or map card stays up.
     pub card_seconds: u32,
+    /// Price check on `price_key`, taken only while the game has focus (Windows).
+    pub price_check: bool,
+    pub price_key: String,
 }
 
 impl Default for OverlaySettings {
@@ -153,6 +156,8 @@ impl Default for OverlaySettings {
             leveling: true,
             progression: true,
             card_seconds: 15,
+            price_check: true,
+            price_key: "Ctrl+D".into(),
         }
     }
 }

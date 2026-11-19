@@ -219,7 +219,7 @@ fn triple(s: &str) -> Option<[u64; 3]> {
 }
 
 /// Seconds to hold off, from GGG's rate limit headers: a rule at its limit waits out its period.
-fn wait_from(headers: &HeaderMap) -> u64 {
+pub(crate) fn wait_from(headers: &HeaderMap) -> u64 {
     let text = |name: &str| headers.get(name).and_then(|v| v.to_str().ok()).unwrap_or_default();
     let mut wait = text("retry-after").trim().parse().unwrap_or(0);
     for rule in text("x-rate-limit-rules").split(',').map(|r| r.trim().to_ascii_lowercase()).filter(|r| !r.is_empty()) {
@@ -237,7 +237,7 @@ fn wait_from(headers: &HeaderMap) -> u64 {
     wait
 }
 
-fn limited(seconds: u64) -> String {
+pub(crate) fn limited(seconds: u64) -> String {
     let unit = if seconds == 1 { "second" } else { "seconds" };
     format!("pathofexile.com is limiting requests. Try again in {seconds} {unit}.")
 }
@@ -491,7 +491,7 @@ pub async fn ggg_character(app: AppHandle, state: State<'_, GggState>, game: Sta
     }
 }
 
-fn trade_policy(url: &str) -> Result<&'static str, String> {
+pub(crate) fn trade_policy(url: &str) -> Result<&'static str, String> {
     TRADE_API.iter().copied().find(|prefix| url.starts_with(prefix)).ok_or_else(|| "not a pathofexile.com trade request".to_string())
 }
 

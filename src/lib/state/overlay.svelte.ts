@@ -17,6 +17,8 @@ export interface OverlaySettings {
   leveling: boolean;
   progression: boolean;
   cardSeconds: number;
+  priceCheck: boolean;
+  priceKey: string;
 }
 
 /** The in-game overlay's settings, shared by the Settings page and the overlay window. */

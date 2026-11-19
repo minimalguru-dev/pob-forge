@@ -1637,11 +1637,15 @@ export interface CompareLoadout {
   socketGroups: { index: number; label: string; active: boolean }[];
 }
 
-export type BuySimilarTarget = { itemId: number } | { slot: string; side: "mine" | "theirs" };
+/** `raw` is item text copied from the game, priced without a build. */
+export type BuySimilarTarget = { itemId: number } | { slot: string; side: "mine" | "theirs" } | { raw: string };
 
 export interface BuySimilarInfo {
   name: string;
   unique: boolean;
+  rarity: string | null;
+  itemLevel: number | null;
+  corrupted: boolean;
   category: string;
   baseName: string | null;
   realms: string[];
@@ -2030,7 +2034,8 @@ export const engine = {
     call<{ text: string | null; name: string | null }>("compare_item_text", { slot, side }),
   compareCopyItem: (slot: string) => call<{ ok: boolean; slot: string; itemName: string }>("compare_copy_item", { slot }),
   buySimilarInfo: (target: BuySimilarTarget) => call<BuySimilarInfo>("buy_similar_info", target),
-  buySimilarUrl: (p: BuySimilarTarget & BuySimilarChoices) => call<{ url: string }>("buy_similar_url", p),
+  /** `query` is the search JSON the URL encodes, for running the search here. */
+  buySimilarUrl: (p: BuySimilarTarget & BuySimilarChoices) => call<{ url: string; query: string | null }>("buy_similar_url", p),
   compareSkills: (onlyDifferences?: boolean) => call<{ rows: CompareSkillRow[] }>("compare_skills", { onlyDifferences }),
   compareConfig: (onlyDifferences?: boolean) => call<{ rows: CompareConfigRow[] }>("compare_config", { onlyDifferences }),
   compareTree: () => call<CompareTree>("compare_tree"),

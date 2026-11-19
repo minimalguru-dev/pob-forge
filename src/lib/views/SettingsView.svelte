@@ -695,13 +695,21 @@
           </div>
           <h2 class="label ghead">{m.overlay_panels()}</h2>
           <div class="rows">
-            {#each [["itemCheck", m.overlay_item_check(), m.overlay_item_check_hint()], ["mapCheck", m.overlay_map_check(), m.overlay_map_check_hint()], ["leveling", m.overlay_leveling(), m.overlay_leveling_hint()], ["progression", m.overlay_progression(), m.overlay_progression_hint()]] as const as [key, label, hint] (key)}
+            {#each [["itemCheck", m.overlay_item_check(), m.overlay_item_check_hint()], ["mapCheck", m.overlay_map_check(), m.overlay_map_check_hint()], ["leveling", m.overlay_leveling(), m.overlay_leveling_hint()], ["progression", m.overlay_progression(), m.overlay_progression_hint()], ["priceCheck", m.overlay_price_check(), m.overlay_price_check_hint()]] as const as [key, label, hint] (key)}
               <label class="opt">
                 <span>{label}<span class="hint">{hint}</span></span>
                 <input class="switch" type="checkbox" role="switch" checked={o[key]} disabled={overlay.saving} onchange={(e) => overlay.update({ [key]: (e.target as HTMLInputElement).checked })} />
               </label>
             {/each}
           </div>
+          {#if o.priceCheck}
+            <div class="rows">
+              <label class="opt">
+                <span>{m.overlay_price_key()}<span class="hint">{m.overlay_price_key_hint()}</span></span>
+                <input class="input mono" value={o.priceKey} disabled={overlay.saving} onchange={(e) => overlay.update({ priceKey: (e.target as HTMLInputElement).value.trim() })} />
+              </label>
+            </div>
+          {/if}
           {#if overlay.error}<div class="opt err mono">{overlay.error}</div>{/if}
           <p class="note">{m.overlay_rules_note()}</p>
         {:else if overlay.error}

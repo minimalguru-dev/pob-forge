@@ -31,6 +31,9 @@ mod progression;
 #[cfg(desktop)]
 mod overlay;
 #[cfg(desktop)]
+mod game_window;
+mod price;
+#[cfg(desktop)]
 mod gamelog;
 mod voice;
 mod web;
@@ -1312,6 +1315,7 @@ pub fn run() {
             app.manage(decide::DecideState::new(&app.handle().clone()));
             app.manage(voice::VoiceState::new());
             app.manage(ggg::GggState::default());
+            app.manage(price::PriceState::default());
             window_state::restore(app.handle());
             #[cfg(desktop)]
             overlay::setup(app.handle());
@@ -1371,6 +1375,8 @@ pub fn run() {
             ggg::ggg_characters,
             ggg::ggg_character,
             ggg::ggg_trade_request,
+            price::price_trade,
+            price::price_ninja,
             ninja_characters,
             ninja_character_code,
             save_game_build_files,
@@ -1449,6 +1455,8 @@ pub fn run() {
             overlay::overlay_hide,
             #[cfg(desktop)]
             overlay::overlay_close_button,
+            #[cfg(desktop)]
+            overlay::overlay_price_done,
             #[cfg(desktop)]
             gamelog::gamelog_state,
             #[cfg(desktop)]

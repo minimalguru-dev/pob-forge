@@ -9717,7 +9717,31 @@ function itemUtil.buySimilarModule()
 		i = i + 1
 	end
 	if not itemUtil.buySimilarUrl then error("this Path of Building version has no Buy Similar search", 0) end
+	-- buildURL encodes the query with its own TradeHelpers; the price check needs the query itself.
+	local j = 1
+	while true do
+		local name, value = debug.getupvalue(itemUtil.buySimilarUrl, j)
+		if not name then break end
+		if name == "tradeHelpers" then itemUtil.buySimilarUrlHelpers = value end
+		j = j + 1
+	end
 	return itemUtil.buySimilar
+end
+
+--- buildURL's URL, and the query JSON it encoded into it.
+function itemUtil.buySimilarSearch(...)
+	local helpers = itemUtil.buySimilarUrlHelpers
+	local encode = helpers and helpers.B64GzipEncode
+	if not encode then return itemUtil.buySimilarUrl(...), nil end
+	local query
+	helpers.B64GzipEncode = function(json)
+		query = json
+		return encode(json)
+	end
+	local ok, url = pcall(itemUtil.buySimilarUrl, ...)
+	helpers.B64GzipEncode = encode
+	if not ok then error(url, 0) end
+	return url, query
 end
 
 -- An unequipped item borrows the trade category of the slot its type goes in.
@@ -9727,6 +9751,13 @@ itemUtil.BUY_SIMILAR_TYPE_SLOT = {
 }
 
 function itemUtil.buySimilarTarget(p)
+	if type(p.raw) == "string" then
+		-- Text the game copied: priced on its own, so no build is needed.
+		local item = new("Item"):Item(p.raw)
+		if not item.base then error("unrecognised item text", 0) end
+		local itemType = item.type or item.base.type or ""
+		return item, itemUtil.BUY_SIMILAR_TYPE_SLOT[itemType] or (itemType:find("Jewel") and "Jewel") or "Weapon 1"
+	end
 	if p.side == "mine" or p.side == "theirs" then
 		local b = p.side == "mine" and build or cmpUtil.compareEntry()
 		local slotName = tostring(p.slot or "")
@@ -9776,7 +9807,7 @@ end
 --- The rows PoB's Buy Similar popup offers for an item.
 --- params: { itemId } for this build's item, or { slot, side = "mine"|"theirs" } on the Compare tab
 M.buy_similar_info = function(p)
-	ensureBuild()
+	if not (p and p.raw) then ensureBuild() end
 	local item, slotName = itemUtil.buySimilarTarget(p or {})
 	local isUnique, mods, defences = itemUtil.buySimilarRows(item)
 	local outMods = array({})
@@ -9802,6 +9833,9 @@ M.buy_similar_info = function(p)
 	return {
 		name = item.name,
 		unique = isUnique,
+		rarity = opt(item.rarity),
+		itemLevel = opt(item.itemLevel),
+		corrupted = item.corrupted == true,
 		category = itemUtil.buySimilarHelpers.getTradeCategoryLabel(slotName, item),
 		baseName = opt(item.baseName),
 		realms = IS_POE2 and array({ "PoE2" }) or array({ "PC", "PS4", "Xbox" }),
@@ -9815,7 +9849,7 @@ end
 --- params: the item as for buy_similar_info, plus realm, league, listed (1-based),
 --- baseType, ilvlMin, ilvlMax, defences = [{checked,min,max}], mods = [{checked,min,max}]
 M.buy_similar_url = function(p)
-	ensureBuild()
+	if not (p and p.raw) then ensureBuild() end
 	p = p or {}
 	local item, slotName = itemUtil.buySimilarTarget(p)
 	local isUnique, mods, defences = itemUtil.buySimilarRows(item)
@@ -9845,7 +9879,8 @@ M.buy_similar_url = function(p)
 		controls["mod" .. i .. "Min"] = { buf = given(m.min) }
 		controls["mod" .. i .. "Max"] = { buf = given(m.max) }
 	end
-	return { url = itemUtil.buySimilarUrl(item, slotName, controls, mods, defences, isUnique) }
+	local url, query = itemUtil.buySimilarSearch(item, slotName, controls, mods, defences, isUnique)
+	return { url = url, query = opt(query) }
 end
 
 --- Socket groups on both sides, matched by the order they appear in.

@@ -1,8 +1,9 @@
 //! The in-game overlay: a small always-on-top window that lets clicks through to the game until
 //! the interact shortcut is pressed. It reads only what the user copies (Ctrl+C on an item) and,
-//! through `gamelog`, the game's own Client.txt. It never reads game memory or sends input.
+//! through `gamelog`, the game's own Client.txt. It never reads game memory. The one input it
+//! sends is the price check's Ctrl+C, right after the user presses the price shortcut in the game.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -42,6 +43,25 @@ pub struct OverlayState {
     close_button: Mutex<Option<Rect>>,
     /// Whether the window currently lets clicks through.
     passthrough: AtomicBool,
+    /// The price shortcut. It is taken only while the game has focus, so other programs keep it.
+    price_key: Mutex<Option<Shortcut>>,
+    price_taken: AtomicBool,
+    /// The game window the last price check came from, to give focus back to.
+    game_window: AtomicIsize,
+    /// The price check's copy, which the clipboard watcher must not also show as an item card.
+    suppress: AtomicU64,
+}
+
+/// How often the focused window is checked, to take or release the price shortcut.
+const FOCUS_POLL: Duration = Duration::from_millis(200);
+/// How long the game gets to put the item on the clipboard after the price check's Ctrl+C.
+const COPY_WAIT: Duration = Duration::from_millis(1000);
+
+fn text_hash(text: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    text.hash(&mut h);
+    h.finish()
 }
 
 fn set_passthrough(app: &AppHandle, w: &tauri::WebviewWindow, on: bool) {
@@ -100,12 +120,20 @@ fn register_keys(app: &AppHandle, s: &OverlaySettings) -> Result<(), String> {
         let _ = app.global_shortcut().unregister(a);
         let _ = app.global_shortcut().unregister(b);
     }
+    release_price_key(app);
     if !s.enabled {
         return Ok(());
     }
     let (toggle, interact) = (parse_key(&s.toggle_key)?, parse_key(&s.interact_key)?);
     if toggle == interact {
         return Err("The two overlay shortcuts must differ.".into());
+    }
+    if s.price_check {
+        let price = parse_key(&s.price_key)?;
+        if price == toggle || price == interact {
+            return Err("The price check shortcut must differ from the other two.".into());
+        }
+        *state.price_key.lock().unwrap_or_else(|e| e.into_inner()) = Some(price);
     }
     for key in [toggle, interact] {
         app.global_shortcut()
@@ -120,6 +148,17 @@ pub fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, state: ShortcutState) {
     if state != ShortcutState::Pressed {
         return;
     }
+    let price = *app.state::<OverlayState>().price_key.lock().unwrap_or_else(|e| e.into_inner());
+    if price.as_ref() == Some(shortcut) {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = price_check(&app).await {
+                log::warn!("overlay price check: {e}");
+                let _ = app.emit_to(LABEL, "overlay:price-error", e);
+            }
+        });
+        return;
+    }
     let keys = *app.state::<OverlayState>().keys.lock().unwrap_or_else(|e| e.into_inner());
     let Some((toggle, interact)) = keys else { return };
     let app = app.clone();
@@ -132,6 +171,86 @@ pub fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, state: ShortcutState) {
     } else if *shortcut == interact {
         tauri::async_runtime::spawn(async move { set_interact(&app, None) });
     }
+}
+
+fn release_price_key(app: &AppHandle) {
+    let state = app.state::<OverlayState>();
+    let key = state.price_key.lock().unwrap_or_else(|e| e.into_inner()).take();
+    if state.price_taken.swap(false, Ordering::Relaxed) {
+        if let Some(key) = key {
+            let _ = app.global_shortcut().unregister(key);
+        }
+    }
+}
+
+/// Takes the price shortcut while the game has focus and gives it back to Windows otherwise,
+/// so Ctrl+D keeps working in every other program.
+fn spawn_focus_watch(app: AppHandle) {
+    std::thread::Builder::new()
+        .name("overlay-focus".into())
+        .spawn(move || {
+            let mut failed: Option<Shortcut> = None;
+            loop {
+                std::thread::sleep(FOCUS_POLL);
+                let state = app.state::<OverlayState>();
+                let Some(key) = *state.price_key.lock().unwrap_or_else(|e| e.into_inner()) else { continue };
+                let want = crate::game_window::foreground_game().is_some();
+                if want == state.price_taken.load(Ordering::Relaxed) {
+                    continue;
+                }
+                if want {
+                    match app.global_shortcut().register(key) {
+                        Ok(()) => {
+                            state.price_taken.store(true, Ordering::Relaxed);
+                            failed = None;
+                        }
+                        // Say so once per key, not five times a second.
+                        Err(e) if failed != Some(key) => {
+                            log::warn!("overlay: could not take {key} for the price check: {e}");
+                            failed = Some(key);
+                        }
+                        Err(_) => {}
+                    }
+                } else {
+                    let _ = app.global_shortcut().unregister(key);
+                    state.price_taken.store(false, Ordering::Relaxed);
+                }
+            }
+        })
+        .expect("spawn overlay focus watcher");
+}
+
+/// The price shortcut was pressed in the game: have the game copy the item under the cursor,
+/// then show the price check, clickable, until it is closed.
+async fn price_check(app: &AppHandle) -> Result<(), String> {
+    let Some(game) = crate::game_window::foreground_game() else { return Ok(()) };
+    let state = app.state::<OverlayState>();
+    state.game_window.store(game, Ordering::Relaxed);
+    let before = app.clipboard().read_text().ok();
+    if !crate::game_window::send_copy() {
+        return Err("Windows refused the Ctrl+C for the price check.".into());
+    }
+    let started = std::time::Instant::now();
+    let mut copied = None;
+    while started.elapsed() < COPY_WAIT {
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        if let Ok(text) = app.clipboard().read_text() {
+            if before.as_ref() != Some(&text) {
+                copied = Some(text);
+                break;
+            }
+        }
+    }
+    // Checking the same item twice leaves the clipboard as it was.
+    let text = copied.or(before).filter(|t| t.len() <= MAX_ITEM_TEXT && classify(t).is_some());
+    let Some(text) = text else {
+        return Err("Hover over an item in the game, then press the price check shortcut.".into());
+    };
+    state.suppress.store(text_hash(&text), Ordering::Relaxed);
+    open_window(app).await?;
+    let _ = app.emit_to(LABEL, "overlay:price", serde_json::json!({ "raw": text }));
+    set_interact(app, Some(true));
+    Ok(())
 }
 
 async fn open_window(app: &AppHandle) -> Result<(), String> {
@@ -227,15 +346,14 @@ fn spawn_clipboard_watch(app: AppHandle) {
                     continue;
                 }
                 let Ok(text) = app.clipboard().read_text() else { continue };
-                let hash = {
-                    use std::hash::{Hash, Hasher};
-                    let mut h = std::collections::hash_map::DefaultHasher::new();
-                    text.hash(&mut h);
-                    h.finish()
-                };
+                let hash = text_hash(&text);
                 // The first read after the overlay appears only sets the baseline.
                 let first = last.is_none();
                 if last.replace(hash) == Some(hash) || first || text.len() > MAX_ITEM_TEXT {
+                    continue;
+                }
+                // The price check's own copy already has its card.
+                if app.state::<OverlayState>().suppress.swap(0, Ordering::Relaxed) == hash {
                     continue;
                 }
                 if let Some(kind) = classify(&text) {
@@ -254,6 +372,7 @@ pub fn setup(app: &AppHandle) {
     app.manage(OverlayState::default());
     spawn_clipboard_watch(app.clone());
     spawn_hover_watch(app.clone());
+    spawn_focus_watch(app.clone());
     let s = settings(app);
     if !s.enabled {
         return;
@@ -285,6 +404,9 @@ pub async fn overlay_settings_set(app: AppHandle, value: OverlaySettings) -> Res
     if value.enabled {
         parse_key(&value.toggle_key)?;
         parse_key(&value.interact_key)?;
+        if value.price_check {
+            parse_key(&value.price_key)?;
+        }
     }
     store(&app, value.clone())?;
     register_keys(&app, &value)?;
@@ -314,6 +436,16 @@ pub fn overlay_interact(app: AppHandle, on: Option<bool>) {
 #[tauri::command]
 pub async fn overlay_hide(app: AppHandle) -> Result<(), String> {
     hide_window(&app).await
+}
+
+/// Closes the price check: clicks go back to the game, and so does focus.
+#[tauri::command]
+pub fn overlay_price_done(app: AppHandle) {
+    set_interact(&app, Some(false));
+    let game = app.state::<OverlayState>().game_window.swap(0, Ordering::Relaxed);
+    if game != 0 {
+        crate::game_window::focus(game);
+    }
 }
 
 /// Where the overlay drew its close button, so clicks there are not passed to the game.
@@ -347,6 +479,8 @@ mod tests {
     fn default_shortcuts_parse_and_differ() {
         let s = OverlaySettings::default();
         assert_ne!(parse_key(&s.toggle_key).unwrap(), parse_key(&s.interact_key).unwrap());
+        let price = parse_key(&s.price_key).unwrap();
+        assert!(price != parse_key(&s.toggle_key).unwrap() && price != parse_key(&s.interact_key).unwrap());
         assert!(parse_key("Ctrl+Nope+").is_err());
     }
 
