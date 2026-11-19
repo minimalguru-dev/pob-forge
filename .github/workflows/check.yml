@@ -81,17 +81,22 @@ jobs:
 
       # libclang for whisper.cpp's bindings. The Windows build steps run without
       # NoDefaultCurrentDirectoryInExePath (as progression-windows.yml does); every later
-      # bash step sources BASH_ENV, which unsets it. Git Bash puts its own
-      # /usr/bin/link (coreutils) ahead of MSVC's link.exe on PATH, so cargo is
-      # given the MSVC linker by full path.
+      # bash step sources BASH_ENV, which unsets it. Git Bash also puts its own
+      # /usr/bin/link (coreutils) ahead of MSVC's link.exe on PATH, which breaks
+      # rustc and LuaJIT's msvcbuild.bat alike, so BASH_ENV puts MSVC's bin first.
       - name: Native compiler environment
         run: |
-          linker="${VCToolsInstallDir}bin\\Hostx64\\x64\\link.exe"
-          test -f "$linker" || { echo "MSVC link.exe not found at $linker"; exit 1; }
-          echo "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=$linker" >> "$GITHUB_ENV"
+          msvc_bin="$(cygpath -u "$VCToolsInstallDir")bin/Hostx64/x64"
+          test -f "$msvc_bin/link.exe" || { echo "MSVC link.exe not found in $msvc_bin"; exit 1; }
           echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> "$GITHUB_ENV"
-          echo "unset NoDefaultCurrentDirectoryInExePath" > "$RUNNER_TEMP/bash_env"
+          {
+            echo "unset NoDefaultCurrentDirectoryInExePath"
+            echo "export PATH=\"$msvc_bin:\$PATH\""
+          } > "$RUNNER_TEMP/bash_env"
           echo "BASH_ENV=$RUNNER_TEMP/bash_env" >> "$GITHUB_ENV"
+
+      - name: MSVC's linker comes first
+        run: test "$(command -v link)" -ef "$(cygpath -u "$VCToolsInstallDir")bin/Hostx64/x64/link.exe"
 
       - run: bun install --frozen-lockfile
 
