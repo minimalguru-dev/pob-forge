@@ -21,6 +21,7 @@ pub fn send_copy() -> bool {
 }
 
 /// The game names its window class this way in both Path of Exile 1 and 2; the title is the fallback.
+#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) fn is_game(class: &str, title: &str) -> bool {
     class == "POEWindowClass" || title == "Path of Exile" || title == "Path of Exile 2"
 }

@@ -155,3 +155,11 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Ispravak:** obje datoteke vraćene na HEAD prije commita; promijenjen samo naslov loga i dodani novi unosi. Ništa netočno nije commitano.
 - **Prevencija:** kod masovnih zamjena isključiti povijesne/handoff zapise i pregledati njihov diff zasebno; povijesne CI linkove ostaviti na staroj adresi (GitHub preusmjerava nakon preimenovanja repozitorija).
 - **Validacija:** `git diff` obiju datoteka sadrži samo naslov i nove unose.
+
+## 2026-11-19 — Windows-only kod ostavio neiskorištenu funkciju na Linuxu
+
+- **Simptom:** CI run [44605389235](https://github.com/minimalguru-dev/pob-forge/actions/runs/44605389235) (Linux) pao je u `Compile the workspace`: `function is_game is never used`, a lokalni Windows `cargo check --locked --workspace --all-targets` prolazio je.
+- **Uzrok:** `game_window::is_game` zove samo `#[cfg(windows)]` implementacija; na Linuxu je ostala neiskorištena, a lintovi tretiraju upozorenja kao greške.
+- **Ispravak:** `#[cfg_attr(not(windows), allow(dead_code))]` na `is_game`; testovi je i dalje pokrivaju na svim platformama.
+- **Prevencija:** kod koda iza `#[cfg(windows)]` provjeriti i ne-Windows granu; lokalni Windows check ne zamjenjuje Linux CI.
+- **Validacija:** ponovljeni Linux CI nakon ispravka.
