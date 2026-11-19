@@ -151,3 +151,11 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - Cause: the end marker was the function line, not the attribute above it, so the attribute fell inside the removed range.
 - Fix: restored the attribute; `cargo check --workspace --all-targets` and the app tests passed.
 - Prevention: end a scripted cut on the next item's first attribute or doc comment, or diff the result before compiling. The compiler catches a lost `#[tauri::command]` only when the command is registered; a lost `#[test]` or `#[cfg]` would compile silently.
+
+## Git Bash's link shadowed MSVC's linker in check.yml
+
+- The first Windows run of `check.yml` (bash as the default shell) failed in every build script: `linking with link.exe failed`, `/usr/bin/link: extra operand` ([run 44562524049](https://github.com/minimalguru-dev/pob-redux/actions/runs/44562524049)).
+- Cause: Git Bash puts `/usr/bin` (coreutils `link`) ahead of the PATH entries `ilammy/msvc-dev-cmd` adds. `progression-windows.yml` uses pwsh and never hit it. The workflow was written without a run on GitHub.
+- First fix was partial: `CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER` covered rustc, but LuaJIT's `msvcbuild.bat` calls `link` by name and failed the same way ([run 44569639450](https://github.com/minimalguru-dev/pob-redux/actions/runs/44569639450)).
+- Fix: the `BASH_ENV` file prepends MSVC's `bin/Hostx64/x64` to PATH for every bash step, and a step asserts `command -v link` is MSVC's. [Run 44570971876](https://github.com/minimalguru-dev/pob-redux/actions/runs/44570971876) passed on `4feb5bc`.
+- Prevention: on Windows runners, fix the tool lookup (PATH), not one consumer of it; check every native build that shells out (LuaJIT, cmake) uses the same tool. Run a new workflow with `workflow_dispatch` before claiming it works.
