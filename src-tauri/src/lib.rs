@@ -1458,6 +1458,8 @@ pub fn run() {
             #[cfg(desktop)]
             overlay::overlay_price_done,
             #[cfg(desktop)]
+            overlay::overlay_card_closed,
+            #[cfg(desktop)]
             gamelog::gamelog_state,
             #[cfg(desktop)]
             gamelog::gamelog_candidates,

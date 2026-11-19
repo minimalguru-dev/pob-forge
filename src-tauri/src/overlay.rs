@@ -50,6 +50,30 @@ pub struct OverlayState {
     game_window: AtomicIsize,
     /// The price check's copy, which the clipboard watcher must not also show as an item card.
     suppress: AtomicU64,
+    /// Where the overlay stood before a card moved it beside the inventory.
+    home: Mutex<Option<PhysicalPosition<i32>>>,
+}
+
+/// Moves the overlay just left of the game's inventory panel for an item or price card,
+/// remembering where it stood so `undock` can put it back.
+fn dock_beside_inventory(app: &AppHandle, game: crate::game_window::Handle) {
+    let (Some(w), Some(rect)) = (app.get_webview_window(LABEL), crate::game_window::rect(game)) else { return };
+    let (Ok(pos), Ok(size)) = (w.outer_position(), w.outer_size()) else { return };
+    let state = app.state::<OverlayState>();
+    let mut home = state.home.lock().unwrap_or_else(|e| e.into_inner());
+    if home.is_none() {
+        *home = Some(pos);
+    }
+    let (x, y) = crate::game_window::beside_inventory(rect, (size.width, size.height));
+    let _ = w.set_position(PhysicalPosition::new(x, y));
+}
+
+/// Puts the overlay back where it stood before a card moved it.
+fn undock(app: &AppHandle) {
+    let home = app.state::<OverlayState>().home.lock().unwrap_or_else(|e| e.into_inner()).take();
+    if let (Some(home), Some(w)) = (home, app.get_webview_window(LABEL)) {
+        let _ = w.set_position(home);
+    }
 }
 
 /// How often the focused window is checked, to take or release the price shortcut.
@@ -112,11 +136,13 @@ fn parse_key(text: &str) -> Result<Shortcut, String> {
     text.parse::<Shortcut>().map_err(|e| format!("not a shortcut: {text} ({e})"))
 }
 
-/// Takes the shortcuts the settings name, releasing the previous pair first.
+/// Takes the shortcuts the settings name, releasing the previous ones first. The plugin runs each
+/// (un)registration on the main thread, so no lock of ours is held across those calls: the
+/// shortcut handler runs on that same thread and would wait for it.
 fn register_keys(app: &AppHandle, s: &OverlaySettings) -> Result<(), String> {
     let state = app.state::<OverlayState>();
-    let mut keys = state.keys.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some((a, b)) = keys.take() {
+    let old = state.keys.lock().unwrap_or_else(|e| e.into_inner()).take();
+    if let Some((a, b)) = old {
         let _ = app.global_shortcut().unregister(a);
         let _ = app.global_shortcut().unregister(b);
     }
@@ -128,19 +154,21 @@ fn register_keys(app: &AppHandle, s: &OverlaySettings) -> Result<(), String> {
     if toggle == interact {
         return Err("The two overlay shortcuts must differ.".into());
     }
-    if s.price_check {
-        let price = parse_key(&s.price_key)?;
-        if price == toggle || price == interact {
-            return Err("The price check shortcut must differ from the other two.".into());
-        }
-        *state.price_key.lock().unwrap_or_else(|e| e.into_inner()) = Some(price);
+    let price = if s.price_check { Some(parse_key(&s.price_key)?) } else { None };
+    if price.is_some_and(|p| p == toggle || p == interact) {
+        return Err("The price check shortcut must differ from the other two.".into());
     }
-    for key in [toggle, interact] {
-        app.global_shortcut()
-            .register(key)
-            .map_err(|e| format!("could not take {key}: {e}. Another program may already use it."))?;
+    app.global_shortcut()
+        .register(toggle)
+        .map_err(|e| format!("could not take {toggle}: {e}. Another program may already use it."))?;
+    if let Err(e) = app.global_shortcut().register(interact) {
+        let _ = app.global_shortcut().unregister(toggle);
+        return Err(format!("could not take {interact}: {e}. Another program may already use it."));
     }
-    *keys = Some((toggle, interact));
+    *state.keys.lock().unwrap_or_else(|e| e.into_inner()) = Some((toggle, interact));
+    // The focus watcher takes this one while the game has focus.
+    *state.price_key.lock().unwrap_or_else(|e| e.into_inner()) = price;
+    log::info!("overlay: shortcuts {toggle} and {interact}; price check {}", price.map_or("off".into(), |p| p.to_string()));
     Ok(())
 }
 
@@ -203,6 +231,7 @@ fn spawn_focus_watch(app: AppHandle) {
                         Ok(()) => {
                             state.price_taken.store(true, Ordering::Relaxed);
                             failed = None;
+                            log::info!("overlay: the game has focus; {key} prices the item under the cursor");
                         }
                         // Say so once per key, not five times a second.
                         Err(e) if failed != Some(key) => {
@@ -230,6 +259,7 @@ async fn price_check(app: &AppHandle) -> Result<(), String> {
     if !crate::game_window::send_copy() {
         return Err("Windows refused the Ctrl+C for the price check.".into());
     }
+    log::info!("overlay: price check sent Ctrl+C to the game");
     let started = std::time::Instant::now();
     let mut copied = None;
     while started.elapsed() < COPY_WAIT {
@@ -241,6 +271,9 @@ async fn price_check(app: &AppHandle) -> Result<(), String> {
             }
         }
     }
+    if copied.is_none() {
+        log::info!("overlay: the clipboard did not change within {} ms of the Ctrl+C", COPY_WAIT.as_millis());
+    }
     // Checking the same item twice leaves the clipboard as it was.
     let text = copied.or(before).filter(|t| t.len() <= MAX_ITEM_TEXT && classify(t).is_some());
     let Some(text) = text else {
@@ -248,6 +281,7 @@ async fn price_check(app: &AppHandle) -> Result<(), String> {
     };
     state.suppress.store(text_hash(&text), Ordering::Relaxed);
     open_window(app).await?;
+    dock_beside_inventory(app, game);
     let _ = app.emit_to(LABEL, "overlay:price", serde_json::json!({ "raw": text }));
     set_interact(app, Some(true));
     Ok(())
@@ -360,6 +394,10 @@ fn spawn_clipboard_watch(app: AppHandle) {
                     log::info!("overlay: {kind} copied from the game");
                     let s = settings(&app);
                     if (kind == "map" && s.map_check) || (kind == "item" && s.item_check) {
+                        // Copied in the game: the card goes beside the inventory, not over it.
+                        if let Some(game) = crate::game_window::foreground_game() {
+                            dock_beside_inventory(&app, game);
+                        }
                         let _ = app.emit_to(LABEL, "overlay:item", serde_json::json!({ "raw": text, "kind": kind }));
                     }
                 }
@@ -441,10 +479,20 @@ pub async fn overlay_hide(app: AppHandle) -> Result<(), String> {
 /// Closes the price check: clicks go back to the game, and so does focus.
 #[tauri::command]
 pub fn overlay_price_done(app: AppHandle) {
+    // Back home first: leaving interact mode saves wherever the overlay stands.
+    undock(&app);
     set_interact(&app, Some(false));
     let game = app.state::<OverlayState>().game_window.swap(0, Ordering::Relaxed);
     if game != 0 {
         crate::game_window::focus(game);
+    }
+}
+
+/// The item card timed out: the overlay goes back where it stood, unless the user is moving it.
+#[tauri::command]
+pub fn overlay_card_closed(app: AppHandle) {
+    if !app.state::<OverlayState>().interact.load(Ordering::Relaxed) {
+        undock(&app);
     }
 }
 

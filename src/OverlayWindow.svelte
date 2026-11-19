@@ -135,7 +135,12 @@
   function show(next: Card) {
     card = next;
     clearTimeout(timer);
-    timer = setTimeout(() => { if (!interact) card = null; }, (s?.cardSeconds ?? 15) * 1000);
+    timer = setTimeout(() => {
+      if (interact) return;
+      card = null;
+      // A card copied in the game moved the overlay beside the inventory; send it back.
+      if (!price) void invoke("overlay_card_closed").catch(() => {});
+    }, (s?.cardSeconds ?? 15) * 1000);
   }
 
   async function evaluate(raw: string, kind: string) {
@@ -300,7 +305,7 @@
     </section>
   {/if}
 
-  {#if s?.leveling && log?.zone}
+  {#if s?.leveling && log?.zone && !price}
     <section class="panel leveling">
       <div class="slothead">
         <strong>{log.zone}</strong>
@@ -337,11 +342,11 @@
         </button>
       {/if}
     </section>
-  {:else if s?.leveling && interact}
+  {:else if s?.leveling && interact && !price}
     <section class="panel dim small">{log?.path ? m.overlay_log_waiting() : m.overlay_log_missing()}</section>
   {/if}
 
-  {#if s?.progression && plan}
+  {#if s?.progression && plan && !price}
     <section class="panel progression">
       <div class="slothead">
         <strong>{m.overlay_progression_title()}</strong>
@@ -355,7 +360,7 @@
     </section>
   {/if}
 
-  {#if interact && !card}
+  {#if interact && !card && !price}
     <section class="panel dim small">{m.overlay_idle_hint({ toggle: s?.toggleKey ?? "", interact: s?.interactKey ?? "" })}</section>
   {/if}
   </div>

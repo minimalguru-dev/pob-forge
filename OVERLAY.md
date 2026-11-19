@@ -25,10 +25,12 @@ shows, for each slot the item fits, the change to DPS, minion DPS, life, energy 
 speed, with the best slot first. It also warns when the item needs a higher level or more attributes than the build
 has. This is PoB's own "Equipping this item" calculation (`item_evaluate`); the build does not change. Jewels that
 rebuild the passive tree (Timeless, Impossible Escape and similar) are not scored; compare them in the Items tab.
+A card copied in the game shows just left of the inventory panel, so it covers neither the stash nor the inventory, and
+the overlay goes back to its place when the card closes.
 
 **Price check (Windows).** Hover an item in the game and press **Ctrl+D**. The app presses Ctrl+C once so the
-game copies the item, then opens a price card you can click, over the game. Esc or ✕ closes it and gives focus back
-to the game.
+game copies the item, then opens a price card you can click just left of the inventory panel. Esc or ✕ closes it,
+puts the overlay back where it was and gives focus back to the game.
 
 - **poe.ninja** prices currency, fragments, scarabs, essences, divination cards, gems (by level, quality and
   corruption) and uniques (six-links separately on PoE1), for the league you pick. A stack shows its total.
