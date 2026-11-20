@@ -1797,7 +1797,7 @@
   "items_assigned_gems": "Assigned gems",
   "palette_overlay": "Show or hide the in-game overlay",
   "settings_overlay": "Overlay",
-  "settings_overlay_desc": "A small panel over the game. Copy an item or a map in the game with Ctrl+C and it shows what that item does to the open build. It also follows your zone and level from the game's log.",
+  "settings_overlay_desc": "A small panel over the game. Copy an item or a map in the game with Ctrl+C and it shows what that item does to the open build. Ctrl+D prices it. Leveling and Progression panels from the game's log are optional, below.",
   "overlay_enable": "Turn on the overlay",
   "overlay_enable_hint": "Opens it with the app and takes the shortcuts below. Play in Windowed Fullscreen so it can sit over the game.",
   "overlay_toggle_key": "Show or hide",

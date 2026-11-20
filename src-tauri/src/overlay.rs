@@ -590,6 +590,7 @@ mod tests {
     fn old_settings_files_get_defaults() {
         let s: OverlaySettings = serde_json::from_str(r#"{ "enabled": true }"#).unwrap();
         assert!(s.enabled && s.item_check);
+        assert!(!s.leveling && !s.progression, "log panels are opt-in");
         assert_eq!(s.toggle_key, "Alt+Shift+O");
     }
 }

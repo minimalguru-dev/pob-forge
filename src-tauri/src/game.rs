@@ -153,8 +153,9 @@ impl Default for OverlaySettings {
             opacity: 0.92,
             item_check: true,
             map_check: true,
-            leveling: true,
-            progression: true,
+            // The overlay is for item and price cards; the log panels are opt-in.
+            leveling: false,
+            progression: false,
             card_seconds: 15,
             price_check: true,
             price_key: "Ctrl+D".into(),
