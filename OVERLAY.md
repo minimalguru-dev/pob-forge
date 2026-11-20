@@ -19,8 +19,9 @@ Both shortcuts are global while the overlay is on, so pick combinations the game
 
 ## Cards
 
-A card copied in the game opens just left of the inventory panel, so it covers neither the stash nor the inventory;
-one copied elsewhere (the trade site) opens beside the cursor. It follows the Awakened PoE Trade rules:
+A card copied in the game always opens in the same place: just left of the inventory panel, centred on the screen's
+height, so it covers neither the stash nor the inventory. One copied elsewhere (the trade site) opens beside the
+cursor. The card is as tall as its content. It follows the Awakened PoE Trade rules:
 
 - **Hold Ctrl to look.** Keep Ctrl down after Ctrl+C or Ctrl+D and the card stays; let go and it closes, unless the
   cursor is on the card.
@@ -51,7 +52,9 @@ game copies the item, then opens a price card just left of the inventory panel. 
   a unique by name, a rare by its base type, its resistances and life as the trade site's pseudo totals ("+#% total
   Elemental Resistance", "+# total maximum Life") and its other searchable mods, all at 90% of the item's values.
   Mods counted in a ticked total are not searched on their own. Item level, quality, links (PoE1), corruption, the
-  listing kind and the currency the price is in are filters too. Untick mods or change the minimums and search again. The ten cheapest listings show with their age; **Open on the trade site** opens
+  listing kind, the currency the price is in, and a minimum of empty prefixes or suffixes are filters too. Same base
+  type and item level are toggles; item level starts at the copied item's own and is off until ticked.
+  **Base only** turns every mod filter off and searches the base type alone. Untick mods or change the minimums and search again. The ten cheapest listings show with their age; **Open on the trade site** opens
   the full search in the trade window.
 - Searches are anonymous: no sign-in and no cookies. pathofexile.com allows about five searches every ten seconds;
   when a limit is reached the card says how long to wait instead of sending more.

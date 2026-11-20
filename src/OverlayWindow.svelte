@@ -113,14 +113,16 @@
   const slots = $derived(evaluation ? [...evaluation.slots].sort((a, b) => score(evaluation, b) - score(evaluation, a)) : []);
 
   /** The cursor where the item was copied, in window coordinates, and which side has room. */
-  let anchor = $state<{ x: number; y: number; left: boolean } | null>(null);
+  let anchor = $state<{ x: number; y: number; left: boolean; middle?: boolean } | null>(null);
   let cardHeight = $state(0);
   const cardWidth = $derived(s?.width ?? 380);
   // Beside the cursor; an overlay opened by the interact key with nothing copied sits top right.
   const left = $derived(
     anchor ? Math.max(4, Math.min(innerWidth - cardWidth - 4, anchor.left ? anchor.x - 28 - cardWidth : anchor.x + 28)) : innerWidth - cardWidth - 24,
   );
-  const top = $derived(anchor ? Math.max(4, Math.min(innerHeight - cardHeight - 4, anchor.y - 60)) : 96);
+  const top = $derived(
+    anchor ? Math.max(4, Math.min(innerHeight - cardHeight - 4, anchor.middle ? anchor.y - cardHeight / 2 : anchor.y - 60)) : 96,
+  );
 
   // Tell Rust where the card is (only it takes Ctrl clicks) and nudge the unfocused window to paint.
   $effect(() => {
@@ -192,7 +194,7 @@
     document.documentElement.style.background = "transparent";
     document.body.style.background = "transparent";
     const offs: Promise<() => void>[] = [
-      listen<{ raw: string; kind: string; anchor: { x: number; y: number; left: boolean } | null }>("overlay:item", (e) => {
+      listen<{ raw: string; kind: string; anchor: { x: number; y: number; left: boolean; middle?: boolean } | null }>("overlay:item", (e) => {
         anchor = e.payload.anchor;
         void evaluate(e.payload.raw, e.payload.kind);
       }),
@@ -206,7 +208,7 @@
       }),
       listen("overlay:dismiss", () => clear()),
       // Ctrl+D: the price card stays until Ctrl is let go away from it, a click elsewhere or Esc.
-      listen<{ raw: string; anchor: { x: number; y: number; left: boolean } | null }>("overlay:price", (e) => {
+      listen<{ raw: string; anchor: { x: number; y: number; left: boolean; middle?: boolean } | null }>("overlay:price", (e) => {
         clearTimeout(timer);
         busy = false;
         price = null;
@@ -223,7 +225,14 @@
     window.addEventListener("keydown", onKey);
     window.addEventListener("pointerdown", onWindowPointerDown);
     void overlay.init();
-    void game.init().catch(() => {});
+    // The first evaluation loads PoB's item code and poe.ninja's lists; do that now, not on the
+    // first Ctrl+C. Nothing is shown and the build is not changed.
+    void game.init().catch(() => {}).then(() => {
+      const sample = ["Item Class: Rings", "Rarity: Rare", "Warm Loop", "Iron Ring", "--------", "Item Level: 1", "--------", "+10 to maximum Life"].join("\n");
+      void engine.itemEvaluate(sample).catch(() => {});
+      void engine.buySimilarInfo({ raw: sample }).catch(() => {});
+      if (s?.prices) void invoke("price_check", { raw: sample }).catch(() => {});
+    });
     return () => {
       clearTimeout(timer);
       window.removeEventListener("blur", onBlur);

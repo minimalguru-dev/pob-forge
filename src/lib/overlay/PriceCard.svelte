@@ -31,10 +31,14 @@
   let baseType = $state(false);
   let listed = $state(1);
   let itemLevel = $state("");
+  /** Item level is a toggle: off by default, its minimum the copied item's own. */
+  let useItemLevel = $state(false);
   let quality = $state("");
   let links = $state("");
   let corrupted = $state<"any" | "yes" | "no">("any");
   let priceIn = $state("any");
+  let emptyPrefix = $state("");
+  let emptySuffix = $state("");
   let result = $state<TradeResult | null>(null);
   let searching = $state(false);
   let error = $state<string | null>(null);
@@ -96,8 +100,12 @@
       });
       if (!query) throw new Error("this Path of Building version builds no trade query");
       const filtered = applyFilters(query, {
-        pseudo: pseudo.filter((p) => p.checked).map((p) => ({ id: PSEUDO[p.key].id, min: num(p.min) })),
-        itemLevel: num(itemLevel),
+        pseudo: [
+          ...pseudo.filter((p) => p.checked).map((p) => ({ id: PSEUDO[p.key].id, min: num(p.min) })),
+          ...(num(emptyPrefix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_prefix_mods", min: num(emptyPrefix) }] : []),
+          ...(num(emptySuffix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_suffix_mods", min: num(emptySuffix) }] : []),
+        ],
+        itemLevel: useItemLevel ? num(itemLevel) : null,
         quality: num(quality),
         links: game.isPoe1 ? num(links) : null,
         corrupted,
@@ -109,6 +117,15 @@
     } finally {
       searching = false;
     }
+  }
+
+  /** The base alone, as for crafting: every mod filter off, same base type on. */
+  function baseOnly() {
+    mods = mods.map((c) => ({ ...c, checked: false }));
+    defences = defences.map((c) => ({ ...c, checked: false }));
+    pseudo = pseudo.map((p) => ({ ...p, checked: false }));
+    baseType = true;
+    void search();
   }
 
   function setLeague(id: string) {
@@ -150,6 +167,7 @@
           // Awakened's default: totals for resistances and life, at 90% of the item's.
           pseudo = info.unique ? [] : pseudoTotals(info).map((p) => ({ ...p, checked: true, min: String(Math.floor(p.total * 0.9)), max: "" }));
           baseType = !info.unique && info.rarity === "RARE";
+          itemLevel = info.itemLevel ? String(info.itemLevel) : "";
           listed = Math.max(1, info.listed.indexOf("Instant Buyout & In Person") + 1);
           corrupted = item.corrupted ? "yes" : "any";
           if (game.isPoe1 && (item.links ?? 0) >= 5) links = String(item.links);
@@ -264,17 +282,20 @@
           {@const counted = inTotal.has(i)}
           <label class="mod" class:off={!mods[i].checked || counted} class:dead={!mod.searchable || counted} title={counted ? m.price_in_total() : ""}>
             <input type="checkbox" bind:checked={mods[i].checked} disabled={!mod.searchable || counted} />
-            <span class="small">{mod.lines.map(plain).join(" / ")}{#if counted}<span class="dim"> · {m.price_in_total()}</span>{/if}</span>
+            <span class="small">{mod.lines.map(plain).join(" / ")}{#if counted}<span class="dim">&nbsp;· {m.price_in_total()}</span>{/if}</span>
             {#if mod.ranged && !counted}<input class="input sm mono" bind:value={mods[i].min} aria-label={m.price_min()} />{/if}
           </label>
         {/each}
       </div>
 
       <div class="filters small">
-        <label><span class="dim">{m.price_ilvl()}</span><input class="input sm mono" bind:value={itemLevel} placeholder="—" /></label>
         <label><span class="dim">{m.price_quality()}</span><input class="input sm mono" bind:value={quality} placeholder="—" /></label>
         {#if game.isPoe1}
           <label><span class="dim">{m.price_links()}</span><input class="input sm mono" bind:value={links} placeholder="—" /></label>
+        {/if}
+        {#if !info.unique}
+          <label><span class="dim">{m.price_empty_prefix()}</span><input class="input sm mono" bind:value={emptyPrefix} placeholder="—" /></label>
+          <label><span class="dim">{m.price_empty_suffix()}</span><input class="input sm mono" bind:value={emptySuffix} placeholder="—" /></label>
         {/if}
         <label>
           <span class="dim">{m.price_corrupted_filter()}</span>
@@ -286,8 +307,8 @@
         </label>
         <label>
           <span class="dim">{m.price_listed()}</span>
-          <select class="select sm" bind:value={listed}>
-            {#each info.listed as l, i (l)}<option value={i + 1}>{l}</option>{/each}
+          <select class="select sm" onchange={(e) => (listed = Number((e.target as HTMLSelectElement).value))}>
+            {#each info.listed as l, i (l)}<option value={i + 1} selected={listed === i + 1}>{l}</option>{/each}
           </select>
         </label>
         <label>
@@ -298,10 +319,19 @@
         </label>
       </div>
 
+      <div class="toggles small">
+        {#if !info.unique}
+          <label class="toggle"><input type="checkbox" bind:checked={baseType} /> {m.price_base_type()}</label>
+        {/if}
+        <label class="toggle">
+          <input type="checkbox" bind:checked={useItemLevel} /> {m.price_ilvl()} ≥
+          <input class="input sm mono ilvl" bind:value={itemLevel} placeholder="—" disabled={!useItemLevel} />
+        </label>
+      </div>
       <div class="row">
         {#if !info.unique}
-          <label class="small"><input type="checkbox" bind:checked={baseType} /> {m.price_base_type()}</label>
-        {/if}
+          <button class="btn sm ghost" onclick={baseOnly} disabled={searching} title={m.price_base_only_title()}>{m.price_base_only()}</button>
+        {:else}<span></span>{/if}
         <button class="btn sm" onclick={() => void search()} disabled={searching}>{searching ? m.price_searching() : m.price_search()}</button>
       </div>
       {#if error}<p class="bad small">{error}</p>{/if}
@@ -342,7 +372,7 @@
   .value { font-size: 18px; color: var(--fg-0); font-variant-numeric: tabular-nums; }
   .spark { color: var(--bad); } .spark.up { color: var(--ok); }
   .trade { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line-1); }
-  .mods { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; }
+  .mods { display: flex; flex-direction: column; gap: 2px; }
   .mod { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
   .mod.pseudo span { color: var(--fg-0); }
   .mod.off span { color: var(--fg-3); }
@@ -351,6 +381,9 @@
   .filters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 8px; }
   .filters label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .filters .input, .filters .select { width: 100%; box-sizing: border-box; }
+  .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+  .toggle { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+  .toggle .ilvl { width: 44px; }
   .listings { display: grid; grid-template-columns: 1fr auto auto; gap: 2px 10px; font-variant-numeric: tabular-nums; }
   .dim { color: var(--fg-3); } .small { font-size: 12px; } .bad { color: var(--bad); } .good { color: var(--ok); }
   p { margin: 2px 0; }

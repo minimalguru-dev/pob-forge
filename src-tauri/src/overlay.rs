@@ -179,6 +179,8 @@ struct Anchor {
     x: f64,
     y: f64,
     left: bool,
+    /// The card is centred on `y` rather than hung from it: fixed beside the inventory.
+    middle: bool,
 }
 
 /// How far, in logical pixels, the cursor may drift without Ctrl before the card closes. A hand
@@ -242,12 +244,14 @@ fn place_near_cursor(app: &AppHandle) -> Option<Anchor> {
     let m = monitor_at(&w, c.x, c.y)?;
     cover(app, &w, &m);
     let (p, s, scale) = (m.position(), m.size(), m.scale_factor());
-    let mut anchor = Anchor { x: (c.x - p.x as f64) / scale, y: (c.y - p.y as f64) / scale, left: c.x > p.x as f64 + s.width as f64 / 2.0 };
+    let mut anchor = Anchor { x: (c.x - p.x as f64) / scale, y: (c.y - p.y as f64) / scale, left: c.x > p.x as f64 + s.width as f64 / 2.0, middle: false };
     // Copied in the game: the card goes just left of the inventory panel, so it covers neither it
     // nor the stash. The overlay draws a left card CARD_GAP px left of its anchor.
     if let Some(rect) = crate::game_window::foreground_game().and_then(crate::game_window::rect) {
         let edge = crate::game_window::inventory_left(rect);
-        anchor = Anchor { x: (edge as f64 - p.x as f64) / scale - 8.0 + CARD_GAP, y: anchor.y, left: true };
+        // Fixed, as in Awakened PoE Trade: whatever item was copied, the card sits in the same place.
+        let middle = (rect.1 + rect.3) as f64 / 2.0;
+        anchor = Anchor { x: (edge as f64 - p.x as f64) / scale - 8.0 + CARD_GAP, y: (middle - p.y as f64) / scale, left: true, middle: true };
     }
     *follow(app) = Follow { origin: Some((c.x, c.y)), pinned: false, clickable: false, opened: Some(std::time::Instant::now()), held: false, trade: false, scale, card: (0.0, 0.0, 0.0, 0.0) };
     if !app.state::<OverlayState>().interact.load(Ordering::Relaxed) {
