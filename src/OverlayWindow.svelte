@@ -1,68 +1,12 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { call, engine, openUrl, type ItemEvaluation } from "$lib/engine.svelte";
+  import { call, engine, type ItemEvaluation } from "$lib/engine.svelte";
   import { game } from "$lib/state/game.svelte";
   import { overlay } from "$lib/state/overlay.svelte";
   import { m } from "$lib/paraglide/messages";
-  import { gemSchedule, poe1QuestPoints, poe1XpMultiplier, poeVaultUrl, resPenalty, type LevelGem, type LogState } from "$lib/overlay/leveling";
-  import { CHANGED_EVENT, progression, type Check } from "$lib/progression/model";
   import PriceCard from "$lib/overlay/PriceCard.svelte";
-
-  let plan = $state<{ current: string; target: string; next: Check[]; blocked: number } | null>(null);
-
-  /** The next few Progression priorities, from the same rules the Progression tab uses. */
-  async function refreshProgression() {
-    if (!game.isPoe1) { plan = null; return; }
-    try {
-      const saved = await progression.load();
-      const current = saved?.snapshots.find((x) => x.id === saved.currentId);
-      const target = saved?.snapshots.find((x) => x.id === saved.targetId);
-      if (!current || !target) { plan = null; return; }
-      const report = await progression.report(current, target);
-      plan = {
-        current: current.label,
-        target: target.label,
-        next: report.priorities.filter((c) => c.id !== "manual").slice(0, 4),
-        blocked: report.checks.filter((c) => c.status === "blocked").length,
-      };
-    } catch {
-      plan = null;
-    }
-  }
-
-  let log = $state<LogState | null>(null);
-  let gems = $state<LevelGem[]>([]);
-  let gemSource = $state<"target" | "build">("build");
-  let pointsSpent = $state<number | null>(null);
-  const level = $derived(log?.level ?? null);
-  // Towns and hideouts have no monsters, so their area level says nothing about experience.
-  const safeArea = $derived(!!log?.areaId && (log.areaId.includes("Hideout") || /_town$/i.test(log.areaId)));
-  const xp = $derived(game.isPoe1 && level && log?.areaLevel && !safeArea ? poe1XpMultiplier(level, log.areaLevel) : null);
-  const penalty = $derived(log ? resPenalty(game.current, log.act, log.endgame) : null);
-  const quest = $derived(game.isPoe1 && log ? poe1QuestPoints(log.act, log.endgame) : null);
-  const schedule = $derived(level ? gemSchedule(gems, level) : null);
-  const guide = $derived(log && !log.endgame ? poeVaultUrl(game.current, log.act) : null);
-
-  /** Gems come from the Progression target when there is one, else from the open build. */
-  async function refreshLeveling() {
-    try {
-      let names: string[] | undefined;
-      if (game.isPoe1) {
-        const plan = await progression.load().catch(() => null);
-        const target = plan?.snapshots.find((s) => s.id === plan.targetId);
-        if (target) names = [...new Set(target.gems.filter((g) => g.enabled).map((g) => g.name))];
-      }
-      gemSource = names ? "target" : "build";
-      const info = await call<{ gems: LevelGem[]; passivePointsSpent: number | null }>("leveling_info", names ? { names } : {});
-      gems = info.gems;
-      pointsSpent = info.passivePointsSpent;
-    } catch {
-      gems = [];
-      pointsSpent = null;
-    }
-  }
 
   interface MapEvaluation {
     tier: number | null;
@@ -73,7 +17,42 @@
     before: Record<string, number> | null;
     delta: Record<string, number> | null;
   }
-  type Card = { kind: "item"; data: ItemEvaluation } | { kind: "map"; data: MapEvaluation } | { kind: "error"; message: string };
+  /** Mirrors `Price` in src-tauri/src/prices.rs. */
+  interface Price {
+    name: string;
+    league: string;
+    chaos: number;
+    chaosMax: number | null;
+    divine: number | null;
+    stack: number | null;
+    listings: number | null;
+  }
+  type Card =
+    | { kind: "item"; data: ItemEvaluation; raw: string }
+    | { kind: "map"; data: MapEvaluation; raw: string }
+    | { kind: "price"; raw: string }
+    /** The Ctrl+D price check: poe.ninja and the trade site. */
+    | { kind: "trade"; raw: string }
+    | { kind: "error"; message: string };
+
+  let price = $state<Price | null>(null);
+  let asked = $state(false);
+
+  /** Chaos below a divine, divines above; a stack also gets its total. */
+  function priceText(p: Price) {
+    const one = (chaos: number) => {
+      const div = p.divine && p.chaos > 0 ? (chaos * p.divine) / p.chaos : null;
+      return div && div >= 1 ? `${div.toFixed(div >= 10 ? 0 : 1)} div` : `${chaos >= 10 ? Math.round(chaos) : chaos.toFixed(1)}c`;
+    };
+    const each = p.chaosMax ? `${one(p.chaos)}–${one(p.chaosMax)}` : one(p.chaos);
+    return p.stack ? m.overlay_price_stack({ each, total: one(p.chaos * p.stack), count: p.stack }) : each;
+  }
+
+  /** Puts the copied text in the assistant's message box, in whichever window shows the chat. */
+  async function ask(raw: string) {
+    await invoke("overlay_ask", { text: `${m.overlay_ask_prompt()}\n\n${raw}` }).catch(() => {});
+    asked = true;
+  }
 
   const MAP_ROWS: [string, string, "pct" | "abs"][] = [
     ["CombinedDPS", "DPS", "pct"],
@@ -90,9 +69,10 @@
   ];
 
   let interact = $state(false);
+  /** Ctrl+clicked: the card stays and its buttons work until a click elsewhere or Esc. */
+  let pinned = $state(false);
+  let root: HTMLDivElement | undefined = $state();
   let card = $state<Card | null>(null);
-  /** The item text of an open price check; it stays until closed. */
-  let price = $state<{ raw: string; key: number } | null>(null);
   let busy = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const s = $derived(overlay.settings);
@@ -132,126 +112,145 @@
   const evaluation = $derived(card?.kind === "item" ? card.data : null);
   const slots = $derived(evaluation ? [...evaluation.slots].sort((a, b) => score(evaluation, b) - score(evaluation, a)) : []);
 
+  /** The cursor where the item was copied, in window coordinates, and which side has room. */
+  let anchor = $state<{ x: number; y: number; left: boolean } | null>(null);
+  let cardHeight = $state(0);
+  const cardWidth = $derived(s?.width ?? 380);
+  // Beside the cursor; an overlay opened by the interact key with nothing copied sits top right.
+  const left = $derived(
+    anchor ? Math.max(4, Math.min(innerWidth - cardWidth - 4, anchor.left ? anchor.x - 28 - cardWidth : anchor.x + 28)) : innerWidth - cardWidth - 24,
+  );
+  const top = $derived(anchor ? Math.max(4, Math.min(innerHeight - cardHeight - 4, anchor.y - 60)) : 96);
+
+  // Tell Rust where the card is (only it takes Ctrl clicks) and nudge the unfocused window to paint.
+  $effect(() => {
+    void card;
+    void price;
+    void busy;
+    void pinned;
+    void interact;
+    void asked;
+    void left;
+    void top;
+    const r = root?.getBoundingClientRect();
+    const shown = !!r && (!!card || busy || interact);
+    cardHeight = r ? Math.ceil(r.height) : 0;
+    void invoke("overlay_fit", shown ? { x: r.left, y: r.top, width: r.width, height: r.height } : { x: 0, y: 0, width: 0, height: 0 }).catch(() => {});
+  });
+
   function show(next: Card) {
     card = next;
     clearTimeout(timer);
-    timer = setTimeout(() => {
-      if (interact) return;
-      card = null;
-      // A card copied in the game moved the overlay beside the inventory; send it back.
-      if (!price) void invoke("overlay_card_closed").catch(() => {});
-    }, (s?.cardSeconds ?? 15) * 1000);
+    timer = setTimeout(() => { if (!interact && !pinned) void invoke("overlay_dismiss"); }, (s?.cardSeconds ?? 15) * 1000);
+  }
+
+  function clear() {
+    clearTimeout(timer);
+    card = null;
+    price = null;
+    pinned = false;
+    busy = false;
+    anchor = null;
+  }
+
+  /** With Ctrl held the card takes clicks; the first one pins it. */
+  function onPointerDown() {
+    if (card && !pinned && !interact) void invoke("overlay_pin");
+  }
+
+  /** The window covers the screen: a click outside the card, while it takes clicks, closes it. */
+  function onWindowPointerDown(e: PointerEvent) {
+    if (root?.contains(e.target as Node)) return;
+    if (interact) void invoke("overlay_interact", { on: false });
+    if (pinned || card) void invoke("overlay_dismiss");
   }
 
   async function evaluate(raw: string, kind: string) {
     busy = true;
+    price = null;
+    asked = false;
+    // poe.ninja lists uniques, currency and cards; the price comes in beside PoB's numbers.
+    const priced = s?.prices && kind === "item" ? invoke<Price | null>("price_check", { raw }).catch(() => null) : Promise.resolve(null);
     try {
-      if (kind === "map") show({ kind: "map", data: await call<MapEvaluation>("map_evaluate", { raw }) });
-      else show({ kind: "item", data: await engine.itemEvaluate(raw) });
+      if (kind === "map") show({ kind: "map", data: await call<MapEvaluation>("map_evaluate", { raw }), raw });
+      else show({ kind: "item", data: await engine.itemEvaluate(raw), raw });
     } catch (e) {
       const text = String(e).replace(/^EngineError: (Error: )?/, "");
-      show({ kind: "error", message: text.includes("no build is loaded") ? m.overlay_no_build() : text });
+      // Currency and cards fit no slot; their price is still worth showing.
+      const p = await priced;
+      if (p) show({ kind: "price", raw });
+      else show({ kind: "error", message: text.includes("no build is loaded") ? m.overlay_no_build() : text });
     } finally {
       busy = false;
     }
+    const p = await priced;
+    if (card && "raw" in card && card.raw === raw) price = p;
   }
-
-  let closeButton = $state<HTMLButtonElement | null>(null);
-  let stack = $state<HTMLDivElement | null>(null);
-  const anyPanel = $derived(busy || !!card || !!price || (!!s?.leveling && (!!log?.zone || interact)) || (!!s?.progression && !!plan) || interact);
-
-  /** Rust lets clicks reach this one button while the rest of the overlay passes them to the game. */
-  function reportCloseButton() {
-    const r = closeButton?.getBoundingClientRect();
-    void invoke("overlay_close_button", { rect: r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null }).catch(() => {});
-  }
-
-  // The button moves with the panels: report it again whenever they change.
-  $effect(() => {
-    void [closeButton, interact, anyPanel];
-    void tick().then(reportCloseButton);
-  });
-  $effect(() => {
-    if (!stack) return;
-    const ro = new ResizeObserver(reportCloseButton);
-    ro.observe(stack);
-    return () => ro.disconnect();
-  });
 
   onMount(() => {
-    reportCloseButton();
-    window.addEventListener("resize", reportCloseButton);
     // The overlay sits over the game: nothing behind the panel is painted.
     document.documentElement.style.background = "transparent";
     document.body.style.background = "transparent";
     const offs: Promise<() => void>[] = [
-      listen<{ raw: string; kind: string }>("overlay:item", (e) => void evaluate(e.payload.raw, e.payload.kind)),
-      listen<{ raw: string }>("overlay:price", (e) => {
-        card = null;
-        price = { raw: e.payload.raw, key: Date.now() };
-      }),
-      listen<string>("overlay:price-error", (e) => show({ kind: "error", message: e.payload })),
-      // Ctrl was let go with the cursor away from the overlay: the card goes, as in Awakened.
-      listen<"price" | "item">("overlay:dismiss", (e) => {
-        if (e.payload === "price" && price) {
-          price = null;
-          void invoke("overlay_price_done").catch(() => {});
-        } else if (e.payload === "item" && card && !price) {
-          clearTimeout(timer);
-          card = null;
-          void invoke("overlay_card_closed").catch(() => {});
-        }
+      listen<{ raw: string; kind: string; anchor: { x: number; y: number; left: boolean } | null }>("overlay:item", (e) => {
+        anchor = e.payload.anchor;
+        void evaluate(e.payload.raw, e.payload.kind);
       }),
       listen<boolean>("overlay:interact", (e) => {
         interact = e.payload;
         if (!interact && card) show(card);
       }),
-      listen<LogState>("gamelog:update", (e) => {
-        const levelled = e.payload.level !== log?.level;
-        log = e.payload;
-        if (levelled) void refreshLeveling();
+      listen("overlay:pinned", () => {
+        pinned = true;
+        clearTimeout(timer);
       }),
-      listen(CHANGED_EVENT, () => { void refreshLeveling(); void refreshProgression(); }),
-      listen("build:edited", () => void refreshLeveling()),
-      listen("mcp:changed", () => void refreshLeveling()),
+      listen("overlay:dismiss", () => clear()),
+      // Ctrl+D: the price card stays until Ctrl is let go away from it, a click elsewhere or Esc.
+      listen<{ raw: string; anchor: { x: number; y: number; left: boolean } | null }>("overlay:price", (e) => {
+        clearTimeout(timer);
+        busy = false;
+        price = null;
+        pinned = false;
+        anchor = e.payload.anchor;
+        card = { kind: "trade", raw: e.payload.raw };
+      }),
+      listen<string>("overlay:price-error", (e) => show({ kind: "error", message: e.payload })),
     ];
+    // A pinned card closes on a click back in the game or on Esc.
+    const onBlur = () => { if (pinned) void invoke("overlay_dismiss"); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && (pinned || card)) void invoke("overlay_dismiss"); };
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onWindowPointerDown);
     void overlay.init();
-    void (async () => {
-      await game.init().catch(() => {});
-      log = await invoke<LogState>("gamelog_state").catch(() => null);
-      await Promise.all([refreshLeveling(), refreshProgression()]);
-    })();
+    void game.init().catch(() => {});
     return () => {
-      window.removeEventListener("resize", reportCloseButton);
       clearTimeout(timer);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onWindowPointerDown);
       for (const off of offs) void off.then((f) => f());
     };
   });
 </script>
 
-<div class="overlay" class:interact style:--panel-alpha={s?.opacity ?? 0.92}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="overlay"
+  class:interact
+  class:pinned
+  bind:this={root}
+  onpointerdown={onPointerDown}
+  style:--panel-alpha={s?.opacity ?? 0.92}
+  style:left="{left}px"
+  style:top="{top}px"
+  style:width="{cardWidth}px"
+>
   {#if interact}
-    <header data-tauri-drag-region>
-      <span data-tauri-drag-region>{m.overlay_title()} · {m.overlay_drag_hint()}</span>
+    <header>
+      <span>{m.overlay_title()}</span>
       <button class="btn sm" onclick={() => invoke("overlay_interact", { on: false })}>{m.overlay_done()}</button>
     </header>
-  {/if}
-
-  <div class="stack" bind:this={stack}>
-  {#if anyPanel && !price}
-    <button
-      class="close"
-      bind:this={closeButton}
-      title={m.overlay_close_hint({ key: s?.toggleKey ?? "" })}
-      aria-label={m.overlay_close()}
-      onclick={() => void invoke("overlay_hide")}
-    >✕</button>
-  {/if}
-
-  {#if price}
-    {#key price.key}
-      <section class="panel"><PriceCard raw={price.raw} onclose={() => (price = null)} /></section>
-    {/key}
   {/if}
 
   {#if busy}
@@ -283,6 +282,20 @@
       {#if e.unmatched.length}
         <p class="dim small">{m.overlay_map_unmatched({ count: e.unmatched.length })}</p>
       {/if}
+      {@render askButton(card.raw)}
+    </section>
+  {:else if card?.kind === "trade"}
+    <section class="panel">
+      {#key card.raw}
+        <PriceCard raw={card.raw} onclose={() => void invoke("overlay_dismiss")} />
+      {/key}
+      {#if !pinned && !interact}<p class="dim small hint">{m.overlay_pin_hint()}</p>{/if}
+    </section>
+  {:else if card?.kind === "price"}
+    <section class="panel item">
+      <div class="title"><strong>{price?.name ?? ""}</strong></div>
+      {@render priceLine()}
+      {@render askButton(card.raw)}
     </section>
   {:else if card?.kind === "item"}
     {@const e = card.data}
@@ -291,6 +304,7 @@
         <strong class="rarity {e.item.rarity?.toLowerCase()}">{e.item.name}</strong>
         {#if e.item.baseName && e.item.baseName !== e.item.name}<span class="dim">{e.item.baseName}</span>{/if}
       </div>
+      {@render priceLine()}
       {#if e.tooLowLevel}<p class="warn">{m.overlay_level_req({ need: e.item.levelRequired, have: e.characterLevel })}</p>{/if}
       {#each slots as slot (slot.slot)}
         <div class="slot">
@@ -313,81 +327,40 @@
         </div>
       {/each}
       {#if !slots.length}<p class="dim small">{m.overlay_no_slot()}</p>{/if}
+      {@render askButton(card.raw)}
     </section>
   {/if}
 
-  {#if s?.leveling && log?.zone && !price}
-    <section class="panel leveling">
-      <div class="slothead">
-        <strong>{log.zone}</strong>
-        <span class="dim small">
-          {#if log.endgame}{m.overlay_endgame()}{:else if log.act}{m.overlay_act({ act: log.act })}{/if}
-          {#if log.areaLevel} · {m.overlay_area_level({ level: log.areaLevel })}{/if}
-        </span>
-      </div>
-      <div class="grid">
-        {#if level}<span>{m.overlay_char_level()}</span><span>{level}</span>{/if}
-        {#if xp !== null}
-          <span>{m.overlay_xp()}</span><span class:good={xp >= 0.95} class:warn={xp < 0.95 && xp >= 0.5} class:bad={xp < 0.5}>{Math.round(xp * 100)}%</span>
-        {:else if game.isPoe2 && level && log.areaLevel && !safeArea}
-          <span>{m.overlay_level_gap()}</span><span>{log.areaLevel - level > 0 ? "+" : ""}{log.areaLevel - level}</span>
-        {/if}
-        {#if penalty !== null}<span>{m.overlay_res_penalty()}</span><span class:warn={penalty < 0}>{penalty}%</span>{/if}
-        {#if level && quest !== null}
-          <span>{m.overlay_points()}</span>
-          <span>{m.overlay_points_value({ min: level - 1 + quest, max: level - 1 + quest + ((log.act ?? 11) > 2 ? 1 : 0), spent: pointsSpent ?? "?" })}</span>
-        {/if}
-      </div>
-      {#if schedule}
-        {#if schedule.justUnlocked.length}
-          <p class="good small">{m.overlay_gems_now({ gems: schedule.justUnlocked.map((g) => g.name).join(", ") })}</p>
-        {/if}
-        {#if schedule.upcoming.length}
-          <p class="dim small">{m.overlay_gems_next({ gems: schedule.upcoming.map((g) => `${g.name} (${g.level})`).join(", ") })}</p>
-        {/if}
-        <p class="dim small">{gemSource === "target" ? m.overlay_gems_from_target() : m.overlay_gems_from_build()}</p>
-      {/if}
-      {#if guide}
-        <button class="btn sm" disabled={!interact} title={interact ? "" : m.overlay_click_hint({ key: s.interactKey })} onclick={() => void openUrl(guide)}>
-          {m.overlay_poevault({ act: log.act ?? 0 })}
-        </button>
-      {/if}
-    </section>
-  {:else if s?.leveling && interact && !price}
-    <section class="panel dim small">{log?.path ? m.overlay_log_waiting() : m.overlay_log_missing()}</section>
-  {/if}
+  {#snippet priceLine()}
+    {#if price}
+      <p class="small price" title={m.overlay_price_source({ league: price.league })}>
+        {m.overlay_price({ price: priceText(price) })}{#if price.listings}<span class="dim"> · {m.overlay_price_listings({ count: price.listings })}</span>{/if}
+      </p>
+    {/if}
+  {/snippet}
 
-  {#if s?.progression && plan && !price}
-    <section class="panel progression">
-      <div class="slothead">
-        <strong>{m.overlay_progression_title()}</strong>
-        <span class="dim small">{plan.current} → {plan.target}</span>
+  {#snippet askButton(raw: string)}
+    {#if interact || pinned}
+      <div class="actions">
+        <button class="btn sm" disabled={asked} onclick={() => void ask(raw)}>{asked ? m.overlay_asked() : m.overlay_ask()}</button>
       </div>
-      {#if plan.blocked}<p class="bad small">{m.overlay_progression_blocked({ count: plan.blocked })}</p>{/if}
-      <ol>
-        {#each plan.next as c (c.id)}<li class="small" class:bad={c.status === "blocked"}>{c.title}</li>{/each}
-      </ol>
-      {#if !plan.next.length}<p class="dim small">{m.overlay_progression_clear()}</p>{/if}
-    </section>
-  {/if}
+    {:else}
+      <p class="dim small hint">{m.overlay_pin_hint()}</p>
+    {/if}
+  {/snippet}
 
-  {#if interact && !card && !price}
+  {#if interact && !card}
     <section class="panel dim small">{m.overlay_idle_hint({ toggle: s?.toggleKey ?? "", interact: s?.interactKey ?? "" })}</section>
   {/if}
-  </div>
 </div>
 
 <style>
   :global(html), :global(body) { background: transparent !important; overflow: hidden; }
-  .overlay { display: flex; flex-direction: column; gap: 8px; padding: 6px; height: 100vh; box-sizing: border-box; font-size: 13px; user-select: none; }
-  .stack { position: relative; display: flex; flex-direction: column; gap: 8px; }
-  /* Sits in the top-right corner of the first panel. */
-  .close { position: absolute; top: 7px; right: 7px; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 5px; cursor: pointer;
-    display: grid; place-items: center; font-size: 11px; line-height: 1; color: var(--fg-3); background: transparent; z-index: 1; }
-  .close:hover { color: var(--fg-0); background: color-mix(in oklch, var(--bad) 45%, transparent); }
-  .stack > section:first-of-type { padding-right: 34px; }
+  .overlay { position: fixed; display: flex; flex-direction: column; gap: 8px; padding: 6px; box-sizing: border-box; font-size: 13px; user-select: none; }
+  .overlay.pinned .panel { outline: 1px solid var(--line-2); }
+  .hint { margin-top: 6px; }
   .overlay.interact { outline: 1px dashed var(--line-2); outline-offset: -1px; }
-  header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: move;
+  header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px;
     background: color-mix(in oklch, var(--bg-1) calc(var(--panel-alpha) * 100%), transparent); }
   .panel { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line-1);
     background: color-mix(in oklch, var(--bg-0) calc(var(--panel-alpha) * 100%), transparent); }
@@ -398,6 +371,7 @@
   .grid { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; font-variant-numeric: tabular-nums; }
   .good { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
   .dim { color: var(--fg-3); } .small { font-size: 12px; } p { margin: 4px 0; }
-  ol { margin: 4px 0 0; padding-left: 18px; } li { padding: 1px 0; }
+  .price { color: oklch(86% 0.13 95); }
+  .actions { display: flex; justify-content: flex-end; margin-top: 6px; }
   .rarity.unique { color: oklch(70% 0.12 60); } .rarity.rare { color: oklch(86% 0.13 95); } .rarity.magic { color: oklch(72% 0.12 260); }
 </style>

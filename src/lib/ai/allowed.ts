@@ -48,6 +48,14 @@ export const ALLOWED = new Set([
   "search_poedb",
   "search_wiki",
   "read_web_page",
+  // Opens the trade site with PoB's weighted search for a slot; no listings,
+  // no account. The panel asks before each one, like the web lookups.
+  "open_trade_search",
+  // What the overlay saw: items the user copied in the game or on trade, and their zone and level.
+  "get_game_context",
+  // poe.ninja's ladder, and one of its builds loaded into Compare beside the open one (PoE1).
+  "search_ninja_builds",
+  "compare_ninja_build",
   // write, approval-gated
   "alloc_node",
   "alloc_path",
@@ -75,10 +83,6 @@ export const ALLOWED = new Set([
   // Removing a whole skill setup is what "get rid of that skill" means, and
   // the approval gate plus checkpoint cover the missing undo.
   "remove_socket_group",
-  // PoE1 Progression: snapshots are separate from the open build, so these never change it.
-  "get_progression",
-  "capture_progression_snapshot",
-  "select_progression_snapshots",
 ]);
 
 /**

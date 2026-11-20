@@ -74,10 +74,7 @@ then list_affixes for the mod pool, then craft_rare, which builds it from PoB's 
 run of changes call checkpoint; every write returns `stats` and a `delta` \
 against the previous state, and rollback restores a checkpoint if the result is worse. Manage alternate \
 trees and gear sets with the list/select/create/copy/rename/delete _spec and _item_set tools. Use \
-save_build or export_build to persist the result. For a character moving towards another build, \
-get_progression reads the user's saved current and target snapshots with their differences, readiness \
-checks and next priorities; capture_progression_snapshot saves the open build as either side, and \
-select_progression_snapshots picks the pair. The user is watching the app while you work.";
+save_build or export_build to persist the result. The user is watching the app while you work.";
 
 pub(crate) fn instructions(game: Game) -> &'static str {
     match game {
@@ -556,6 +553,44 @@ setting for the whole tree. It applies to nodes allocated from then on, so set i
                 &["type", "base_name"],
             ),
         ),
+        ro(
+            "open_trade_search",
+            "Open the official trade site, in the app's trade window, on PoB's Trader search for one slot: mods weighed by how much they raise `stat_weights`, needing more than the equipped item. No trade API, no listings fetched, nothing bought. Returns `tradeUrl`, `weighted` mods and `minWeight`. Copy on a listing, with the overlay on, scores it (get_game_context). The user approves each search.",
+            obj(
+                json!({
+                    "slot": prop("string", "Slot as get_items names it, e.g. Ring 1"),
+                    "league": prop("string", "League as the user names it (default: current)"),
+                    "stat_weights": {
+                        "type": "array",
+                        "description": "What the item should raise (default: the build's Trader weights)",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "stat": prop("string", "Power stat (list_power_stats), e.g. FullDPS, Life, TotalEHP"),
+                                "weight": prop("number", "Default 1"),
+                            },
+                            "required": ["stat"],
+                        },
+                    },
+                    "status": { "type": "string", "enum": ["securable", "available", "onlineleague", "online", "any"], "description": "securable is instant buyout (default online)" },
+                    "open": prop("boolean", "Open the window now (default true); false for several slots, each then a button under the reply"),
+                }),
+                &["slot"],
+            ),
+        )
+        .open_world()
+        .slow(),
+        ro(
+            "get_game_context",
+            "What the in-game overlay saw: items and maps the user copied (Ctrl+C in game, Copy on trade), newest first, each scored per slot against the open build (`evaluation.slots[].delta`) or, for a map, its dangers; uniques, currency and cards carry a poe.ninja `price` (PoE1). Also zone, area level, act and level from the log. For \"this item\", \"the one I copied\". Empty `copied`: ask them to turn the overlay on and copy the item.",
+            obj(
+                json!({
+                    "limit": prop("integer", "Items to return (default 3, at most 5)"),
+                    "evaluate": prop("boolean", "Score them against the build (default true)"),
+                }),
+                &[],
+            ),
+        ),
         // Item sets
         ro("list_item_sets", "The build's gear sets and which one is active.", none()),
         rw("select_item_set", "Switch the active gear set.", obj(json!({ "id": prop("integer", "Item set id from list_item_sets") }), &["id"])).idempotent(),
@@ -725,6 +760,46 @@ fn adapt_for_poe1(defs: &mut Vec<ToolDef>) {
         open_world: false,
         slow: false,
     });
+    defs.push(ToolDef {
+        name: "search_ninja_builds",
+        description: "Search poe.ninja's ladder for builds like the user's: the top characters for a class or ascendancy, main skill, keystone or unique item, best first, each with `name`, `account`, level, life, energy shield, EHP, DPS, main skills and keystones. Returns `leagueUrl` and a `url` to the same search on poe.ninja. Pick one and pass its `account`, `name` and the `leagueUrl` to compare_ninja_build. The user approves each lookup.".into(),
+        schema: obj(
+            json!({
+                "class": prop("string", "Ascendancy or class, e.g. Slayer"),
+                "skill": prop("string", "Main skill gem, e.g. Dual Strike of Ambidexterity"),
+                "keystone": prop("string", "Keystone the builds take, e.g. Chaos Inoculation"),
+                "item": prop("string", "Unique item the builds use, e.g. Headhunter"),
+                "league": prop("string", "League as the user names it (default: the current one)"),
+                "limit": prop("integer", "How many builds to return (default 10, at most 30)"),
+            }),
+            &[],
+        ),
+        output_schema: None,
+        read_only: true,
+        destructive: false,
+        idempotent: true,
+        open_world: true,
+        slow: false,
+    });
+    defs.push(ToolDef {
+        name: "compare_ninja_build",
+        description: "Load one poe.ninja ladder character (from search_ninja_builds) into the Compare tab beside the open build, without changing the open build, and return what differs: headline stats (`stats`, theirs against mine), gear by slot, gems only one side uses, keystones and notables they take that the user does not and the reverse. Use it to say what the user's build is missing against strong builds of the same kind. When poe.ninja refuses automated requests, give the user the search link and ask for the PoB code from the character's page, then pass `code`. The user approves each lookup.".into(),
+        schema: obj(
+            json!({
+                "account": prop("string", "Account from search_ninja_builds"),
+                "name": prop("string", "Character name from search_ninja_builds"),
+                "league_url": prop("string", "`leagueUrl` from search_ninja_builds"),
+                "code": prop("string", "Instead: a PoB code the user copied from a poe.ninja character page"),
+            }),
+            &[],
+        ),
+        output_schema: None,
+        read_only: true,
+        destructive: false,
+        idempotent: false,
+        open_world: true,
+        slow: true,
+    });
     let timeless_jewel = || json!({ "type": "string", "enum": ["Glorious Vanity", "Lethal Pride", "Brutal Restraint", "Militant Faith", "Elegant Hubris", "Heroic Tragedy"], "description": "Timeless jewel" });
     defs.push(ToolDef {
         name: "list_timeless_options",
@@ -772,52 +847,6 @@ fn adapt_for_poe1(defs: &mut Vec<ToolDef>) {
         destructive: false,
         idempotent: false,
         open_world: true,
-        slow: false,
-    });
-    defs.push(ToolDef {
-        name: "get_progression",
-        description: "Read the user's Progression plan: the saved snapshots (whole builds frozen in time), which one is the current character and which is the target build, and for that pair the equipment, gem and passive differences, the readiness checks (`blocked`, `review` or `pass`) and the ordered next priorities. Snapshot stats are PoB's own numbers for a solo copy of each build, configured and in the chosen boss scenario. Use it when the user asks what to do next, how far they are from a target, or what changed since an earlier snapshot. Nothing is changed.".into(),
-        schema: obj(json!({ "xml": prop("boolean", "Include each snapshot's full build XML (default false)") }), &[]),
-        output_schema: None,
-        read_only: true,
-        destructive: false,
-        idempotent: true,
-        open_world: false,
-        slow: false,
-    });
-    defs.push(ToolDef {
-        name: "capture_progression_snapshot",
-        description: "Save the open build as a Progression snapshot and select it as the current character or the target build. PoB calculates it on a temporary solo copy, configured and in a boss scenario; the open build itself is not changed. Capture the current character after the user changes it, or the target once they have picked the loadout they are aiming for. Keep and Undo in the chat do not remove a snapshot; the user removes one in the Progression tab. History holds 20 snapshots.".into(),
-        schema: obj(
-            json!({
-                "role": { "type": "string", "enum": ["current", "target"], "description": "Select the snapshot as the current character or the target build" },
-                "label": prop("string", "Snapshot name, for example the build and stage (default \"Snapshot\")"),
-                "boss": { "type": "string", "enum": ["Boss", "Pinnacle", "Uber"], "description": "Boss scenario to calculate (default Pinnacle)" },
-            }),
-            &["role"],
-        ),
-        output_schema: None,
-        read_only: false,
-        destructive: false,
-        idempotent: false,
-        open_world: false,
-        slow: false,
-    });
-    defs.push(ToolDef {
-        name: "select_progression_snapshots",
-        description: "Choose which saved Progression snapshots are the current character and the target build, by the `id` get_progression lists. Give either or both. The open build is not changed.".into(),
-        schema: obj(
-            json!({
-                "current_id": prop("string", "Snapshot id to use as the current character"),
-                "target_id": prop("string", "Snapshot id to use as the target build"),
-            }),
-            &[],
-        ),
-        output_schema: None,
-        read_only: false,
-        destructive: false,
-        idempotent: true,
-        open_world: false,
         slow: false,
     });
     for d in defs.iter_mut() {
@@ -1406,6 +1435,37 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
             }
             read(v)
         }
+        "search_ninja_builds" => {
+            let limit = arg_i64(args, "limit")?.unwrap_or(10).clamp(1, 30) as usize;
+            let (class, skill, keystone, item, league) = (arg_str(args, "class"), arg_str(args, "skill"), arg_str(args, "keystone"), arg_str(args, "item"), arg_str(args, "league"));
+            if class.is_none() && skill.is_none() && keystone.is_none() && item.is_none() {
+                return Err(ToolError::Invalid("give at least one of class, skill, keystone or item".into()));
+            }
+            let found = tauri::async_runtime::block_on(crate::ninja::search_builds(
+                ctx.game(),
+                league.as_deref(),
+                class.as_deref(),
+                skill.as_deref(),
+                keystone.as_deref(),
+                item.as_deref(),
+                limit,
+            ))
+            .map_err(ToolError::Failed)?;
+            read(serde_json::to_value(found).unwrap_or(Value::Null))
+        }
+        "compare_ninja_build" => {
+            // A PoB code the user copied from poe.ninja works without the API.
+            let (code, name, account) = match arg_str(args, "code").filter(|c| !c.trim().is_empty()) {
+                Some(code) => (code, arg_str(args, "name").unwrap_or_else(|| "Ladder build".into()), arg_str(args, "account").unwrap_or_default()),
+                None => {
+                    let (account, name, league_url) = (req_str(args, "account")?, req_str(args, "name")?, req_str(args, "league_url")?);
+                    let code = tauri::async_runtime::block_on(crate::ninja::build_code(ctx.game(), &account, &name, &league_url)).map_err(ToolError::Failed)?;
+                    (code, name, account)
+                }
+            };
+            ctx.call("compare_add", json!({ "code": code.trim(), "label": format!("{name} (poe.ninja)") }))?;
+            read(ninja_comparison(ctx, &name, &account)?)
+        }
         "search_timeless_seeds" => {
             let wanted = arg_list(args, "wanted");
             if wanted.is_empty() {
@@ -1516,6 +1576,41 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
                 }),
             )?)
         }
+        "open_trade_search" => {
+            let weights: Vec<Value> = arg_list(args, "stat_weights")
+                .into_iter()
+                .filter_map(|w| {
+                    let stat = w.get("stat").and_then(Value::as_str)?;
+                    Some(json!({ "stat": stat, "weightMult": w.get("weight").and_then(Value::as_f64).unwrap_or(1.0) }))
+                })
+                .collect();
+            let mut v = ctx.call(
+                "trade_search_url",
+                json!({
+                    "slotName": req_str(args, "slot")?,
+                    "league": arg_str(args, "league"),
+                    "statWeights": weights,
+                    "status": arg_str(args, "status"),
+                }),
+            )?;
+            let url = v.get("url").and_then(Value::as_str).unwrap_or_default().to_string();
+            let opened = if arg_bool(args, "open").unwrap_or(true) { crate::trade::open(&ctx.app, &url).map(|_| true) } else { Ok(false) };
+            if let Some(m) = v.as_object_mut() {
+                // The query is in the link; the summary below is what the model reads.
+                m.remove("query");
+                m.remove("url");
+                m.insert("tradeUrl".into(), json!(url));
+                m.insert("opened".into(), json!(opened.as_ref().is_ok_and(|o| *o)));
+                if let Err(e) = opened {
+                    m.insert("note".into(), json!(format!("The trade window did not open ({e}); the user can open tradeUrl from the button under the reply.")));
+                }
+                if let Some(Value::Array(w)) = m.get_mut("weighted") {
+                    w.truncate(20);
+                }
+            }
+            read(v)
+        }
+        "get_game_context" => read(game_context(ctx, arg_i64(args, "limit")?, arg_bool(args, "evaluate").unwrap_or(true))?),
         // Item sets
         "list_item_sets" => read(ctx.call("list_item_sets", Value::Null)?),
         "select_item_set" => stats(ctx.call("select_item_set", json!({ "id": req_i64(args, "id")? }))?),
@@ -1634,77 +1729,123 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
         "set_notes" => Ok((ctx.call("set_notes", json!({ "text": arg_str(args, "text").unwrap_or_default() }))?, true)),
         "get_loadouts" => read(ctx.call("get_loadouts", Value::Null)?),
         "select_loadout" => stats(ctx.call("select_loadout", json!({ "name": req_str(args, "name")? }))?),
-        // Progression (PoE1)
-        "get_progression" => read(progression_view(ctx, arg_bool(args, "xml").unwrap_or(false))?),
-        "capture_progression_snapshot" => {
-            let role = req_str(args, "role")?;
-            if role != "current" && role != "target" {
-                return Err(ToolError::Invalid("role must be current or target".into()));
-            }
-            let mut params = json!({ "boss": arg_str(args, "boss").unwrap_or_else(|| "Pinnacle".into()) });
-            if let Some(label) = arg_str(args, "label") {
-                params["label"] = Value::String(label);
-            }
-            let snapshot = crate::progression::from_capture(ctx.call("progression_capture", params)?).map_err(ToolError::Failed)?;
-            let id = snapshot.id.clone();
-            crate::progression::update(&ctx.app, |plan| crate::progression::add(plan, snapshot, &role)).map_err(ToolError::Failed)?;
-            let mut v = progression_view(ctx, false)?;
-            v["captured"] = Value::String(id);
-            Ok((v, false))
-        }
-        "select_progression_snapshots" => {
-            let (current, target) = (arg_str(args, "current_id"), arg_str(args, "target_id"));
-            if current.is_none() && target.is_none() {
-                return Err(ToolError::Invalid("give current_id, target_id or both".into()));
-            }
-            crate::progression::update(&ctx.app, |plan| {
-                for id in [&current, &target].into_iter().flatten() {
-                    if !plan.snapshots.iter().any(|s| &s.id == id) {
-                        return Err(format!("no snapshot with id {id}; get_progression lists them"));
-                    }
-                }
-                let mut next = plan.clone();
-                next.current_id = current.clone().or(next.current_id);
-                next.target_id = target.clone().or(next.target_id);
-                Ok(next)
-            })
-            .map_err(ToolError::Failed)?;
-            Ok((progression_view(ctx, false)?, false))
-        }
         other => Err(ToolError::Invalid(format!("unknown tool {other}"))),
     }
 }
 
-/// The plan as the assistant reads it: snapshot summaries without their XML unless asked, and the report for the selected pair.
-fn progression_view(ctx: &ToolContext, with_xml: bool) -> Result<Value, ToolError> {
-    if ctx.game() != Game::Poe1 {
-        return Err(ToolError::Failed("Progression is for Path of Exile 1 builds only.".into()));
-    }
-    let plan = crate::progression::load(&ctx.app).map_err(ToolError::Failed)?.unwrap_or_default();
-    let summary = |s: &crate::progression::Snapshot| {
-        let mut v = json!({
-            "id": s.id, "label": s.label, "at": s.at, "level": s.level, "className": s.class_name, "ascendancy": s.ascendancy,
-            "mainSkill": s.main_skill, "pobVersion": s.pob_version, "loadout": s.loadout, "stats": s.stats,
-            "boss": { "kind": s.boss.kind, "stats": s.boss.stats }, "gems": s.gems, "gemErrors": s.gem_errors,
-            "equipment": s.equipment.iter().map(|i| json!({ "slot": i.slot, "name": i.name })).collect::<Vec<_>>(),
-            "nodes": s.nodes.len(),
-        });
-        if with_xml {
-            v["xml"] = Value::String(s.xml.clone());
-        }
-        v
+/// What a ladder build has that the open one does not, from PoB's own compare: headline stats,
+/// gear, skill groups and the tree. The comparison stays in the Compare tab for the user.
+fn ninja_comparison(ctx: &ToolContext, name: &str, account: &str) -> Result<Value, ToolError> {
+    const STATS: [&str; 18] = [
+        "CombinedDPS", "FullDPS", "TotalEHP", "Life", "EnergyShield", "Mana", "Ward", "Armour", "Evasion",
+        "FireResist", "ColdResist", "LightningResist", "ChaosResist", "EffectiveSpellSuppressionChance", "BlockChance",
+        "Str", "Dex", "Int",
+    ];
+    let summary = ctx.call("compare_summary", json!({ "onlyDifferences": true }))?;
+    let stats: Vec<Value> = summary["rows"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|r| r["stat"].as_str().is_some_and(|s| STATS.contains(&s)))
+        .map(|r| json!({ "stat": r["label"], "mine": r["mineText"], "theirs": r["theirsText"], "difference": r["deltaText"], "theirsBetter": r["better"] }))
+        .collect();
+    let items = ctx.call("compare_items", json!({ "onlyDifferences": true }))?;
+    let gear: Vec<Value> = items["rows"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|r| json!({ "slot": r["slot"], "mine": r["mine"]["name"], "theirs": r["theirs"]["name"] }))
+        .collect();
+    // Socket groups are ordered differently in every build, so compare the gems each side uses.
+    let skills = ctx.call("compare_skills", json!({ "onlyDifferences": false }))?;
+    let used = |side: &str| -> std::collections::BTreeSet<String> {
+        skills["rows"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|r| r[side]["enabled"] != Value::Bool(false))
+            .flat_map(|r| r[side]["gems"].as_array().cloned().unwrap_or_default())
+            .filter(|g| g["enabled"] != Value::Bool(false))
+            .filter_map(|g| g["name"].as_str().map(str::to_string))
+            .collect()
     };
-    let report = match (plan.current(), plan.target()) {
-        (Some(c), Some(t)) => serde_json::to_value(crate::progression::report(c, t)).unwrap_or(Value::Null),
-        _ => Value::Null,
-    };
+    let (mine_gems, their_gems) = (used("mine"), used("theirs"));
+    let tree = ctx.call("compare_tree", Value::Null)?;
+    let first = |key: &str, n: usize| Value::Array(tree[key].as_array().into_iter().flatten().take(n).cloned().collect());
     Ok(json!({
-        "snapshots": plan.snapshots.iter().map(summary).collect::<Vec<_>>(),
-        "currentId": plan.current_id,
-        "targetId": plan.target_id,
-        "report": report,
-        "note": if report.is_null() { "Select a current and a target snapshot to compare them." } else { "Priorities follow fixed rules (blockers, then comparability, then gear, gems and tree); they are not a price or DPS-per-currency ranking." },
+        "theirs": if account.is_empty() { name.to_string() } else { format!("{name} ({account})") },
+        "stats": stats,
+        "gear": gear,
+        "gemsTheyUse": their_gems.difference(&mine_gems).collect::<Vec<_>>(),
+        "gemsOnlyMine": mine_gems.difference(&their_gems).collect::<Vec<_>>(),
+        "tree": {
+            "mineNodes": tree["mine"]["nodes"],
+            "theirNodes": tree["theirs"]["nodes"],
+            "keystonesTheyTake": tree["keystonesGained"],
+            "keystonesOnlyMine": tree["keystonesLost"],
+            "notablesTheyTake": first("notablesGained", 30),
+            "notablesOnlyMine": first("notablesLost", 30),
+        },
+        "note": "Their build is now in the Compare tab beside the open one; the open build is unchanged.",
     }))
+}
+
+/// The overlay's recent copies, scored against the open build, and the game log's position.
+#[cfg(desktop)]
+fn game_context(ctx: &ToolContext, limit: Option<i64>, evaluate: bool) -> Result<Value, ToolError> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let limit = limit.unwrap_or(3).clamp(1, 5) as usize;
+    let settings = crate::overlay::settings(&ctx.app);
+    let copied: Vec<Value> = crate::overlay::recent(&ctx.app)
+        .into_iter()
+        .take(limit)
+        .map(|c| {
+            let mut v = json!({ "kind": c.kind, "secondsAgo": now.saturating_sub(c.at), "text": c.raw });
+            if evaluate {
+                let method = if c.kind == "map" { "map_evaluate" } else { "item_evaluate" };
+                match ctx.call(method, json!({ "raw": c.raw })) {
+                    Ok(e) => v["evaluation"] = brief_evaluation(e),
+                    Err(ToolError::Failed(e) | ToolError::Invalid(e)) => v["evaluationError"] = json!(e),
+                }
+            }
+            if c.kind == "item" && settings.prices {
+                if let Ok(Some(p)) = tauri::async_runtime::block_on(crate::prices::price(ctx.game(), &c.raw, settings.price_league.as_deref())) {
+                    v["price"] = serde_json::to_value(p).unwrap_or(Value::Null);
+                }
+            }
+            v
+        })
+        .collect();
+    let mut log = serde_json::to_value(crate::gamelog::gamelog_state(ctx.app.clone())).unwrap_or(Value::Null);
+    if let Some(m) = log.as_object_mut() {
+        m.remove("path");
+    }
+    Ok(json!({
+        "overlayEnabled": settings.enabled,
+        "log": log,
+        "copied": copied,
+    }))
+}
+
+#[cfg(not(desktop))]
+fn game_context(_: &ToolContext, _: Option<i64>, _: bool) -> Result<Value, ToolError> {
+    Err(ToolError::Failed("The in-game overlay is desktop only.".into()))
+}
+
+#[cfg(desktop)]
+/// What the model needs from item_evaluate / map_evaluate: the per-slot change, not every headline stat twice.
+fn brief_evaluation(mut e: Value) -> Value {
+    if let Some(m) = e.as_object_mut() {
+        for k in ["before", "generation", "rev"] {
+            m.remove(k);
+        }
+        if let Some(Value::Array(slots)) = m.get_mut("slots") {
+            for s in slots.iter_mut().filter_map(Value::as_object_mut) {
+                s.remove("after");
+            }
+        }
+    }
+    e
 }
 
 #[cfg(test)]
@@ -1715,7 +1856,7 @@ mod tests {
     #[test]
     fn poe1_registry_speaks_poe1() {
         let d = defs(Game::Poe1);
-        assert_eq!(d.len(), 86, "PoE1 tool count changed");
+        assert_eq!(d.len(), 87, "PoE1 tool count changed");
         for (name, _) in POE1_TEXT {
             assert!(d.iter().any(|t| t.name == *name), "POE1_TEXT names {name}, which is not a tool");
         }
@@ -1733,7 +1874,7 @@ mod tests {
     #[test]
     fn registry_is_stable_and_measured() {
         let d = defs(Game::Poe2);
-        assert_eq!(d.len(), 80, "tool count changed");
+        assert_eq!(d.len(), 82, "tool count changed");
 
         let mut names: Vec<&str> = d.iter().map(|t| t.name).collect();
         names.sort_unstable();

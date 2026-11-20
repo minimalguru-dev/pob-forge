@@ -190,8 +190,6 @@
   "update_available": "Version",
   "update_available_suffix": "ist verfügbar.",
   "update_install": "Aktualisieren",
-  "update_download": "Herunterladen",
-  "update_download_title": "Eine Paketinstallation wird von ihrem Paketmanager ersetzt, nicht von der App",
   "update_later": "Später",
   "update_downloading": "Wird heruntergeladen",
   "update_ready": "Update installiert. Zum Abschließen neu starten.",

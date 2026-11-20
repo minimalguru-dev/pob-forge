@@ -1,16 +1,11 @@
-import { invoke } from "@tauri-apps/api/core";
-import { openUrl } from "$lib/engine.svelte";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 
 const KEY = "pob-forge:update";
-const DOWNLOAD_URL = "https://github.com/minimalguru-dev/pob-forge/releases/latest";
 /** Only release builds signed with this app's own updater key set this (see release.yml). */
 const ENABLED = import.meta.env.VITE_UPDATER === "true";
 
 export type UpdatePhase = "idle" | "checking" | "available" | "downloading" | "ready" | "error";
-/** `self`: the app installs the update. `package`: a .deb or .rpm the user downloads. */
-export type UpdateMethod = "self" | "package";
 
 /**
  * App auto-update. Checks once shortly after boot, then only when asked.
@@ -27,8 +22,6 @@ class UpdateStore {
   progress = $state<number | null>(null);
   /** Set when the user closes the banner, so it stays closed for that version. */
   dismissed = $state<string | null>(null);
-  /** Linux package installs cannot self-update: the updater only replaces an AppImage. */
-  method = $state<UpdateMethod>("self");
 
   private update: Update | null = null;
   private downloaded = 0;
@@ -46,9 +39,6 @@ class UpdateStore {
     try {
       this.dismissed = localStorage.getItem(KEY);
     } catch {}
-    invoke<UpdateMethod>("update_method")
-      .then((v) => (this.method = v))
-      .catch(() => {});
     // Let the engine finish booting before touching the network.
     setTimeout(() => void this.check(false), 4000);
   }
@@ -58,10 +48,6 @@ class UpdateStore {
     try {
       if (this.version) localStorage.setItem(KEY, this.version);
     } catch {}
-  }
-
-  openReleases() {
-    return openUrl(DOWNLOAD_URL);
   }
 
   /** `manual` surfaces "you are up to date" and any error; the boot check is silent. */

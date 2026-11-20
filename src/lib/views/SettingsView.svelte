@@ -621,11 +621,7 @@
             <div class="row">
               {#if appUpdate.phase === "available"}
                 <span>{m.update_available()} <span class="mono" style:color="var(--ok)">{appUpdate.version}</span> {m.update_available_suffix()}</span>
-                {#if appUpdate.method === "self"}
-                  <button class="btn sm" onclick={() => appUpdate.install()}>{m.update_install()}</button>
-                {:else}
-                  <button class="btn sm" onclick={() => appUpdate.openReleases()} title={m.update_download_title()}>{m.update_download()}</button>
-                {/if}
+                <button class="btn sm" onclick={() => appUpdate.install()}>{m.update_install()}</button>
               {:else if appUpdate.phase === "downloading"}
                 <span class="dim">
                   {m.update_downloading()} <span class="mono">{appUpdate.version}</span>
@@ -695,7 +691,7 @@
           </div>
           <h2 class="label ghead">{m.overlay_panels()}</h2>
           <div class="rows">
-            {#each [["itemCheck", m.overlay_item_check(), m.overlay_item_check_hint()], ["mapCheck", m.overlay_map_check(), m.overlay_map_check_hint()], ["leveling", m.overlay_leveling(), m.overlay_leveling_hint()], ["progression", m.overlay_progression(), m.overlay_progression_hint()], ["priceCheck", m.overlay_price_check(), m.overlay_price_check_hint()]] as const as [key, label, hint] (key)}
+            {#each [["itemCheck", m.overlay_item_check(), m.overlay_item_check_hint()], ["mapCheck", m.overlay_map_check(), m.overlay_map_check_hint()], ["prices", m.overlay_prices(), m.overlay_prices_hint()], ["priceCheck", m.overlay_price_check(), m.overlay_price_check_hint()]] as const as [key, label, hint] (key)}
               <label class="opt">
                 <span>{label}<span class="hint">{hint}</span></span>
                 <input class="switch" type="checkbox" role="switch" checked={o[key]} disabled={overlay.saving} onchange={(e) => overlay.update({ [key]: (e.target as HTMLInputElement).checked })} />
@@ -710,6 +706,30 @@
               </label>
             </div>
           {/if}
+          {#if o.prices}
+            <div class="rows">
+              <label class="opt">
+                <span>{m.overlay_price_league()}<span class="hint">{m.overlay_price_league_hint()}</span></span>
+                <input class="input" value={o.priceLeague ?? ""} placeholder={m.overlay_price_league_current()} disabled={overlay.saving} onchange={(e) => overlay.update({ priceLeague: (e.target as HTMLInputElement).value.trim() || null })} />
+              </label>
+            </div>
+          {/if}
+          <h2 class="label ghead">{m.overlay_macros()}</h2>
+          <p class="note">{m.overlay_macros_hint()}</p>
+          <div class="rows">
+            {#each o.macros as mac, i (i)}
+              <div class="opt macro">
+                <input class="input mono key" value={mac.key} aria-label={m.overlay_macro_key()} placeholder="F5" disabled={overlay.saving}
+                  onchange={(e) => overlay.update({ macros: o.macros.map((x, j) => (j === i ? { ...x, key: (e.target as HTMLInputElement).value.trim() } : x)) })} />
+                <input class="input mono" value={mac.command} aria-label={m.overlay_macro_command()} placeholder="/hideout" disabled={overlay.saving}
+                  onchange={(e) => overlay.update({ macros: o.macros.map((x, j) => (j === i ? { ...x, command: (e.target as HTMLInputElement).value.trim() } : x)) })} />
+                <button class="btn sm ghost" disabled={overlay.saving} onclick={() => overlay.update({ macros: o.macros.filter((_, j) => j !== i) })}>{m.overlay_macro_remove()}</button>
+              </div>
+            {/each}
+            <div class="opt">
+              <button class="btn sm" disabled={overlay.saving} onclick={() => overlay.update({ macros: [...o.macros, { key: "", command: "/" }] })}>{m.overlay_macro_add()}</button>
+            </div>
+          </div>
           {#if overlay.error}<div class="opt err mono">{overlay.error}</div>{/if}
           <p class="note">{m.overlay_rules_note()}</p>
         {:else if overlay.error}
@@ -883,6 +903,18 @@
   }
   .rows.master.live {
     border-color: var(--fg-3);
+  }
+  .opt.macro {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .opt.macro .key {
+    width: 110px;
+    flex: none;
+  }
+  .opt.macro input:not(.key) {
+    flex: 1;
   }
   .opt {
     display: flex;

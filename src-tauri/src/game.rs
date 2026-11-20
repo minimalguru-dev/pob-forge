@@ -130,13 +130,25 @@ pub struct OverlaySettings {
     pub opacity: f64,
     pub item_check: bool,
     pub map_check: bool,
-    pub leveling: bool,
-    pub progression: bool,
+    /// poe.ninja prices on item cards (PoE1).
+    pub prices: bool,
+    /// League for prices; none means the current challenge league.
+    pub price_league: Option<String>,
     /// How long an item or map card stays up.
     pub card_seconds: u32,
     /// Price check on `price_key`, taken only while the game has focus (Windows).
     pub price_check: bool,
     pub price_key: String,
+    /// Keys that type one chat command into the game, while the game is in front.
+    pub macros: Vec<Macro>,
+}
+
+/// A key and the chat command it types, such as F5 and /hideout.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Macro {
+    pub key: String,
+    pub command: String,
 }
 
 impl Default for OverlaySettings {
@@ -153,12 +165,12 @@ impl Default for OverlaySettings {
             opacity: 0.92,
             item_check: true,
             map_check: true,
-            // The overlay is for item and price cards; the log panels are opt-in.
-            leveling: false,
-            progression: false,
+            prices: true,
+            price_league: None,
             card_seconds: 15,
             price_check: true,
             price_key: "Ctrl+D".into(),
+            macros: vec![Macro { key: "F5".into(), command: "/hideout".into() }],
         }
     }
 }

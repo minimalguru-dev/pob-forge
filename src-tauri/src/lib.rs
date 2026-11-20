@@ -21,13 +21,13 @@ mod maxroll;
 mod character;
 mod ggg;
 mod ninja;
+mod prices;
 mod links;
 mod diagnostics;
 mod game;
 mod trade;
 mod assistant;
 mod threads;
-mod progression;
 #[cfg(desktop)]
 mod overlay;
 #[cfg(desktop)]
@@ -49,6 +49,8 @@ use tauri::{Emitter, Manager, State};
 
 use game::Game;
 
+/// The fork's own build (tauri.alpha.conf.json). It keeps the old preview identifier so the
+/// settings and keys a tester already saved carry over.
 pub(crate) fn is_progression_preview(app: &tauri::AppHandle) -> bool {
     app.config().identifier == "dev.minimalguru.pob-progression-preview"
 }
@@ -137,7 +139,6 @@ async fn export_diagnostics(app: tauri::AppHandle, state: State<'_, AppState>, p
         ("Path of Building", pob),
         ("Engine", format!("{:?}, boot {} ms{}", engine.state, engine.boot_ms.unwrap_or(0), engine.message.map(|m| format!(", {m}")).unwrap_or_default())),
         ("Worker pool", format!("{} of {} ready", pool.ready, pool.size)),
-        ("Updates", update_method().to_string()),
         ("MCP server", if mcp.running { format!("on, port {}", mcp.port) } else { "off".into() }),
         ("Last run ended cleanly", if state.session.unclean_exit { "no".into() } else { "yes".into() }),
         ("Safe mode", if state.session.safe_mode { "yes".into() } else { "no".into() }),
@@ -377,16 +378,6 @@ fn open_on_start() -> Option<String> {
         .skip(1)
         .find(|a| a.to_ascii_lowercase().ends_with(".xml") && Path::new(a).is_file())
         .or_else(|| std::env::var("POB_FORGE_OPEN").ok().filter(|p| Path::new(p).is_file()))
-}
-
-/// How this copy gets updates. The updater replaces the running binary, which on
-/// Linux only works for an AppImage; a .deb or .rpm install has to fetch the new package.
-#[tauri::command]
-fn update_method() -> &'static str {
-    if !cfg!(target_os = "linux") || std::env::var_os("APPIMAGE").is_some() {
-        return "self";
-    }
-    "package"
 }
 
 #[tauri::command]
@@ -1198,7 +1189,7 @@ fn serve_pob_asset(
     }
 }
 
-/// Windows and Linux pass the launch link as an argument; macOS through the deep-link plugin.
+/// Windows passes the launch link as an argument; macOS through the deep-link plugin.
 fn start_link(app: &tauri::AppHandle) -> Option<links::Link> {
     if let Some(link) = links::from_args() {
         return Some(link);
@@ -1229,13 +1220,6 @@ fn watch_links(app: &tauri::AppHandle) {
     #[cfg(desktop)]
     {
         use tauri_plugin_deep_link::DeepLinkExt;
-        // An AppImage has no installer to register the schemes.
-        #[cfg(target_os = "linux")]
-        if std::env::var_os("APPIMAGE").is_some() {
-            if let Err(e) = app.deep_link().register_all() {
-                log::warn!("links: could not register the pob schemes: {e}");
-            }
-        }
         let handle = app.clone();
         app.deep_link().on_open_url(move |event| {
             for url in event.urls() {
@@ -1345,7 +1329,6 @@ pub fn run() {
             gem_dps_parallel,
             app_paths,
             set_builds_dir,
-            update_method,
             take_open_link,
             session_info,
             export_diagnostics,
@@ -1435,14 +1418,6 @@ pub fn run() {
             assistant::chat_handoff_put,
             assistant::chat_handoff_take,
             threads::threads_list,
-            progression::progression_load,
-            progression::progression_migrate,
-            progression::progression_decode,
-            progression::progression_add,
-            progression::progression_remove,
-            progression::progression_select,
-            progression::progression_import,
-            progression::progression_report,
             #[cfg(desktop)]
             overlay::overlay_settings_get,
             #[cfg(desktop)]
@@ -1452,13 +1427,18 @@ pub fn run() {
             #[cfg(desktop)]
             overlay::overlay_interact,
             #[cfg(desktop)]
-            overlay::overlay_hide,
-            #[cfg(desktop)]
-            overlay::overlay_close_button,
-            #[cfg(desktop)]
             overlay::overlay_price_done,
             #[cfg(desktop)]
-            overlay::overlay_card_closed,
+            overlay::overlay_ask,
+            #[cfg(desktop)]
+            overlay::overlay_repaint,
+            #[cfg(desktop)]
+            overlay::overlay_pin,
+            #[cfg(desktop)]
+            overlay::overlay_dismiss,
+            #[cfg(desktop)]
+            overlay::overlay_fit,
+            prices::price_check,
             #[cfg(desktop)]
             gamelog::gamelog_state,
             #[cfg(desktop)]

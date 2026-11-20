@@ -3,11 +3,7 @@ name: check
 # Fast validation for ordinary commits. Installers are built and published only
 # by release.yml, on a tag.
 #
-# This used to build both platforms' installers on every push, which cost about
-# 24 billed minutes a time (Windows bills at 2x) to produce artifacts nobody
-# installed. Compiling and testing on Linux catches the same class of mistake
-# for a fraction of that; anything Windows-specific surfaces on the tag build,
-# which publishes a draft and so cannot ship broken without review.
+# Runs on Windows, the platform this fork ships; there is no Linux build.
 on:
   push:
     branches: [main]
@@ -18,7 +14,10 @@ env:
   POB_FORGE_CDN_URL: ${{ vars.POB_FORGE_CDN_URL }}
 jobs:
   check:
-    runs-on: ubuntu-22.04
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     env:
       # Secrets cannot appear in `if:`; pull requests from forks get none.
       HAS_CORPUS: ${{ secrets.CORPUS_DEPLOY_KEY != '' && vars.CORPUS_REPOSITORY != '' }}
@@ -73,6 +72,7 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
       - uses: dtolnay/rust-toolchain@stable
+      - uses: ilammy/msvc-dev-cmd@v1
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
@@ -81,10 +81,24 @@ jobs:
           # Pull requests restore the cache but must not overwrite main's.
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Linux dependencies
+      # libclang for whisper.cpp's bindings. The Windows build steps run without
+      # NoDefaultCurrentDirectoryInExePath (as progression-windows.yml does); every later
+      # bash step sources BASH_ENV, which unsets it. Git Bash also puts its own
+      # /usr/bin/link (coreutils) ahead of MSVC's link.exe on PATH, which breaks
+      # rustc and LuaJIT's msvcbuild.bat alike, so BASH_ENV puts MSVC's bin first.
+      - name: Native compiler environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libasound2-dev libclang-dev
+          msvc_bin="$(cygpath -u "$VCToolsInstallDir")bin/Hostx64/x64"
+          test -f "$msvc_bin/link.exe" || { echo "MSVC link.exe not found in $msvc_bin"; exit 1; }
+          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> "$GITHUB_ENV"
+          {
+            echo "unset NoDefaultCurrentDirectoryInExePath"
+            echo "export PATH=\"$msvc_bin:\$PATH\""
+          } > "$RUNNER_TEMP/bash_env"
+          echo "BASH_ENV=$RUNNER_TEMP/bash_env" >> "$GITHUB_ENV"
+
+      - name: MSVC's linker comes first
+        run: test "$(command -v link)" -ef "$(cygpath -u "$VCToolsInstallDir")bin/Hostx64/x64/link.exe"
 
       - run: bun install --frozen-lockfile
 
@@ -107,11 +121,6 @@ jobs:
 
       - name: Check every PoB stat label has a message key
         run: bun run check:labels
-
-      - name: Validate Progression against real PoB1
-        env:
-          POB_FORGE_POB_ROOT: src-tauri/resources/pob1
-        run: cargo test --locked -p pob-engine --test progression -- --ignored --nocapture
 
       # Warnings are denied via [workspace.lints.rust], so this fails on them.
       - name: Compile the workspace

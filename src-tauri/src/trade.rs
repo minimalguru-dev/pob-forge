@@ -35,7 +35,12 @@ fn trade_url(url: &str) -> Result<Url, String> {
 
 #[tauri::command]
 pub async fn trade_window_open(app: AppHandle, url: String) -> Result<(), String> {
-    let url = trade_url(&url)?;
+    open(&app, &url)
+}
+
+/// Shows a trade search in the trade window, creating the window on first use.
+pub(crate) fn open(app: &AppHandle, url: &str) -> Result<(), String> {
+    let url = trade_url(url)?;
     *REQUESTED.lock().unwrap() = Some(url.clone());
     if let Some(window) = app.get_webview_window(LABEL) {
         window.navigate(url).map_err(|e| e.to_string())?;
@@ -45,7 +50,7 @@ pub async fn trade_window_open(app: AppHandle, url: String) -> Result<(), String
         return Ok(());
     }
     let opener = app.clone();
-    WebviewWindowBuilder::new(&app, LABEL, WebviewUrl::External(url))
+    WebviewWindowBuilder::new(app, LABEL, WebviewUrl::External(url))
         .title("Trade")
         .inner_size(1280.0, 900.0)
         .min_inner_size(720.0, 480.0)

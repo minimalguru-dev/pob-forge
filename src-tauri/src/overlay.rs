@@ -1,147 +1,58 @@
 //! The in-game overlay: a small always-on-top window that lets clicks through to the game until
 //! the interact shortcut is pressed. It reads only what the user copies (Ctrl+C on an item) and,
-//! through `gamelog`, the game's own Client.txt. It never reads game memory. The one input it
-//! sends is the price check's Ctrl+C, right after the user presses the price shortcut in the game.
+//! through `gamelog`, the game's own Client.txt. It never reads game memory.
+//!
+//! It sends input in two cases only, each on one key press of the user's while the game is the
+//! foreground window: a macro types one chat command (Enter, the command, Enter), such as F5 for
+//! /hideout; and the price check key (Ctrl+D) taps Ctrl+C once so the game copies the item under
+//! the cursor. These keys are taken only while the game is in front.
+//!
+//! A card opens next to the cursor and closes as soon as the mouse moves, unless Ctrl is held.
+//! With Ctrl held the card takes clicks, and a click keeps it open (pinned) until the user clicks
+//! elsewhere or presses Esc. Ctrl is read with `GetAsyncKeyState`, which only reports whether the
+//! key is down.
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use serde::Serialize;
 
 pub use crate::game::OverlaySettings;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 pub const LABEL: &str = "overlay";
-/// Short enough that a card follows Ctrl+C at once; a clipboard read is cheap.
+/// Short, so a card follows Ctrl+C at once; a clipboard read is cheap.
 const POLL: Duration = Duration::from_millis(100);
-/// How often a card held open with Ctrl checks the key and the cursor.
-const HOLD_POLL: Duration = Duration::from_millis(30);
-/// A card shown after Ctrl was already let go closes once the cursor moves this far, as in Awakened.
-const MOVE_AWAY: f64 = 120.0;
+/// How long the game gets to put the item on the clipboard after the price check's Ctrl+C.
+const COPY_WAIT: Duration = Duration::from_millis(1000);
 /// Larger than any item or map the game copies; anything bigger is not ours to read.
 const MAX_ITEM_TEXT: usize = 16 * 1024;
-
-/// How often the cursor is checked against the close button while clicks pass through.
-const HOVER_POLL: Duration = Duration::from_millis(40);
-
-/// A rectangle in the overlay webview's logical pixels.
-#[derive(serde::Deserialize, Clone, Copy, Debug, PartialEq)]
-pub struct Rect {
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-}
-
-impl Rect {
-    fn contains(&self, x: f64, y: f64) -> bool {
-        x >= self.x && x < self.x + self.width && y >= self.y && y < self.y + self.height
-    }
-}
+/// How many copied items the assistant can look back on (`get_game_context`).
+const RECENT: usize = 5;
 
 #[derive(Default)]
 pub struct OverlayState {
     interact: AtomicBool,
     keys: Mutex<Option<(Shortcut, Shortcut)>>,
-    /// The close button, the one spot that takes clicks while the rest lets them through to the game.
-    close_button: Mutex<Option<Rect>>,
-    /// Whether the window currently lets clicks through.
-    passthrough: AtomicBool,
-    /// The price shortcut. It is taken only while the game has focus, so other programs keep it.
+    /// The last items and maps copied while the overlay showed, newest first. Memory only.
+    recent: Mutex<VecDeque<Copied>>,
+    follow: Mutex<Follow>,
+    /// The monitor size the window covers, which a repaint nudge returns to.
+    full: Mutex<Option<tauri::PhysicalSize<u32>>>,
+    /// Macro keys and their commands; taken only while the game is in front.
+    macros: Mutex<Vec<(Shortcut, String)>>,
+    macros_taken: AtomicBool,
+    /// The price check key; taken with the macros while the game is in front.
     price_key: Mutex<Option<Shortcut>>,
-    price_taken: AtomicBool,
     /// The game window the last price check came from, to give focus back to.
     game_window: AtomicIsize,
-    /// The price check's copy, which the clipboard watcher must not also show as an item card.
+    /// The price check's own copy, which the clipboard watcher must not also show as an item card.
     suppress: AtomicU64,
-    /// Where the overlay stood before a card moved it beside the inventory.
-    home: Mutex<Option<PhysicalPosition<i32>>>,
-    /// Bumped for each card, so a newer card's hold watcher replaces the older one.
-    card_generation: AtomicU64,
 }
-
-/// Whether the cursor is over the overlay window.
-fn over_overlay(app: &AppHandle) -> bool {
-    let Some(w) = app.get_webview_window(LABEL) else { return false };
-    let (Ok(cursor), Ok(pos), Ok(size)) = (w.cursor_position(), w.outer_position(), w.outer_size()) else { return false };
-    let (x, y) = (cursor.x - pos.x as f64, cursor.y - pos.y as f64);
-    x >= 0.0 && y >= 0.0 && x < size.width as f64 && y < size.height as f64
-}
-
-fn cursor(app: &AppHandle) -> Option<(f64, f64)> {
-    let p = app.get_webview_window(LABEL)?.cursor_position().ok()?;
-    Some((p.x, p.y))
-}
-
-/// Hold to look, as in Awakened PoE Trade: once Ctrl has been seen down, letting it go closes the
-/// card; a card that appears after Ctrl was let go closes when the cursor moves away. Moving the
-/// cursor onto the overlay pins it open until it is closed by hand.
-fn spawn_hold_watch(app: &AppHandle, kind: &'static str) {
-    if crate::game_window::ctrl_held().is_none() {
-        return;
-    }
-    let generation = app.state::<OverlayState>().card_generation.fetch_add(1, Ordering::Relaxed) + 1;
-    let app = app.clone();
-    let _ = std::thread::Builder::new().name("overlay-hold".into()).spawn(move || {
-        let start = cursor(&app);
-        let mut held = false;
-        loop {
-            std::thread::sleep(HOLD_POLL);
-            if app.state::<OverlayState>().card_generation.load(Ordering::Relaxed) != generation {
-                return;
-            }
-            if over_overlay(&app) {
-                return;
-            }
-            match crate::game_window::ctrl_held() {
-                Some(true) => held = true,
-                Some(false) if held => {
-                    let _ = app.emit_to(LABEL, "overlay:dismiss", kind);
-                    return;
-                }
-                Some(false) => {
-                    let moved = match (start, cursor(&app)) {
-                        (Some((x0, y0)), Some((x, y))) => ((x - x0).powi(2) + (y - y0).powi(2)).sqrt() > MOVE_AWAY,
-                        _ => false,
-                    };
-                    if moved {
-                        let _ = app.emit_to(LABEL, "overlay:dismiss", kind);
-                        return;
-                    }
-                }
-                None => return,
-            }
-        }
-    });
-}
-
-/// Moves the overlay just left of the game's inventory panel for an item or price card,
-/// remembering where it stood so `undock` can put it back.
-fn dock_beside_inventory(app: &AppHandle, game: crate::game_window::Handle) {
-    let (Some(w), Some(rect)) = (app.get_webview_window(LABEL), crate::game_window::rect(game)) else { return };
-    let (Ok(pos), Ok(size)) = (w.outer_position(), w.outer_size()) else { return };
-    let state = app.state::<OverlayState>();
-    let mut home = state.home.lock().unwrap_or_else(|e| e.into_inner());
-    if home.is_none() {
-        *home = Some(pos);
-    }
-    let (x, y) = crate::game_window::beside_inventory(rect, (size.width, size.height));
-    let _ = w.set_position(PhysicalPosition::new(x, y));
-}
-
-/// Puts the overlay back where it stood before a card moved it.
-fn undock(app: &AppHandle) {
-    let home = app.state::<OverlayState>().home.lock().unwrap_or_else(|e| e.into_inner()).take();
-    if let (Some(home), Some(w)) = (home, app.get_webview_window(LABEL)) {
-        let _ = w.set_position(home);
-    }
-}
-
-/// How often the focused window is checked, to take or release the price shortcut.
-const FOCUS_POLL: Duration = Duration::from_millis(200);
-/// How long the game gets to put the item on the clipboard after the price check's Ctrl+C.
-const COPY_WAIT: Duration = Duration::from_millis(1000);
 
 fn text_hash(text: &str) -> u64 {
     use std::hash::{Hash, Hasher};
@@ -150,38 +61,281 @@ fn text_hash(text: &str) -> u64 {
     h.finish()
 }
 
-fn set_passthrough(app: &AppHandle, w: &tauri::WebviewWindow, on: bool) {
-    let state = app.state::<OverlayState>();
-    if state.passthrough.swap(on, Ordering::Relaxed) != on {
-        let _ = w.set_ignore_cursor_events(on);
+/// What a macro may type: one chat command, starting with a slash, on one line.
+pub fn valid_command(command: &str) -> Result<String, String> {
+    let c = command.trim();
+    if !c.starts_with('/') || c.len() < 2 {
+        return Err(format!("a macro types a chat command, which starts with /: {c}"));
     }
+    if c.contains(['\n', '\r']) || c.chars().count() > 120 {
+        return Err(format!("a macro command is one line of at most 120 characters: {c}"));
+    }
+    Ok(c.to_string())
 }
 
-/// Lets clicks reach the close button while the cursor is over it, and only then.
-fn spawn_hover_watch(app: AppHandle) {
+/// The game window (by class, then title) is the foreground window.
+fn game_in_front() -> bool {
+    crate::game_window::foreground_game().is_some()
+}
+
+#[cfg(windows)]
+fn modifiers_down() -> bool {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
+    // SAFETY: GetAsyncKeyState only reads key state.
+    [VK_CONTROL, VK_SHIFT, VK_MENU].into_iter().any(|vk| (unsafe { GetAsyncKeyState(i32::from(vk)) } as u16 & 0x8000) != 0)
+}
+
+/// Types one chat command into the game: Enter opens the chat, the command, Enter sends it.
+/// Held modifiers would turn the typing into shortcuts, so it waits briefly for them to be let go.
+#[cfg(windows)]
+fn type_command(command: &str) {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VK_RETURN};
+    for _ in 0..20 {
+        if !modifiers_down() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    if modifiers_down() || !game_in_front() {
+        log::info!("overlay: macro skipped, a modifier is held or the game is not in front");
+        return;
+    }
+    let key = |vk: u16, scan: u16, flags: u32| INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: vk, wScan: scan, dwFlags: flags, time: 0, dwExtraInfo: 0 } },
+    };
+    let send = |inputs: &[INPUT]| {
+        // SAFETY: a plain array of keyboard inputs.
+        unsafe { SendInput(inputs.len() as u32, inputs.as_ptr(), std::mem::size_of::<INPUT>() as i32) };
+    };
+    let enter = [key(VK_RETURN, 0, 0), key(VK_RETURN, 0, KEYEVENTF_KEYUP)];
+    send(&enter);
+    // The chat box needs a moment to open before it takes text.
+    std::thread::sleep(Duration::from_millis(40));
+    let text: Vec<INPUT> = command.encode_utf16().flat_map(|u| [key(0, u, KEYEVENTF_UNICODE), key(0, u, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP)]).collect();
+    send(&text);
+    std::thread::sleep(Duration::from_millis(20));
+    send(&enter);
+}
+
+#[cfg(not(windows))]
+fn type_command(_: &str) {}
+
+/// Takes the macro keys while the game is in front and gives them back otherwise, so F5 and the
+/// like keep working in every other program.
+fn spawn_macro_keys(app: AppHandle) {
     std::thread::Builder::new()
-        .name("overlay-hover".into())
+        .name("overlay-macros".into())
         .spawn(move || loop {
-            std::thread::sleep(HOVER_POLL);
-            let Some(w) = app.get_webview_window(LABEL) else { continue };
+            std::thread::sleep(Duration::from_millis(200));
             let state = app.state::<OverlayState>();
-            if state.interact.load(Ordering::Relaxed) || !w.is_visible().unwrap_or(false) {
+            let mut keys: Vec<Shortcut> = state.macros.lock().unwrap_or_else(|e| e.into_inner()).iter().map(|(k, _)| *k).collect();
+            keys.extend(*state.price_key.lock().unwrap_or_else(|e| e.into_inner()));
+            if keys.is_empty() {
                 continue;
             }
-            let Some(rect) = *state.close_button.lock().unwrap_or_else(|e| e.into_inner()) else { continue };
-            let (Ok(cursor), Ok(origin), Ok(scale)) = (w.cursor_position(), w.inner_position(), w.scale_factor()) else { continue };
-            let over = rect.contains((cursor.x - origin.x as f64) / scale, (cursor.y - origin.y as f64) / scale);
-            set_passthrough(&app, &w, !over);
+            let want = game_in_front();
+            if want == state.macros_taken.load(Ordering::Relaxed) {
+                continue;
+            }
+            let mut ok = true;
+            for key in &keys {
+                let done = if want { app.global_shortcut().register(*key) } else { app.global_shortcut().unregister(*key) };
+                if let Err(e) = done {
+                    ok = false;
+                    log::warn!("overlay macro key {key}: {e}");
+                }
+            }
+            if ok || !want {
+                state.macros_taken.store(want, Ordering::Relaxed);
+            }
         })
-        .expect("spawn overlay hover watcher");
+        .expect("spawn overlay macros");
 }
 
-async fn hide_window(app: &AppHandle) -> Result<(), String> {
-    set_interact(app, Some(false));
-    match app.get_webview_window(LABEL) {
-        Some(w) => w.hide().map_err(|e| e.to_string()),
-        None => Ok(()),
+/// The open card's link to the cursor.
+#[derive(Default, Clone, Copy)]
+struct Follow {
+    /// Where the cursor stood when the card opened, or last stood with Ctrl held. None: no card.
+    origin: Option<(f64, f64)>,
+    /// Ctrl+clicked: stays until a click elsewhere or Esc.
+    pinned: bool,
+    /// The window takes clicks now (Ctrl held over it).
+    clickable: bool,
+    /// When the card opened: the mouse may move freely for `GRACE` after it.
+    opened: Option<std::time::Instant>,
+    /// Ctrl was still held `HOLD_AFTER` after the card opened: letting go of it closes the card.
+    held: bool,
+    scale: f64,
+    /// The card's rectangle in the window, logical pixels (x, y, width, height); only it takes clicks.
+    card: (f64, f64, f64, f64),
+}
+
+/// Where the card goes: the cursor in window coordinates (logical pixels), and which side has room.
+#[derive(Serialize, Clone, Copy)]
+struct Anchor {
+    x: f64,
+    y: f64,
+    left: bool,
+}
+
+/// How far, in logical pixels, the cursor may drift without Ctrl before the card closes. A hand
+/// letting go of Ctrl+C moves the mouse a little; that must not close the card before it is read.
+const DRIFT: f64 = 40.0;
+/// After a card opens, the mouse may move this long before drift counts.
+const GRACE: Duration = Duration::from_millis(800);
+const FOLLOW_POLL: Duration = Duration::from_millis(25);
+/// Ctrl still down this long after a card opens means the user holds it to look, as in Awakened
+/// PoE Trade; a quick Ctrl+C has let go by then and gets the drift rule instead.
+const HOLD_AFTER: Duration = Duration::from_millis(300);
+/// How far the overlay draws a card from its anchor (OverlayWindow.svelte).
+const CARD_GAP: f64 = 28.0;
+
+fn ctrl_down() -> bool {
+    crate::game_window::ctrl_held().unwrap_or(false)
+}
+
+fn follow(app: &AppHandle) -> std::sync::MutexGuard<'_, Follow> {
+    app.state::<OverlayState>().inner().follow.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// The monitor a point is on.
+fn monitor_at(w: &tauri::WebviewWindow, x: f64, y: f64) -> Option<tauri::Monitor> {
+    w.available_monitors()
+        .ok()
+        .and_then(|ms| {
+            ms.into_iter().find(|m| {
+                let (p, s) = (m.position(), m.size());
+                x >= p.x as f64 && x < (p.x + s.width as i32) as f64 && y >= p.y as f64 && y < (p.y + s.height as i32) as f64
+            })
+        })
+        .or_else(|| w.primary_monitor().ok().flatten())
+}
+
+/// The window covers one whole monitor, transparent and click-through, like Awakened PoE Trade's.
+/// It moves only to follow the cursor to another monitor: WebView2 stops painting an unfocused
+/// window that has moved, so cards are placed inside it instead of moving it.
+fn cover(app: &AppHandle, w: &tauri::WebviewWindow, m: &tauri::Monitor) {
+    // macOS draws the overlay opaque, so there it stays a small window.
+    if cfg!(target_os = "macos") {
+        return;
     }
+    // One pixel short of the monitor: Windows treats an exactly monitor-sized window as fullscreen,
+    // and then the overlay stops drawing over a game in front of it.
+    let (p, s) = (*m.position(), *m.size());
+    let s = tauri::PhysicalSize::new(s.width, s.height.saturating_sub(1));
+    *app.state::<OverlayState>().full.lock().unwrap_or_else(|e| e.into_inner()) = Some(s);
+    if w.outer_position().ok() != Some(p) {
+        let _ = w.set_position(p);
+    }
+    if w.inner_size().ok() != Some(s) {
+        let _ = w.set_size(s);
+    }
+}
+
+/// Anchors the card at the cursor, on the side of the screen with more room, and starts following it.
+fn place_near_cursor(app: &AppHandle) -> Option<Anchor> {
+    let w = app.get_webview_window(LABEL)?;
+    let c = app.cursor_position().ok()?;
+    let m = monitor_at(&w, c.x, c.y)?;
+    cover(app, &w, &m);
+    let (p, s, scale) = (m.position(), m.size(), m.scale_factor());
+    let mut anchor = Anchor { x: (c.x - p.x as f64) / scale, y: (c.y - p.y as f64) / scale, left: c.x > p.x as f64 + s.width as f64 / 2.0 };
+    // Copied in the game: the card goes just left of the inventory panel, so it covers neither it
+    // nor the stash. The overlay draws a left card CARD_GAP px left of its anchor.
+    if let Some(rect) = crate::game_window::foreground_game().and_then(crate::game_window::rect) {
+        let edge = crate::game_window::inventory_left(rect);
+        anchor = Anchor { x: (edge as f64 - p.x as f64) / scale - 8.0 + CARD_GAP, y: anchor.y, left: true };
+    }
+    *follow(app) = Follow { origin: Some((c.x, c.y)), pinned: false, clickable: false, opened: Some(std::time::Instant::now()), held: false, scale, card: (0.0, 0.0, 0.0, 0.0) };
+    if !app.state::<OverlayState>().interact.load(Ordering::Relaxed) {
+        let _ = w.set_ignore_cursor_events(true);
+    }
+    Some(anchor)
+}
+
+/// Closes the card: the window lets clicks through again and the overlay clears it.
+fn dismiss(app: &AppHandle) {
+    *follow(app) = Follow::default();
+    let game = app.state::<OverlayState>().game_window.swap(0, Ordering::Relaxed);
+    if let Some(w) = app.get_webview_window(LABEL) {
+        if !app.state::<OverlayState>().interact.load(Ordering::Relaxed) {
+            let _ = w.set_ignore_cursor_events(true);
+            // A price card the user clicked into had focus; the game gets it back.
+            if game != 0 && w.is_focused().unwrap_or(false) {
+                crate::game_window::focus(game);
+            }
+        }
+    }
+    let _ = app.emit_to(LABEL, "overlay:dismiss", ());
+}
+
+/// Watches the cursor and Ctrl while a card is open (the Awakened PoE Trade way).
+fn spawn_follow(app: AppHandle) {
+    std::thread::Builder::new()
+        .name("overlay-follow".into())
+        .spawn(move || loop {
+            std::thread::sleep(FOLLOW_POLL);
+            let state = *follow(&app);
+            let Some(origin) = state.origin else { continue };
+            if state.pinned || app.state::<OverlayState>().interact.load(Ordering::Relaxed) {
+                continue;
+            }
+            let Some(w) = app.get_webview_window(LABEL) else { continue };
+            let Ok(c) = app.cursor_position() else { continue };
+            let ctrl = ctrl_down();
+            let inside = match w.outer_position() {
+                Ok(p) => {
+                    let (x, y, cw, ch) = state.card;
+                    let (left, top) = (p.x as f64 + x * state.scale, p.y as f64 + y * state.scale);
+                    cw > 0.0 && c.x >= left && c.x < left + cw * state.scale && c.y >= top && c.y < top + ch * state.scale
+                }
+                _ => false,
+            };
+            let clickable = ctrl && inside;
+            if clickable != state.clickable {
+                let _ = w.set_ignore_cursor_events(!clickable);
+                follow(&app).clickable = clickable;
+            }
+            let age = state.opened.map(|t| t.elapsed()).unwrap_or_default();
+            if ctrl && age >= HOLD_AFTER && !state.held {
+                follow(&app).held = true;
+            }
+            if state.held && !ctrl && !inside {
+                // Ctrl let go away from the card: done looking.
+                dismiss(&app);
+            } else if ctrl || inside || age < GRACE {
+                follow(&app).origin = Some((c.x, c.y));
+            } else if (c.x - origin.0).hypot(c.y - origin.1) > DRIFT * state.scale {
+                dismiss(&app);
+            }
+        })
+        .expect("spawn overlay follow");
+}
+
+/// An item or map the game or the trade site put on the clipboard while the overlay showed.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Copied {
+    pub kind: &'static str,
+    pub raw: String,
+    /// Seconds since the Unix epoch.
+    pub at: u64,
+}
+
+pub fn recent(app: &AppHandle) -> Vec<Copied> {
+    app.try_state::<OverlayState>()
+        .map(|s| s.recent.lock().unwrap_or_else(|e| e.into_inner()).iter().cloned().collect())
+        .unwrap_or_default()
+}
+
+fn remember(app: &AppHandle, kind: &'static str, raw: &str) {
+    let at = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let state = app.state::<OverlayState>();
+    let mut recent = state.recent.lock().unwrap_or_else(|e| e.into_inner());
+    recent.retain(|c| c.raw != raw);
+    recent.push_front(Copied { kind, raw: raw.to_string(), at });
+    recent.truncate(RECENT);
 }
 
 pub fn settings(app: &AppHandle) -> OverlaySettings {
@@ -198,17 +352,23 @@ fn parse_key(text: &str) -> Result<Shortcut, String> {
     text.parse::<Shortcut>().map_err(|e| format!("not a shortcut: {text} ({e})"))
 }
 
-/// Takes the shortcuts the settings name, releasing the previous ones first. The plugin runs each
-/// (un)registration on the main thread, so no lock of ours is held across those calls: the
-/// shortcut handler runs on that same thread and would wait for it.
+/// Takes the shortcuts the settings name, releasing the previous pair first.
 fn register_keys(app: &AppHandle, s: &OverlaySettings) -> Result<(), String> {
     let state = app.state::<OverlayState>();
+    // Each lock is let go before the plugin is called: it registers on the main thread, where the
+    // shortcut handler takes these same locks.
     let old = state.keys.lock().unwrap_or_else(|e| e.into_inner()).take();
     if let Some((a, b)) = old {
         let _ = app.global_shortcut().unregister(a);
         let _ = app.global_shortcut().unregister(b);
     }
-    release_price_key(app);
+    let mut taken: Vec<Shortcut> = std::mem::take(&mut *state.macros.lock().unwrap_or_else(|e| e.into_inner())).into_iter().map(|(k, _)| k).collect();
+    taken.extend(state.price_key.lock().unwrap_or_else(|e| e.into_inner()).take());
+    if state.macros_taken.swap(false, Ordering::Relaxed) {
+        for key in taken {
+            let _ = app.global_shortcut().unregister(key);
+        }
+    }
     if !s.enabled {
         return Ok(());
     }
@@ -220,6 +380,17 @@ fn register_keys(app: &AppHandle, s: &OverlaySettings) -> Result<(), String> {
     if price.is_some_and(|p| p == toggle || p == interact) {
         return Err("The price check shortcut must differ from the other two.".into());
     }
+    let mut macros: Vec<(Shortcut, String)> = Vec::new();
+    for m in &s.macros {
+        if m.key.trim().is_empty() || m.command.trim().is_empty() {
+            continue;
+        }
+        let key = parse_key(m.key.trim())?;
+        if key == toggle || key == interact || Some(key) == price || macros.iter().any(|(k, _)| *k == key) {
+            return Err(format!("the macro key {} is already used", m.key.trim()));
+        }
+        macros.push((key, valid_command(&m.command)?));
+    }
     app.global_shortcut()
         .register(toggle)
         .map_err(|e| format!("could not take {toggle}: {e}. Another program may already use it."))?;
@@ -228,7 +399,7 @@ fn register_keys(app: &AppHandle, s: &OverlaySettings) -> Result<(), String> {
         return Err(format!("could not take {interact}: {e}. Another program may already use it."));
     }
     *state.keys.lock().unwrap_or_else(|e| e.into_inner()) = Some((toggle, interact));
-    // The focus watcher takes this one while the game has focus.
+    *state.macros.lock().unwrap_or_else(|e| e.into_inner()) = macros;
     *state.price_key.lock().unwrap_or_else(|e| e.into_inner()) = price;
     log::info!("overlay: shortcuts {toggle} and {interact}; price check {}", price.map_or("off".into(), |p| p.to_string()));
     Ok(())
@@ -249,6 +420,12 @@ pub fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, state: ShortcutState) {
         });
         return;
     }
+    let command = app.state::<OverlayState>().macros.lock().unwrap_or_else(|e| e.into_inner()).iter().find(|(k, _)| k == shortcut).map(|(_, c)| c.clone());
+    if let Some(command) = command {
+        // Off the shortcut handler: typing waits for modifiers and the chat box.
+        std::thread::spawn(move || type_command(&command));
+        return;
+    }
     let keys = *app.state::<OverlayState>().keys.lock().unwrap_or_else(|e| e.into_inner());
     let Some((toggle, interact)) = keys else { return };
     let app = app.clone();
@@ -263,60 +440,11 @@ pub fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, state: ShortcutState) {
     }
 }
 
-fn release_price_key(app: &AppHandle) {
-    let state = app.state::<OverlayState>();
-    let key = state.price_key.lock().unwrap_or_else(|e| e.into_inner()).take();
-    if state.price_taken.swap(false, Ordering::Relaxed) {
-        if let Some(key) = key {
-            let _ = app.global_shortcut().unregister(key);
-        }
-    }
-}
-
-/// Takes the price shortcut while the game has focus and gives it back to Windows otherwise,
-/// so Ctrl+D keeps working in every other program.
-fn spawn_focus_watch(app: AppHandle) {
-    std::thread::Builder::new()
-        .name("overlay-focus".into())
-        .spawn(move || {
-            let mut failed: Option<Shortcut> = None;
-            loop {
-                std::thread::sleep(FOCUS_POLL);
-                let state = app.state::<OverlayState>();
-                let Some(key) = *state.price_key.lock().unwrap_or_else(|e| e.into_inner()) else { continue };
-                let want = crate::game_window::foreground_game().is_some();
-                if want == state.price_taken.load(Ordering::Relaxed) {
-                    continue;
-                }
-                if want {
-                    match app.global_shortcut().register(key) {
-                        Ok(()) => {
-                            state.price_taken.store(true, Ordering::Relaxed);
-                            failed = None;
-                            log::info!("overlay: the game has focus; {key} prices the item under the cursor");
-                        }
-                        // Say so once per key, not five times a second.
-                        Err(e) if failed != Some(key) => {
-                            log::warn!("overlay: could not take {key} for the price check: {e}");
-                            failed = Some(key);
-                        }
-                        Err(_) => {}
-                    }
-                } else {
-                    let _ = app.global_shortcut().unregister(key);
-                    state.price_taken.store(false, Ordering::Relaxed);
-                }
-            }
-        })
-        .expect("spawn overlay focus watcher");
-}
-
-/// The price shortcut was pressed in the game: have the game copy the item under the cursor,
-/// then show the price check, clickable, until it is closed.
+/// The price check key was pressed in the game: have the game copy the item under the cursor,
+/// then open the price card beside the inventory.
 async fn price_check(app: &AppHandle) -> Result<(), String> {
     let Some(game) = crate::game_window::foreground_game() else { return Ok(()) };
     let state = app.state::<OverlayState>();
-    state.game_window.store(game, Ordering::Relaxed);
     let before = app.clipboard().read_text().ok();
     if !crate::game_window::send_copy() {
         return Err("Windows refused the Ctrl+C for the price check.".into());
@@ -325,7 +453,7 @@ async fn price_check(app: &AppHandle) -> Result<(), String> {
     let started = std::time::Instant::now();
     let mut copied = None;
     while started.elapsed() < COPY_WAIT {
-        tokio::time::sleep(Duration::from_millis(40)).await;
+        tokio::time::sleep(Duration::from_millis(30)).await;
         if let Ok(text) = app.clipboard().read_text() {
             if before.as_ref() != Some(&text) {
                 copied = Some(text);
@@ -343,10 +471,9 @@ async fn price_check(app: &AppHandle) -> Result<(), String> {
     };
     state.suppress.store(text_hash(&text), Ordering::Relaxed);
     open_window(app).await?;
-    dock_beside_inventory(app, game);
-    let _ = app.emit_to(LABEL, "overlay:price", serde_json::json!({ "raw": text }));
-    set_interact(app, Some(true));
-    spawn_hold_watch(app, "price");
+    let anchor = place_near_cursor(app);
+    state.game_window.store(game, Ordering::Relaxed);
+    let _ = app.emit_to(LABEL, "overlay:price", serde_json::json!({ "raw": text, "anchor": anchor }));
     Ok(())
 }
 
@@ -369,19 +496,11 @@ async fn open_window(app: &AppHandle) -> Result<(), String> {
     #[cfg(not(target_os = "macos"))]
     let builder = builder.transparent(true);
     let window = builder.build().map_err(|e| e.to_string())?;
-    let position = match (s.x, s.y) {
-        (Some(x), Some(y)) => Some(PhysicalPosition::new(x, y)),
-        _ => window.primary_monitor().ok().flatten().map(|m| {
-            let scale = m.scale_factor();
-            PhysicalPosition::new(m.position().x + m.size().width as i32 - ((s.width + 24.0) * scale) as i32, m.position().y + (96.0 * scale) as i32)
-        }),
-    };
-    if let Some(p) = position {
-        let _ = window.set_position(p);
+    let monitor = app.cursor_position().ok().and_then(|c| monitor_at(&window, c.x, c.y)).or_else(|| window.primary_monitor().ok().flatten());
+    if let Some(m) = monitor {
+        cover(app, &window, &m);
     }
-    let state = app.state::<OverlayState>();
-    state.interact.store(false, Ordering::Relaxed);
-    state.passthrough.store(true, Ordering::Relaxed);
+    app.state::<OverlayState>().interact.store(false, Ordering::Relaxed);
     let _ = window.set_ignore_cursor_events(true);
     Ok(())
 }
@@ -394,38 +513,50 @@ pub fn close(app: &AppHandle) {
 
 async fn toggle_window(app: &AppHandle) -> Result<(), String> {
     match app.get_webview_window(LABEL) {
-        Some(w) if w.is_visible().unwrap_or(false) => hide_window(app).await,
+        Some(w) if w.is_visible().unwrap_or(false) => {
+            set_interact(app, Some(false));
+            w.hide().map_err(|e| e.to_string())
+        }
         _ => open_window(app).await,
     }
 }
 
-/// Interact mode makes the overlay clickable and movable; leaving it saves where it stands.
+/// Interact mode makes the whole overlay clickable until the user is done with the card.
 fn set_interact(app: &AppHandle, on: Option<bool>) {
     let Some(w) = app.get_webview_window(LABEL) else { return };
     let state = app.state::<OverlayState>();
     let on = on.unwrap_or(!state.interact.load(Ordering::Relaxed));
-    let was = state.interact.swap(on, Ordering::Relaxed);
-    set_passthrough(app, &w, !on);
+    state.interact.store(on, Ordering::Relaxed);
+    let _ = w.set_ignore_cursor_events(!on);
     if on {
         let _ = w.set_focus();
-    } else if was {
-        if let Ok(p) = w.outer_position() {
-            let mut s = settings(app);
-            (s.x, s.y) = (Some(p.x), Some(p.y));
-            let _ = store(app, s);
-        }
     }
     let _ = app.emit_to(LABEL, "overlay:interact", on);
 }
 
-/// What kind of thing the game put on the clipboard, if it is one at all.
+/// What kind of thing the game, or the trade site's Copy button, put on the clipboard, if it is one
+/// at all. The game starts with `Item Class:`; text without it must start with a `Rarity:` line and
+/// have the game's `--------` section breaks.
 pub fn classify(text: &str) -> Option<&'static str> {
-    let first = text.trim_start().lines().next()?.trim();
-    let class = first.strip_prefix("Item Class:")?.trim();
-    Some(match class {
-        "Maps" | "Waystones" => "map",
-        _ => "item",
-    })
+    let mut lines = text.trim_start().lines().map(str::trim);
+    let first = lines.next()?;
+    if let Some(class) = first.strip_prefix("Item Class:") {
+        return Some(match class.trim() {
+            "Maps" | "Waystones" => "map",
+            _ => "item",
+        });
+    }
+    const RARITIES: [&str; 8] = ["Normal", "Magic", "Rare", "Unique", "Gem", "Currency", "Divination Card", "Relic"];
+    let rarity = first.strip_prefix("Rarity:")?.trim();
+    if !RARITIES.contains(&rarity) {
+        return None;
+    }
+    let rest: Vec<&str> = lines.collect();
+    if !rest.contains(&"--------") {
+        return None;
+    }
+    let map = rest.iter().any(|l| l.starts_with("Map Tier:") || l.starts_with("Waystone Tier:"));
+    Some(if map { "map" } else { "item" })
 }
 
 /// Watches the clipboard while the overlay is showing, for text the game wrote with Ctrl+C.
@@ -457,15 +588,9 @@ fn spawn_clipboard_watch(app: AppHandle) {
                     log::info!("overlay: {kind} copied from the game");
                     let s = settings(&app);
                     if (kind == "map" && s.map_check) || (kind == "item" && s.item_check) {
-                        // Copied in the game: the card goes beside the inventory, not over it.
-                        let game = crate::game_window::foreground_game();
-                        if let Some(game) = game {
-                            dock_beside_inventory(&app, game);
-                        }
-                        let _ = app.emit_to(LABEL, "overlay:item", serde_json::json!({ "raw": text, "kind": kind }));
-                        if game.is_some() {
-                            spawn_hold_watch(&app, "item");
-                        }
+                        remember(&app, kind, &text);
+                        let anchor = place_near_cursor(&app);
+                        let _ = app.emit_to(LABEL, "overlay:item", serde_json::json!({ "raw": text, "kind": kind, "anchor": anchor }));
                     }
                 }
             }
@@ -476,8 +601,8 @@ fn spawn_clipboard_watch(app: AppHandle) {
 pub fn setup(app: &AppHandle) {
     app.manage(OverlayState::default());
     spawn_clipboard_watch(app.clone());
-    spawn_hover_watch(app.clone());
-    spawn_focus_watch(app.clone());
+    spawn_follow(app.clone());
+    spawn_macro_keys(app.clone());
     let s = settings(app);
     if !s.enabled {
         return;
@@ -517,9 +642,6 @@ pub async fn overlay_settings_set(app: AppHandle, value: OverlaySettings) -> Res
     register_keys(&app, &value)?;
     if value.enabled {
         open_window(&app).await?;
-        if let Some(w) = app.get_webview_window(LABEL) {
-            let _ = w.set_size(tauri::LogicalSize::new(value.width, value.height));
-        }
     } else {
         close(&app);
     }
@@ -537,38 +659,74 @@ pub fn overlay_interact(app: AppHandle, on: Option<bool>) {
     set_interact(&app, on);
 }
 
-/// Hides the overlay (its close button). The show/hide shortcut brings it back.
+/// Ctrl+click on a card: it stays open, and its buttons work, until a click elsewhere or Esc.
 #[tauri::command]
-pub async fn overlay_hide(app: AppHandle) -> Result<(), String> {
-    hide_window(&app).await
+pub fn overlay_pin(app: AppHandle) {
+    {
+        let mut f = follow(&app);
+        if f.origin.is_none() {
+            return;
+        }
+        f.pinned = true;
+        f.clickable = true;
+    }
+    if let Some(w) = app.get_webview_window(LABEL) {
+        let _ = w.set_ignore_cursor_events(false);
+        // A pinned card takes typing too: the price check's filters.
+        let _ = w.set_focus();
+    }
+    let _ = app.emit_to(LABEL, "overlay:pinned", true);
 }
 
-/// Closes the price check: clicks go back to the game, and so does focus.
+#[tauri::command]
+pub fn overlay_dismiss(app: AppHandle) {
+    dismiss(&app);
+}
+
+/// The price card's own close button and Esc.
 #[tauri::command]
 pub fn overlay_price_done(app: AppHandle) {
-    // A hold watcher still running for this card has nothing left to close.
-    app.state::<OverlayState>().card_generation.fetch_add(1, Ordering::Relaxed);
-    // Back home first: leaving interact mode saves wherever the overlay stands.
-    undock(&app);
+    dismiss(&app);
+}
+
+/// The overlay shows something new: the card's rectangle in the window (logical pixels, zero size
+/// for none) is the only part that takes Ctrl clicks, and the window is nudged so WebView2 paints
+/// it without focus.
+#[tauri::command]
+pub fn overlay_fit(app: AppHandle, x: f64, y: f64, width: f64, height: f64) {
+    follow(&app).card = (x, y, width.max(0.0), height.max(0.0));
+    overlay_repaint(app);
+}
+
+/// WebView2 stops painting a click-through window that does not have focus, so a new card is
+/// computed but stays invisible until the user presses the interact key. A 1 px resize and back
+/// makes it draw a frame without taking focus from the game.
+#[tauri::command]
+pub fn overlay_repaint(app: AppHandle) {
+    let Some(w) = app.get_webview_window(LABEL) else { return };
+    // Back to the covered size, not the current one: nudges can overlap.
+    let full = *app.state::<OverlayState>().full.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(size) = full.or_else(|| w.inner_size().ok()) else { return };
+    let _ = w.set_size(tauri::PhysicalSize::new(size.width, size.height + 1));
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(40));
+        let _ = w.set_size(size);
+    });
+}
+
+/// "Ask the assistant" on a card: the chat's message box gets the text and its window comes forward.
+/// Nothing is sent until the user presses Send.
+#[tauri::command]
+pub fn overlay_ask(app: AppHandle, text: String) {
     set_interact(&app, Some(false));
-    let game = app.state::<OverlayState>().game_window.swap(0, Ordering::Relaxed);
-    if game != 0 {
-        crate::game_window::focus(game);
+    dismiss(&app);
+    let _ = app.emit("overlay:ask", text);
+    let window = app.get_webview_window("assistant").or_else(|| app.get_webview_window("main"));
+    if let Some(w) = window {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
     }
-}
-
-/// The item card timed out: the overlay goes back where it stood, unless the user is moving it.
-#[tauri::command]
-pub fn overlay_card_closed(app: AppHandle) {
-    if !app.state::<OverlayState>().interact.load(Ordering::Relaxed) {
-        undock(&app);
-    }
-}
-
-/// Where the overlay drew its close button, so clicks there are not passed to the game.
-#[tauri::command]
-pub fn overlay_close_button(app: AppHandle, rect: Option<Rect>) {
-    *app.state::<OverlayState>().close_button.lock().unwrap_or_else(|e| e.into_inner()) = rect;
 }
 
 #[cfg(test)]
@@ -581,15 +739,24 @@ mod tests {
         assert_eq!(classify("\r\nItem Class: Maps\r\nRarity: Rare\r\nStrand Map"), Some("map"));
         assert_eq!(classify("Item Class: Waystones\nRarity: Magic"), Some("map"));
         assert_eq!(classify("Rarity: Rare\nno class line"), None);
+        // The trade site's Copy button, which may leave out the class line.
+        assert_eq!(classify("Rarity: Rare\nOverlay Loop\nIron Ring\n--------\nItem Level: 80\n--------\n+70 to maximum Life"), Some("item"));
+        assert_eq!(classify("Rarity: Magic\nStrand Map of Fun\n--------\nMap Tier: 5\n--------\nArea is a large Maze"), Some("map"));
+        assert_eq!(classify("Rarity: Mythic\nnot an item\n--------"), None);
         assert_eq!(classify("my password is Item Class: Rings"), None);
         assert_eq!(classify(""), None);
     }
 
     #[test]
-    fn close_button_hit_test() {
-        let r = Rect { x: 350.0, y: 4.0, width: 24.0, height: 24.0 };
-        assert!(r.contains(350.0, 4.0) && r.contains(373.9, 27.9));
-        assert!(!r.contains(374.0, 10.0) && !r.contains(349.9, 10.0) && !r.contains(360.0, 28.0));
+    fn macros_type_one_chat_command() {
+        assert_eq!(valid_command(" /hideout ").unwrap(), "/hideout");
+        assert!(valid_command("hideout").is_err());
+        assert!(valid_command("/").is_err());
+        assert!(valid_command("/hideout\n/exit").is_err());
+        let s = OverlaySettings::default();
+        assert_eq!(s.macros.len(), 1);
+        assert_eq!((s.macros[0].key.as_str(), s.macros[0].command.as_str()), ("F5", "/hideout"));
+        assert_ne!(parse_key("F5").unwrap(), parse_key(&s.toggle_key).unwrap());
     }
 
     #[test]
@@ -598,6 +765,7 @@ mod tests {
         assert_ne!(parse_key(&s.toggle_key).unwrap(), parse_key(&s.interact_key).unwrap());
         let price = parse_key(&s.price_key).unwrap();
         assert!(price != parse_key(&s.toggle_key).unwrap() && price != parse_key(&s.interact_key).unwrap());
+        assert!(s.macros.iter().all(|m| parse_key(&m.key).unwrap() != price));
         assert!(parse_key("Ctrl+Nope+").is_err());
     }
 
@@ -605,7 +773,6 @@ mod tests {
     fn old_settings_files_get_defaults() {
         let s: OverlaySettings = serde_json::from_str(r#"{ "enabled": true }"#).unwrap();
         assert!(s.enabled && s.item_check);
-        assert!(!s.leveling && !s.progression, "log panels are opt-in");
         assert_eq!(s.toggle_key, "Alt+Shift+O");
     }
 }

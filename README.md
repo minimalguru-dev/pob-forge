@@ -3,7 +3,7 @@
 [![Latest release](https://img.shields.io/github/v/release/minimalguru-dev/pob-forge?style=flat-square&label=release)](../../releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/minimalguru-dev/pob-forge/total?style=flat-square&label=downloads)](../../releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2a2a30?style=flat-square)](LICENSE)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-2a2a30?style=flat-square)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-2a2a30?style=flat-square)
 
 A desktop app for planning Path of Exile 1 and 2 builds. It runs Path of Building Community's own
 calculation code, so every number matches Path of Building, and it opens the same build files.
@@ -16,13 +16,8 @@ Every installer is on the [Releases](../../releases/latest) page.
 |---|---|---|
 | Windows 10 or 11 | `PoB.Forge_<version>_x64-setup.exe` | Run it. It installs for your user only and fetches WebView2 if Windows lacks it. |
 | macOS, Apple Silicon | `PoB.Forge_<version>_aarch64.dmg` | Drag the app to Applications. See [macOS says the app cannot be opened](#macos-says-the-app-cannot-be-opened). |
-| Fedora, openSUSE | `PoB.Forge-<version>-1.x86_64.rpm` | Install with your package manager. |
-| Debian, Ubuntu | `PoB.Forge_<version>_amd64.deb` | Install with your package manager. |
-| Any other Linux | `PoB.Forge_<version>_amd64.AppImage` | `chmod +x` the file, then run it. |
-| Linux on ARM64 | `PoB.Forge-<version>-1.aarch64.rpm`, `PoB.Forge_<version>_arm64.deb` or `PoB.Forge_<version>_aarch64.AppImage` | Same as the x86_64 files above. |
-| Chromebook | `PoB.Forge_<version>_amd64.deb`, or `_arm64.deb` on an ARM Chromebook | Turn on Linux in ChromeOS Settings, then open the file in the Files app and choose **Install with Linux**. |
 
-There is no build for Intel Macs.
+There is no build for Linux or Intel Macs.
 
 ## Getting started
 
@@ -49,18 +44,11 @@ Builds are saved in the same folders Path of Building uses, so either app can op
 
 When a new version is out, a banner appears at the top of the window.
 
-- **Windows, macOS and the AppImage:** press **Update**, then **Restart** if the app asks.
-- **.deb and .rpm:** press **Download** and install the new package.
+Press **Update**, then **Restart** if the app asks.
 
 To check by hand, open Settings (the gear in the title bar, or Ctrl+,) and press **Check for updates**.
 
 ## Features
-
-### Progression (PoE1 preview)
-
-Capture current and target builds without replacing the open build, keep local snapshot history,
-compare equipment and passive changes, and review transition checks and a PoB-calculated boss scenario.
-See [PROGRESSION.md](PROGRESSION.md) for usage, calculation assumptions, backup and validation instructions.
 
 ### Every Path of Building tab
 
@@ -103,10 +91,10 @@ every change first.
 ### In-game overlay
 
 An optional panel over the game, off until you turn it on in Settings > Overlay. Ctrl+C on an item shows what it does
-to the open build in every slot it fits; Ctrl+C on a map shows which of its mods are dangerous for the build. On
-Windows, Ctrl+D prices the item under the cursor from poe.ninja and the trade site, with mod filters you can change. It follows
-your zone and level from the game's log for leveling, and lists the next steps towards your Progression target. It
-reads only what you copy and the game's log file; the one key it presses is the price check's Ctrl+C. See [OVERLAY.md](OVERLAY.md).
+to the open build in every slot it fits; Ctrl+C on a map shows which of its mods are dangerous for the build.
+Ctrl+D prices the item under the cursor from poe.ninja and the trade site, with mod filters you can change. It reads
+only what you copy and the game's log file; the only keys it presses are your chat macros and the price check's
+Ctrl+C. See [OVERLAY.md](OVERLAY.md).
 
 ### MCP server
 
@@ -122,21 +110,6 @@ when the app closes, and refuses any request without the token.
 The app is not signed with an Apple Developer ID or notarized yet, so macOS blocks the first launch.
 On macOS 15 or later, open System Settings → Privacy & Security and click **Open Anyway**. On macOS
 14 and earlier, right-click the app and choose **Open**. [MACOS.md](MACOS.md) has more detail.
-
-### The window is black on Linux
-
-The AppImage, and any install on NVIDIA's own driver, start with WebKit's DMA-BUF renderer turned off,
-because it showed a black window there. Other installs draw with the GPU. If your window is black,
-start the app with `WEBKIT_DISABLE_DMABUF_RENDERER=1`, and without `POB_FORGE_GPU=1`. If the window is
-still black, [open an issue](../../issues) with your distribution and graphics card.
-
-`POB_FORGE_GPU=1` turns the GPU renderer back on where the app turned it off. Tree zooming is sharper
-with it, but it can show a black window.
-
-### An API key will not save on Linux
-
-Keys need a Secret Service on the session bus, such as gnome-keyring or KWallet. Install and unlock
-one, then add the key again.
 
 ### An API key will not save on Windows
 

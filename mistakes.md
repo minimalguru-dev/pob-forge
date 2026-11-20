@@ -147,6 +147,21 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - Production run() already calls pob_engine::install_tls_provider(). The test now calls that same initialization before constructing the real HTTP client. Redirect protection remains unchanged; no TLS checks are disabled.
 - Prevention: when testing a production client outside the application entry point, reproduce its required initialization. Revalidate on both platforms rather than marking the test ignored.
 
+## Line-range cut removed the next function's attribute
+
+- Removing `update_method` from `src-tauri/src/lib.rs` with a scripted cut ("from this line up to the line of `fn app_paths`") also removed the `#[tauri::command]` above `app_paths`. `cargo check` failed: `cannot find macro __tauri_command_name_app_paths` at the `generate_handler!` list.
+- Cause: the end marker was the function line, not the attribute above it, so the attribute fell inside the removed range.
+- Fix: restored the attribute; `cargo check --workspace --all-targets` and the app tests passed.
+- Prevention: end a scripted cut on the next item's first attribute or doc comment, or diff the result before compiling. The compiler catches a lost `#[tauri::command]` only when the command is registered; a lost `#[test]` or `#[cfg]` would compile silently.
+
+## Git Bash's link shadowed MSVC's linker in check.yml
+
+- The first Windows run of `check.yml` (bash as the default shell) failed in every build script: `linking with link.exe failed`, `/usr/bin/link: extra operand` ([run 44562524049](https://github.com/minimalguru-dev/pob-redux/actions/runs/44562524049)).
+- Cause: Git Bash puts `/usr/bin` (coreutils `link`) ahead of the PATH entries `ilammy/msvc-dev-cmd` adds. `progression-windows.yml` uses pwsh and never hit it. The workflow was written without a run on GitHub.
+- First fix was partial: `CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER` covered rustc, but LuaJIT's `msvcbuild.bat` calls `link` by name and failed the same way ([run 44569639450](https://github.com/minimalguru-dev/pob-redux/actions/runs/44569639450)).
+- Fix: the `BASH_ENV` file prepends MSVC's `bin/Hostx64/x64` to PATH for every bash step, and a step asserts `command -v link` is MSVC's. [Run 44570971876](https://github.com/minimalguru-dev/pob-redux/actions/runs/44570971876) passed on `4feb5bc`.
+- Prevention: on Windows runners, fix the tool lookup (PATH), not one consumer of it; check every native build that shells out (LuaJIT, cmake) uses the same tool. Run a new workflow with `workflow_dispatch` before claiming it works.
+
 ## 2026-11-19 — Masovni rename prepravio povijesne zapise
 
 - **Simptom:** skripta za rename `PoB Redux` → `PoB Forge` zamijenila je i tekst u `DEVELOPMENT_LOG.md` i `mistakes.md`: upstream link pokazivao je na vlastiti fork, a zapis o starom keyring SERVICE-u naveo je novu vrijednost kao da je bila stara.
@@ -155,6 +170,7 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Ispravak:** obje datoteke vraćene na HEAD prije commita; promijenjen samo naslov loga i dodani novi unosi. Ništa netočno nije commitano.
 - **Prevencija:** kod masovnih zamjena isključiti povijesne/handoff zapise i pregledati njihov diff zasebno; povijesne CI linkove ostaviti na staroj adresi (GitHub preusmjerava nakon preimenovanja repozitorija).
 - **Validacija:** `git diff` obiju datoteka sadrži samo naslov i nove unose.
+- **Ponovljeno 2026-11-20 (merge `feat/assistant-overlay`):** ista skripta pokrenuta nakon mergea prepravila je `legacy.rs`, `storage-migration.ts` i njegov test (stari identifier i `pob-redux:` prefiks koje migracija namjerno traži) te `mistakes.md`/`DEVELOPMENT_LOG.md`. Uhvaćeno u izlazu skripte prije commita; datoteke vraćene (`git checkout HEAD`, `git checkout -m` i ponovno rješavanje). Skripta sada mora isključiti i migracijske datoteke.
 
 ## 2026-11-19 — Windows-only kod ostavio neiskorištenu funkciju na Linuxu
 

@@ -22,15 +22,11 @@ pub fn rect(window: Handle) -> Option<(i32, i32, i32, i32)> {
 
 /// The game's inventory (and stash) panel is 986/1600 of the window height wide, at any resolution.
 const PANEL_PER_HEIGHT: f64 = 986.0 / 1600.0;
-const GAP: i32 = 8;
 
-/// Where a window of `size` sits just left of the inventory panel, vertically centred,
-/// kept inside the game window.
-pub fn beside_inventory((left, top, right, bottom): (i32, i32, i32, i32), (width, height): (u32, u32)) -> (i32, i32) {
+/// The screen x of the inventory panel's left edge, in physical pixels, never left of the window.
+pub fn inventory_left((left, top, right, bottom): (i32, i32, i32, i32)) -> i32 {
     let panel = ((bottom - top) as f64 * PANEL_PER_HEIGHT).round() as i32;
-    let x = (right - panel - GAP - width as i32).max(left);
-    let y = top + ((bottom - top - height as i32) / 2).max(0);
-    (x, y)
+    (right - panel).max(left)
 }
 
 /// Whether Ctrl is held right now, wherever focus is. `None` where this cannot be told.
@@ -158,12 +154,12 @@ mod tests {
     }
 
     #[test]
-    fn cards_sit_left_of_the_inventory() {
-        // 2560x1440: the inventory panel is 887 px wide, so the card ends 8 px short of it.
-        assert_eq!(super::beside_inventory((0, 0, 2560, 1440), (380, 620)), (1285, 410));
-        // 1920x1080 (a 666 px panel) on a monitor to the left, with an overlay taller than the window.
-        assert_eq!(super::beside_inventory((-1920, 0, 0, 1080), (380, 1200)), (-1054, 0));
-        // A window too narrow for both stays inside the game.
-        assert_eq!(super::beside_inventory((0, 0, 800, 1080), (380, 620)), (0, 230));
+    fn finds_the_inventory_panel_edge() {
+        // 2560x1440: the panel is 887 px wide.
+        assert_eq!(super::inventory_left((0, 0, 2560, 1440)), 1673);
+        // 1920x1080 (a 666 px panel) on a monitor to the left.
+        assert_eq!(super::inventory_left((-1920, 0, 0, 1080)), -666);
+        // A window narrower than the panel: the edge stays inside the game.
+        assert_eq!(super::inventory_left((0, 0, 500, 1080)), 0);
     }
 }

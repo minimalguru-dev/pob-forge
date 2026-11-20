@@ -7,11 +7,7 @@
   <div class="banner" role="status">
     {#if appUpdate.phase === "available"}
       <span class="txt">{m.update_available()} <span class="mono">{appUpdate.version}</span> {m.update_available_suffix()}</span>
-      {#if appUpdate.method === "self"}
-        <button class="btn sm" onclick={() => appUpdate.install()}>{m.update_install()}</button>
-      {:else}
-        <button class="btn sm" onclick={() => appUpdate.openReleases()} title={m.update_download_title()}>{m.update_download()}</button>
-      {/if}
+      <button class="btn sm" onclick={() => appUpdate.install()}>{m.update_install()}</button>
       <button class="btn sm ghost" onclick={() => appUpdate.dismiss()}>{m.update_later()}</button>
     {:else if appUpdate.phase === "downloading"}
       <span class="txt">

@@ -190,8 +190,6 @@
   "update_available": "バージョン",
   "update_available_suffix": "が利用できます。",
   "update_install": "アップデート",
-  "update_download": "ダウンロード",
-  "update_download_title": "パッケージからのインストールはアプリではなくパッケージマネージャーが置き換えます",
   "update_later": "後で",
   "update_downloading": "ダウンロード中",
   "update_ready": "アップデートをインストールしました。再起動すると完了します。",

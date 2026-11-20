@@ -26,7 +26,7 @@ test.beforeEach(async ({ page }) => {
       },
     };
   });
-  await page.goto("/tests/progression/?view=import");
+  await page.goto("/tests/ui/");
 });
 
 test("Paste and Import explains an empty or denied clipboard and recovers", async ({ page }) => {

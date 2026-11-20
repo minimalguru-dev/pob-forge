@@ -31,10 +31,6 @@ body:
       options:
         - Windows installer (.exe)
         - macOS (.dmg)
-        - AUR (pob-forge-bin)
-        - Debian or Ubuntu (.deb)
-        - Fedora or openSUSE (.rpm)
-        - AppImage
         - Built from source
     validations:
       required: true
@@ -42,7 +38,7 @@ body:
     id: os
     attributes:
       label: Operating system
-      placeholder: "Windows 11, macOS 15, Arch Linux with KDE on Wayland"
+      placeholder: "Windows 11, macOS 15"
   - type: textarea
     id: what
     attributes:

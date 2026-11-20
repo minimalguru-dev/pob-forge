@@ -26,7 +26,6 @@ impl Launch {
 
     pub fn command(&self) -> tokio::process::Command {
         let mut cmd = tokio::process::Command::new(&self.program);
-        restore_host_env(cmd.as_std_mut());
         for key in &self.remove {
             cmd.env_remove(key);
         }
@@ -130,41 +129,6 @@ impl Drop for Tree {
     }
 }
 
-fn appimage_mount() -> Option<PathBuf> {
-    std::env::var_os("APPDIR").filter(|_| cfg!(target_os = "linux")).map(PathBuf::from)
-}
-
-/// The AppImage's mount paths and main.rs's wayland preload must not reach the programs we start.
-pub(crate) fn restore_host_env(cmd: &mut std::process::Command) {
-    let Some(mount) = appimage_mount() else {
-        return;
-    };
-    let preloaded = std::env::var_os("POB_FORGE_PRELOADED").is_some();
-    for (key, value) in host_env(&mount, preloaded, std::env::vars_os()) {
-        match value {
-            Some(v) => cmd.env(key, v),
-            None => cmd.env_remove(key),
-        };
-    }
-}
-
-fn host_env(mount: &Path, preloaded: bool, vars: impl Iterator<Item = (OsString, OsString)>) -> Vec<(OsString, Option<OsString>)> {
-    let mut out: Vec<(OsString, Option<OsString>)> =
-        ["APPIMAGE", "APPDIR", "ARGV0", "OWD", "POB_FORGE_PRELOADED"].into_iter().map(|k| (k.into(), None)).collect();
-    for (key, value) in vars {
-        let ours = |p: &PathBuf| {
-            p.starts_with(mount)
-                || (preloaded && key == "LD_PRELOAD" && p.file_name().is_some_and(|n| n.to_string_lossy().starts_with("libwayland-")))
-        };
-        let parts: Vec<PathBuf> = std::env::split_paths(&value).collect();
-        let kept: Vec<&PathBuf> = parts.iter().filter(|p| !ours(p)).collect();
-        if kept.len() < parts.len() {
-            out.push((key, std::env::join_paths(kept).ok().filter(|v| !v.is_empty())));
-        }
-    }
-    out
-}
-
 fn home() -> Option<PathBuf> {
     std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from)
 }
@@ -205,12 +169,11 @@ fn known_dirs() -> Vec<PathBuf> {
     } else {
         dirs.push(PathBuf::from("/opt/homebrew/bin"));
         dirs.push(PathBuf::from("/usr/local/bin"));
-        dirs.push(PathBuf::from("/home/linuxbrew/.linuxbrew/bin"));
     }
     dirs
 }
 
-/// A GUI app on macOS or Linux starts with a bare PATH, so ask the login shell.
+/// A GUI app on macOS starts with a bare PATH, so ask the login shell.
 #[cfg(not(windows))]
 fn login_shell_path() -> Option<OsString> {
     let fallback = if cfg!(target_os = "macos") { "/bin/zsh" } else { "/bin/bash" };
@@ -233,9 +196,7 @@ fn launchctl_path() -> Option<OsString> {
 #[cfg(not(windows))]
 fn shell_path(shell: &OsString) -> Option<OsString> {
     use std::io::Read;
-    let mut cmd = std::process::Command::new(shell);
-    restore_host_env(&mut cmd);
-    let mut child = cmd
+    let mut child = std::process::Command::new(shell)
         .args(["-ilc", "printf '\\n__PATH__%s__PATH__' \"$PATH\""])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
@@ -306,9 +267,8 @@ pub(crate) fn search_path() -> OsString {
         dirs.extend(std::env::split_paths(&shell));
     }
     dirs.extend(known_dirs());
-    let mount = appimage_mount();
     let mut seen = std::collections::HashSet::new();
-    dirs.retain(|d| !d.as_os_str().is_empty() && mount.as_ref().is_none_or(|m| !d.starts_with(m)) && seen.insert(d.clone()));
+    dirs.retain(|d| !d.as_os_str().is_empty() && seen.insert(d.clone()));
     let joined = std::env::join_paths(dirs).unwrap_or_default();
     *PATH.write().unwrap() = Some(joined.clone());
     joined
@@ -465,29 +425,5 @@ mod tests {
         let found = super::native_codex(&script);
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(found.as_deref(), Some(exe.as_path()));
-    }
-}
-
-#[cfg(all(test, unix))]
-mod unix_tests {
-    use std::collections::HashMap;
-    use std::ffi::OsString;
-
-    #[test]
-    fn appimage_paths_are_dropped_from_child_env() {
-        let vars = [
-            ("PATH", "/tmp/.mount_pob/usr/bin:/usr/bin"),
-            ("LD_LIBRARY_PATH", "/tmp/.mount_pob/usr/lib"),
-            ("LD_PRELOAD", "/usr/lib/libwayland-client.so.0:/opt/mine.so"),
-            ("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus"),
-        ]
-        .map(|(k, v)| (OsString::from(k), OsString::from(v)));
-        let out: HashMap<OsString, Option<OsString>> =
-            super::host_env(std::path::Path::new("/tmp/.mount_pob"), true, vars.into_iter()).into_iter().collect();
-        assert_eq!(out[&OsString::from("PATH")], Some("/usr/bin".into()));
-        assert_eq!(out[&OsString::from("LD_LIBRARY_PATH")], None);
-        assert_eq!(out[&OsString::from("LD_PRELOAD")], Some("/opt/mine.so".into()));
-        assert_eq!(out[&OsString::from("APPDIR")], None);
-        assert!(!out.contains_key(&OsString::from("DBUS_SESSION_BUS_ADDRESS")));
     }
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
+  import { listen } from "@tauri-apps/api/event";
   import TitleBar from "$lib/components/TitleBar.svelte";
   import Sidebar from "$lib/components/Sidebar.svelte";
   import StatusBar from "$lib/components/StatusBar.svelte";
@@ -15,7 +16,6 @@
   import PartyView from "$lib/views/PartyView.svelte";
   import OptimiseView from "$lib/views/OptimiseView.svelte";
   import CompareView from "$lib/views/CompareView.svelte";
-  import ProgressionView from "$lib/views/ProgressionView.svelte";
   import ImportView from "$lib/views/ImportView.svelte";
   import SettingsView from "$lib/views/SettingsView.svelte";
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
@@ -73,9 +73,16 @@
     window.addEventListener("keydown", onKey);
     const offTooltips = tooltip.install();
     void app.boot();
+    // The overlay's "Ask the assistant": fill the message box, the user sends it.
+    const offAsk = listen<string>("overlay:ask", (e) => {
+      if (chat.poppedOut) return;
+      chat.input = e.payload;
+      if (!chat.open) chat.toggle();
+    });
     return () => {
       window.removeEventListener("keydown", onKey);
       offTooltips();
+      void offAsk.then((f) => f());
     };
   });
 </script>
@@ -130,8 +137,6 @@
         <OptimiseView />
       {:else if build.view === "compare"}
         <CompareView />
-      {:else if build.view === "progression"}
-        <ProgressionView />
       {:else}
         <ImportView {paths} />
       {/if}

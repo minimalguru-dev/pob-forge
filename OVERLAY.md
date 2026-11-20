@@ -1,8 +1,7 @@
 # In-game overlay (preview)
 
 A small panel that sits over Path of Exile while you play. It shows what an item or a map you copy does to the
-build open in PoB Forge, follows your zone and level from the game's log, and lists the next steps towards your
-Progression target. Every number comes from Path of Building's own calculation.
+build open in PoB Forge. Every number comes from Path of Building's own calculation.
 
 ## Turn it on
 
@@ -18,6 +17,19 @@ Progression target. Every number comes from Path of Building's own calculation.
 Both shortcuts are global while the overlay is on, so pick combinations the game does not use. The command palette
 (Ctrl+K) also has **Show or hide the in-game overlay**.
 
+## Cards
+
+A card copied in the game opens just left of the inventory panel, so it covers neither the stash nor the inventory;
+one copied elsewhere (the trade site) opens beside the cursor. It follows the Awakened PoE Trade rules:
+
+- **Hold Ctrl to look.** Keep Ctrl down after Ctrl+C or Ctrl+D and the card stays; let go and it closes, unless the
+  cursor is on the card.
+- **A quick Ctrl+C** (Ctrl already let go) keeps the card until the mouse moves away.
+- **Ctrl+click** the card to keep it open and make its buttons and fields work. A kept card closes when you click back
+  in the game or press **Esc**. While Ctrl is held over a card, the card takes the click instead of the game.
+
+Ctrl's state is read with Windows' `GetAsyncKeyState`, which only reports whether the key is down.
+
 ## Panels
 
 **Item check.** Hover an item in the game and press Ctrl+C, or press **Copy** on a trade site listing. The overlay
@@ -25,16 +37,10 @@ shows, for each slot the item fits, the change to DPS, minion DPS, life, energy 
 speed, with the best slot first. It also warns when the item needs a higher level or more attributes than the build
 has. This is PoB's own "Equipping this item" calculation (`item_evaluate`); the build does not change. Jewels that
 rebuild the passive tree (Timeless, Impossible Escape and similar) are not scored; compare them in the Items tab.
-A card copied in the game shows just left of the inventory panel, so it covers neither the stash nor the inventory, and
-the overlay goes back to its place when the card closes.
-
-**Hold to look.** As in Awakened PoE Trade, a card opened from the game with Ctrl+C or Ctrl+D closes as soon as you let go
-of Ctrl. Move the cursor onto the overlay before letting go to keep it open, for example to change the price check's
-filters; Esc or ✕ closes it then. A card whose Ctrl was let go before it appeared stays for the usual few seconds.
 
 **Price check (Windows).** Hover an item in the game and press **Ctrl+D**. The app presses Ctrl+C once so the
-game copies the item, then opens a price card you can click just left of the inventory panel. Esc or ✕ closes it,
-puts the overlay back where it was and gives focus back to the game.
+game copies the item, then opens a price card just left of the inventory panel. Ctrl+click it to change the filters;
+Esc or ✕ closes it and gives focus back to the game.
 
 - **poe.ninja** prices currency, fragments, scarabs, essences, divination cards, gems (by level, quality and
   corruption) and uniques (six-links separately on PoE1), for the league you pick. A stack shows its total.
@@ -55,30 +61,39 @@ regeneration, no leech, less recovery. Lines the overlay does not recognise are 
 get the text checks only, because PoB for PoE2 has no map mod options. PoB's map mod list is maintained by hand and
 can lag behind a league; read the map as well.
 
-**Leveling.** Read from the game's log (`Client.txt`): the zone, its area level and act, and your character's level.
-The panel shows the PoE1 experience multiplier for that area (not in towns or hideouts), the resistance penalty PoB
-uses for the act, the passive points that level and act allow against what the build spends (a range, since the
-bandit choice adds one), and which gems the character can use from this level and the next few. Gems come from your
-Progression target when one is selected, otherwise from the open build. In PoE1 acts 1–10 a button opens
-[poe-vault's quick-reference leveling guide](https://www.poe-vault.com/guides/quick-reference-leveling-guide-for-path-of-exile)
-for that act in your browser; its text is not copied into the app.
-
-The log is found in the standalone install and in Steam libraries. If yours is elsewhere, set **Game log file** in
+**Game log.** The overlay shows no panel for it, but the assistant reads the zone, area level, act and character
+level from the game's log (`Client.txt`) through `get_game_context`. The log is found in the standalone install and in Steam libraries. If yours is elsewhere, set **Game log file** in
 Settings → Overlay. Only English game clients are understood. A long-played log is hundreds of megabytes; the overlay
 reads the last half megabyte on start and then only what the game appends.
 
-**Progression.** With a current and a target snapshot selected in the Progression tab (PoE1), the overlay lists the
-blockers and the next four priorities, the same rules the tab shows.
+**Prices.** Uniques, currency, fragments, scarabs and divination cards get their [poe.ninja](https://poe.ninja)
+price on the item card (Path of Exile 1): the cheapest variant, a range when variants differ, and the total for a
+stack. The league is the current one unless you set **Price league**. The app downloads poe.ninja's whole price list
+for a category and keeps it for half an hour, so poe.ninja never sees what you copied. Rares have no list price; use
+the assistant's trade search for those.
+
+**Ask the assistant.** In interact mode every card has an **Ask the assistant** button. It puts the copied text in the
+assistant's message box and brings the chat forward; nothing is sent until you press Send. The assistant can also
+read the last five things you copied by itself (`get_game_context`), each scored against the open build, so "is the
+ring I just copied better?" works without pasting anything.
 
 ## What it reads, and what it never does
 
-- While the overlay is showing, it reads the clipboard every 300 ms and acts only on text that starts with
-  `Item Class:`, which is what the game writes on Ctrl+C. Other clipboard text is ignored and never logged or stored.
-  When the overlay is hidden or off, the clipboard is not read.
+- While the overlay is showing, it reads the clipboard every 300 ms and acts only on item text: text that starts with
+  `Item Class:`, which is what the game writes on Ctrl+C, or a `Rarity:` line followed by the game's `--------`
+  section breaks, which is what a trade site Copy can leave. Other clipboard text is ignored and never logged or
+  stored. When the overlay is hidden or off, the clipboard is not read.
+- The last five items it acted on are kept in memory for the assistant and forgotten when the app closes.
 - It reads the game's own log file, which the game writes for players.
-- It never reads the game's memory or injects anything into the game. The one input it sends is the price check's
-  Ctrl+C, once, right after you press the price check shortcut in the game, so the game copies the item under the
-  cursor. That copy is a client-side action; the overlay sends no clicks and nothing that acts in the game.
+- It never reads the game's memory or injects anything into the game, and it never clicks.
+- It sends keys in two cases only, each on one key press of yours while the game window is in front:
+  - **Macros** (Settings → Overlay → Macros, F5 → `/hideout` by default): one key press types one chat command, as
+    Enter, the command, Enter. Commands must start with `/` and be one line. A macro waits for Ctrl, Shift and Alt to
+    be released so the typing cannot turn into shortcuts. If the chat box is already open with text in it, the first
+    Enter sends that text, as it would in Awakened PoE Trade.
+  - **Price check** (Ctrl+D): one Ctrl+C, so the game copies the item under the cursor. If you are still holding
+    Ctrl, only C is sent.
+  These keys are taken only while the game is in front, so they keep their usual meaning in every other program.
 - A price check sends the item's search to pathofexile.com's trade site and asks poe.ninja for its price tables.
   Nothing else leaves your computer.
 
@@ -88,12 +103,10 @@ isn't affiliated with or endorsed by Grinding Gear Games in any way.
 ## Limits
 
 - macOS draws the overlay opaque; transparent windows there need a Tauri feature this build does not enable.
-- The overlay stays up when you alt-tab; only the price shortcut follows the game's focus. Hide it with the shortcut.
-- The price check needs Windows: other systems have no way here to have the game copy an item. Ctrl+C on an item
-  still gives the item check everywhere.
+- The overlay does not know whether the game has focus, so it stays up when you alt-tab. Hide it with the shortcut.
+- The price check needs Windows: other systems have no way here to have the game copy an item.
 - The trade search reads equipment, jewels and flasks through PoB's item parser. Currency, gems and cards are priced
   by poe.ninja only.
-- PoE2's experience penalty is not modelled; the leveling panel shows the level gap instead.
 - The item and map cards use the build open in PoB Forge, not your live character. Keep it in step.
 
 ## Development
@@ -103,11 +116,12 @@ isn't affiliated with or endorsed by Grinding Gear Games in any way.
 | Window, shortcuts, clipboard watcher | `src-tauri/src/overlay.rs` |
 | Game log reader | `src-tauri/src/gamelog.rs` |
 | Settings (`settings.json`, `overlay`) | `OverlaySettings` in `src-tauri/src/game.rs` |
-| Bridge methods | `item_evaluate`, `map_evaluate`, `leveling_info` in `crates/pob-engine/lua/bridge.lua` |
-| Window UI | `src/OverlayWindow.svelte`, formulas in `src/lib/overlay/leveling.ts` |
+| Prices | `src-tauri/src/prices.rs` (`cargo test -p pob-forge --lib prices -- --ignored` talks to poe.ninja) |
+| Assistant | `get_game_context` and `open_trade_search` in `src-tauri/src/tools.rs` |
+| Bridge methods | `item_evaluate`, `map_evaluate` in `crates/pob-engine/lua/bridge.lua` |
+| Window UI | `src/OverlayWindow.svelte` |
 
 ```sh
 cargo test -p pob-forge --lib overlay gamelog
 POB_ROOT=src-tauri/resources/pob1 cargo test -p pob-engine --test item_evaluate --test map_evaluate
-bun test scripts/leveling.test.ts
 ```

@@ -192,6 +192,25 @@ Megalomaniac needs three notables, a Prism of Belief one skill, Against the
 Darkness two stats. If no socket is allocated, the answer is that the tree
 has no jewel socket yet.
 
+When the user talks about "this item", "the one I copied", a listing they are
+looking at, or their current zone or level, call get_game_context. It returns
+the items they copied with the overlay on, each already scored against the
+open build per slot, and where the game log says they are. Answer from its
+delta; do not ask them to paste the item.
+
+After optimise_gear, when the user wants to buy rather than craft, call
+open_trade_search once per proposed slot with open false, so each search
+becomes a button under your reply, then say which slot each one is for.
+
+When the user wants to buy an item for a slot, call open_trade_search with
+that slot and the league they name. It opens the official trade site with
+PoB's weighted search for the slot; it fetches no listings and buys nothing.
+Say which stats it weighs most and that results must beat the item in the
+slot. To check a listing, the user turns on the in-game overlay and presses
+Copy on it; the overlay's item check scores it against the build. The panel
+puts the link under your reply as an Open trade site button, so do not write
+it out. Never offer to buy, whisper or contact a seller.
+
 A rare has 3 prefixes and 3 suffixes. Give every slot its job from the library
 before choosing: boots carry movement speed, the belt and rings carry
 resistances, the weapon carries the damage base. Cap all three elemental
@@ -412,14 +431,6 @@ the bandit reward come from progress rather than level, so pointsAvailableMin an
 pointsAvailableMax are a range; quote the range rather than one number, and
 compare it against passivePointsSpent.
 
-When the user asks what to do next, how close they are to a build they are
-aiming for, or what changed since earlier, call get_progression. It holds their
-saved current and target snapshots, and for that pair the readiness checks and
-the ordered next priorities. Lead with any blocked check. Its priorities follow
-fixed rules, not prices; say so if the user asks what is worth buying first.
-Save the open build with capture_progression_snapshot only when the user asks
-for it or agrees to it.
-
 `;
 
 const POE1_SKILLS = `### Skills and buttons
@@ -487,6 +498,32 @@ seed, pass that result's itemText and the slot to equip_item_raw and report
 what the build gains. Never write timeless jewel text yourself. The panel
 puts the search's trade link under your reply as an Open trade site button,
 so do not write the link out or build one; say which seeds it searches.
+
+When the user talks about "this item", "the one I copied", a listing they are
+looking at, or their current zone or level, call get_game_context. It returns
+the items they copied with the overlay on, each already scored against the
+open build per slot, and where the game log says they are. Answer from its
+delta; do not ask them to paste the item.
+
+After optimise_gear, when the user wants to buy rather than craft, call
+open_trade_search once per proposed slot with open false, so each search
+becomes a button under your reply, then say which slot each one is for.
+
+When the user asks how their build compares with others, or what strong
+builds of the same kind do differently, call search_ninja_builds with the
+ascendancy and main skill from build_summary, then compare_ninja_build on one
+or two of the top results. Lead with the biggest differences in PoB's numbers,
+then the keystones, notables and gear behind them. Their build stays in the
+Compare tab; say so. Do not tell the user to copy a ladder build wholesale.
+
+When the user wants to buy an item for a slot, call open_trade_search with
+that slot and the league they name. It opens the official trade site with
+PoB's weighted search for the slot; it fetches no listings and buys nothing.
+Say which stats it weighs most and that results must beat the item in the
+slot. To check a listing, the user turns on the in-game overlay and presses
+Copy on it; the overlay's item check scores it against the build. The panel
+puts the link under your reply as an Open trade site button, so do not write
+it out. Never offer to buy, whisper or contact a seller.
 
 A rare has 3 prefixes and 3 suffixes. Give every slot its job from the library
 before choosing: boots carry movement speed, the belt and rings carry the main

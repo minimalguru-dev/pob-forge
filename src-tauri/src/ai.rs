@@ -300,12 +300,8 @@ pub(crate) fn store_secret(app: &AppHandle, id: &str, secret: &str) -> Result<()
     Err(keyring_error(err))
 }
 
-/// keyring's own errors leave out the fix: on Linux, that a D-Bus Secret
-/// Service has to be running; on Windows, what error 8 means.
+/// keyring's own errors leave out the fix: on Windows, what error 8 means.
 fn keyring_error(e: keyring::Error) -> String {
-    if cfg!(target_os = "linux") {
-        return format!("{e}. Storing a key needs a Secret Service (gnome-keyring or KWallet) on the session bus.");
-    }
     #[cfg(windows)]
     if let keyring::Error::PlatformFailure(inner) = &e {
         if inner.downcast_ref::<keyring::windows::Error>().is_some_and(|w| w.0 == 8) {

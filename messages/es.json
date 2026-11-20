@@ -190,8 +190,6 @@
   "update_available": "La versión",
   "update_available_suffix": "está disponible.",
   "update_install": "Actualizar",
-  "update_download": "Descargar",
-  "update_download_title": "Una instalación por paquete la sustituye su gestor de paquetes, no la aplicación",
   "update_later": "Más tarde",
   "update_downloading": "Descargando",
   "update_ready": "Actualización instalada. Reinicia para terminar.",

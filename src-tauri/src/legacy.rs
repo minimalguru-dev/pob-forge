@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 
 /// Identifiers earlier builds used, newest first. The first one found is copied.
-pub(crate) const OLD_IDENTIFIERS: [&str; 2] = ["dev.pobredux.desktop", "dev.minimalguru.pob-progression-preview"];
+pub(crate) const OLD_IDENTIFIERS: [&str; 2] = ["dev.minimalguru.pob-progression-preview", "dev.pobredux.desktop"];
 
 /// DPAPI entropy the Windows key files were encrypted with before the rename.
 #[cfg(windows)]

@@ -4843,51 +4843,6 @@ M.item_evaluate = function(p)
 	}
 end
 
--- For the overlay's leveling panel: the character level each gem needs (the named gems,
--- or the open build's enabled gems when no names are given) and the open build's passive points.
-M.leveling_info = function(p)
-	p = p or {}
-	local byName = {}
-	for _, gemData in pairs(data.gems) do
-		if gemData.name and not byName[gemData.name] then byName[gemData.name] = gemData end
-	end
-	local names, seen = {}, {}
-	local function want(name)
-		if type(name) == "string" and not seen[name] then seen[name] = true; names[#names + 1] = name end
-	end
-	if type(p.names) == "table" then
-		for _, name in ipairs(p.names) do want(name) end
-	else
-		ensureBuild()
-		for _, group in ipairs(build.skillsTab.socketGroupList or {}) do
-			if group.enabled ~= false then
-				for _, gem in ipairs(group.gemList or {}) do
-					if gem.enabled ~= false and gem.gemData then want(gem.gemData.name or gem.nameSpec) end
-				end
-			end
-		end
-	end
-	local out = array({})
-	for _, name in ipairs(names) do
-		local gemData = byName[name]
-		local level = gemData and gemUtil.gemReqLevel(gemData.Tier, gemData) or nil
-		out[#out + 1] = { name = name, level = opt(level), support = gemData and gemData.grantedEffect and gemData.grantedEffect.support == true or false, known = gemData ~= nil }
-	end
-	table.sort(out, function(a, b)
-		local la, lb = a.level == null and 999 or a.level, b.level == null and 999 or b.level
-		if la ~= lb then return la < lb end
-		return a.name < b.name
-	end)
-	local loaded = build and build.spec and build.calcsTab and build.calcsTab.mainOutput
-	local spent, level = null, null
-	if loaded then
-		local used, _, _, _, ws1, ws2 = countAllocNodes(build.spec)
-		spent = used - math.min(ws1, ws2)
-		level = build.characterLevel
-	end
-	return { gems = out, passivePointsSpent = spent, buildLevel = level }
-end
-
 -- A map copied from the game (Ctrl+C): which mods PoB knows, what they do to the open build on a
 -- temporary copy (PoE1, through the Config tab's map mod options), and the mods PoB does not
 -- calculate that are dangerous for this build. The live build is never changed.
@@ -7043,6 +6998,92 @@ M.trade_search_result = function()
 	if not tradeState or not tradeState.done then error("no finished trade search", 0) end
 	if tradeState.err then error(tradeState.err, 0) end
 	return { query = tradeState.query }
+end
+
+-- The trade site's own search page for a generated query, as the Trader's link opens it.
+function itemUtil.tradeSearchUrl(query, league, realm)
+	local function enc(s)
+		return (tostring(s):gsub("[^a-zA-Z0-9]", function(c) return string.format("%%%02X", c:byte()) end))
+	end
+	local base
+	if IS_POE2 then
+		base = "https://www.pathofexile.com/trade2/search/poe2/"
+	else
+		realm = itemUtil.tradeRealm(realm)
+		base = "https://www.pathofexile.com/trade/search/" .. (realm == "pc" and "" or (realm .. "/"))
+	end
+	return base .. enc(league) .. "?q=" .. enc(query)
+end
+
+-- One slot's trade search, generated start to finish by PoB's Trader without the trade API
+-- (no listings are fetched): the link, and what the query weighs and filters.
+M.trade_search_url = function(p)
+	ensureBuild()
+	p = p or {}
+	if type(p.statWeights) == "table" and p.statWeights[1] then
+		local known, names = {}, {}
+		for _, s in ipairs(data.powerStatList) do
+			if s.stat then known[s.stat] = true names[#names + 1] = s.stat end
+		end
+		for _, w in ipairs(p.statWeights) do
+			if not known[w.stat] then
+				error("unknown stat " .. tostring(w.stat) .. "; one of: " .. table.concat(names, ", "), 0)
+			end
+		end
+	end
+	M.trade_search_start(p)
+	for _ = 1, 600 do
+		if M.trade_search_step({ steps = 150 }).done then break end
+	end
+	local query = M.trade_search_result().query
+	local league = type(p.league) == "string" and p.league ~= "" and p.league or timelessUtil.currentLeague()
+	local decoded = dkjson.decode(query) or {}
+	local q = decoded.query or {}
+	local texts = {}
+	local gen = itemUtil.tradeGenerator()
+	for _, byType in pairs(gen.modData or {}) do
+		for _, modData in pairs(byType) do
+			local tradeMod = type(modData) == "table" and modData.tradeMod
+			if tradeMod and tradeMod.id then texts[tradeMod.id] = tradeMod.text end
+		end
+	end
+	local function label(id)
+		return texts[id] or (tostring(id):gsub("^pseudo%.pseudo_", "pseudo: "):gsub("_", " "))
+	end
+	local weighted, required, blocked, minWeight = array({}), array({}), array({}), null
+	for _, group in ipairs(q.stats or {}) do
+		for _, f in ipairs(group.filters or {}) do
+			local v = f.value or {}
+			if group.type == "weight" then
+				weighted[#weighted + 1] = { id = f.id, text = label(f.id), weight = tonumber(v.weight) or 0 }
+			elseif group.type == "and" then
+				required[#required + 1] = { id = f.id, text = label(f.id), min = opt(v.min) }
+			elseif group.type == "not" then
+				blocked[#blocked + 1] = { id = f.id, text = label(f.id) }
+			end
+		end
+		if group.type == "weight" and group.value and group.value.min then minWeight = group.value.min end
+	end
+	local filters = q.filters or {}
+	local typeFilters = filters.type_filters and filters.type_filters.filters or {}
+	local weights = array({})
+	for _, w in ipairs(itemUtil.tradeWeights(p.statWeights)) do
+		weights[#weights + 1] = { stat = w.stat, label = w.label, weightMult = w.weightMult }
+	end
+	local target = itemUtil.tradeTarget(p)
+	return {
+		url = itemUtil.tradeSearchUrl(query, league, p.realm),
+		query = query,
+		league = league,
+		slot = target.special or (target.slot and target.slot.slotName) or null,
+		category = opt(typeFilters.category and typeFilters.category.option),
+		status = opt(q.status and q.status.option),
+		statWeights = weights,
+		minWeight = minWeight,
+		weighted = weighted,
+		required = required,
+		blocked = blocked,
+	}
 end
 
 -- With a realm, that realm's leagues. Without one, each league once, as the links built before realms needed.
@@ -9980,6 +10021,19 @@ M.compare_tree = function()
 	for k in pairs(myKeys) do if not theirKeys[k] then keyLost[#keyLost + 1] = k end end
 	table.sort(keyGained)
 	table.sort(keyLost)
+	-- Notables by name, from each side's own tree, for an advisor to read.
+	local function notables(ids, spec)
+		local names, seen = strArray({}), {}
+		for _, id in ipairs(ids) do
+			local node = spec.nodes[id]
+			if node and node.type == "Notable" and node.dn and not seen[node.dn] then
+				seen[node.dn] = true
+				names[#names + 1] = node.dn
+			end
+		end
+		table.sort(names)
+		return names
+	end
 	return {
 		mine = { nodes = myCount, title = mySpec.title or "Default", className = mySpec.curClassName },
 		theirs = { nodes = theirCount, title = theirSpec.title or "Default", className = theirSpec.curClassName },
@@ -9987,6 +10041,8 @@ M.compare_tree = function()
 		lost = lost,
 		keystonesGained = keyGained,
 		keystonesLost = keyLost,
+		notablesGained = notables(gained, theirSpec),
+		notablesLost = notables(lost, mySpec),
 	}
 end
 
@@ -12543,7 +12599,5 @@ M.sanity_check = function()
 	for _, f in ipairs(findings) do counts[f.severity] = counts[f.severity] + 1 end
 	return { findings = findings, high = counts.high, medium = counts.medium, low = counts.low }
 end
-
-M.progression_capture = __progression(M, ensureBuild, decodeCode)
 
 return M

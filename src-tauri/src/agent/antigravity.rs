@@ -48,26 +48,10 @@ pub(crate) fn asset() -> Option<&'static Asset> {
         exe: ("agy_acp_server.par", 802_163_856),
         harness: ("localharness_external", 116_766_704),
     };
-    static LINUX_X64: Asset = Asset {
-        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_1.1.1-linux-x86_64.zip",
-        sha256: "38f62d01b32deb0907b3d39a71ec301fd36369f6ffd1cf262d4af385177f79df",
-        bytes: 681_969_407,
-        exe: ("agy_acp_server.par", 1_880_360_328),
-        harness: ("localharness_external", 128_966_920),
-    };
-    static LINUX_ARM64: Asset = Asset {
-        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_1.1.1-linux-arm64.zip",
-        sha256: "ed69e64b308fcb123ab54bf3277bf9cb0d651064f885ea5aab0ff520c7175398",
-        bytes: 656_572_786,
-        exe: ("agy_acp_server.par", 1_862_073_131),
-        harness: ("localharness_external", 122_158_704),
-    };
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("windows", "x86_64") => Some(&WIN_X64),
         ("windows", "aarch64") => Some(&WIN_ARM64),
         ("macos", "aarch64") => Some(&MAC_ARM64),
-        ("linux", "x86_64") => Some(&LINUX_X64),
-        ("linux", "aarch64") => Some(&LINUX_ARM64),
         _ => None,
     }
 }
@@ -146,8 +130,7 @@ pub(crate) fn launch(app: &AppHandle, configured: Option<&str>) -> Option<Launch
     } else {
         env.push(("TMPDIR".into(), temp.clone().into_os_string()));
     }
-    let prefix = if cfg!(target_os = "linux") { vec!["--uid=".into()] } else { Vec::new() };
-    Some(Launch { program: exe, prefix, env, remove: REMOVED.to_vec(), scratch: Some(temp) })
+    Some(Launch { program: exe, prefix: Vec::new(), env, remove: REMOVED.to_vec(), scratch: Some(temp) })
 }
 
 /// Starting the agent unpacks about 1 GB, so the status comes from the files, not a probe.
