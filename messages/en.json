@@ -1832,6 +1832,8 @@
   "price_item_level": "item level {level}",
   "price_corrupted": "corrupted",
   "price_min": "min",
+  "price_search_again": "Search again",
+  "price_search_again_title": "Searches by itself when a filter changes; this asks for fresh listings.",
   "price_area_level": "Area level ≥",
   "view_regex": "Regex",
   "regex_title": "Search regexes",

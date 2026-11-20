@@ -52,7 +52,26 @@
   let gemLevel = $state("");
   let mapTier = $state("");
   let areaLevel = $state("");
+  /** The base alone, as for crafting: mod filters are left out (not lost) while it is on. */
+  let baseOnly = $state(false);
   let result = $state<TradeResult | null>(null);
+  /** Every choice that changes the search; a change searches again by itself. */
+  const choices = () =>
+    JSON.stringify([
+      simple, baseOnly, baseType, listed, useItemLevel, itemLevel, quality, links, corrupted, priceIn, emptyPrefix, emptySuffix,
+      mods, defences, dps, pseudo, marks, rooms, gemLevel, mapTier, areaLevel, maps, blighted,
+    ]);
+  let searchedWith = "";
+  let again = false;
+  /** Changes made by typing or ticking search a moment after the last one. */
+  const AUTO_SEARCH_MS = 500;
+  $effect(() => {
+    const now = choices();
+    if (!(info || simple) || !league || now === searchedWith) return;
+    // A search started meanwhile (the first one, a league change) may already have these choices.
+    const timer = setTimeout(() => { if (choices() !== searchedWith) void search(); }, AUTO_SEARCH_MS);
+    return () => clearTimeout(timer);
+  });
   let searching = $state(false);
   let error = $state<string | null>(null);
 
@@ -96,8 +115,10 @@
   }
 
   async function searchSimple() {
-    if (!item || searching || !league) return;
+    if (!item || !league) return;
+    if (searching) { again = true; return; }
     searching = true;
+    searchedWith = choices();
     error = null;
     try {
       const query = simpleQuery(item, {
@@ -116,7 +137,14 @@
       error = friendly(e);
     } finally {
       searching = false;
+      searchAgain();
     }
+  }
+
+  /** A change made while a search ran gets its own search once that one is back. */
+  function searchAgain() {
+    if (again && choices() !== searchedWith) void search();
+    again = false;
   }
 
   /** The temple's rooms, each with its trade filter; the rooms players pay for are ticked. */
@@ -146,30 +174,35 @@
 
   async function search() {
     if (simple) return searchSimple();
-    if (!info || searching || !league) return;
+    if (!info || !league) return;
+    if (searching) { again = true; return; }
     searching = true;
+    searchedWith = choices();
     error = null;
+    const modsOn = !baseOnly;
     try {
       const { query } = await engine.buySimilarUrl({
         raw,
         realm: info.realms[0],
         league,
         listed,
-        baseType,
+        baseType: baseType || baseOnly,
         ilvlMin: null,
         ilvlMax: null,
-        defences: defences.map((d) => ({ checked: d.checked, min: num(d.min), max: num(d.max) })),
-        mods: mods.map((d, i) => ({ checked: d.checked && !inTotal.has(i), min: num(d.min), max: num(d.max) })),
+        defences: defences.map((d) => ({ checked: modsOn && d.checked, min: num(d.min), max: num(d.max) })),
+        mods: mods.map((d, i) => ({ checked: modsOn && d.checked && !inTotal.has(i), min: num(d.min), max: num(d.max) })),
       });
       if (!query) throw new Error("this Path of Building version builds no trade query");
       const filtered = applyFilters(query, {
-        pseudo: [
-          ...pseudo.filter((p) => p.checked).map((p) => ({ id: PSEUDO[p.key].id, min: num(p.min) })),
-          ...(num(emptyPrefix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_prefix_mods", min: num(emptyPrefix) }] : []),
-          ...(num(emptySuffix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_suffix_mods", min: num(emptySuffix) }] : []),
-        ],
-        dps: dps.filter((d) => d.checked).map((d) => ({ key: d.key, min: num(d.min) })),
-        marks: marks.filter((mk) => mk.checked),
+        pseudo: modsOn
+          ? [
+              ...pseudo.filter((p) => p.checked).map((p) => ({ id: PSEUDO[p.key].id, min: num(p.min) })),
+              ...(num(emptyPrefix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_prefix_mods", min: num(emptyPrefix) }] : []),
+              ...(num(emptySuffix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_suffix_mods", min: num(emptySuffix) }] : []),
+            ]
+          : [],
+        dps: modsOn ? dps.filter((d) => d.checked).map((d) => ({ key: d.key, min: num(d.min) })) : [],
+        marks: modsOn ? marks.filter((mk) => mk.checked) : [],
         game: game.current,
         itemLevel: useItemLevel ? num(itemLevel) : null,
         quality: num(quality),
@@ -182,18 +215,8 @@
       error = friendly(e);
     } finally {
       searching = false;
+      searchAgain();
     }
-  }
-
-  /** The base alone, as for crafting: every mod filter off, same base type on. */
-  function baseOnly() {
-    mods = mods.map((c) => ({ ...c, checked: false }));
-    defences = defences.map((c) => ({ ...c, checked: false }));
-    dps = dps.map((c) => ({ ...c, checked: false }));
-    pseudo = pseudo.map((p) => ({ ...p, checked: false }));
-    marks = marks.map((mk) => ({ ...mk, checked: false }));
-    baseType = true;
-    void search();
   }
 
   function setLeague(id: string) {
@@ -213,7 +236,7 @@
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
-      if (e.key === "Enter" && (info || simple) && !searching) void search();
+      if (e.key === "Enter" && (info || simple)) void search();
     };
     window.addEventListener("keydown", onKey);
     void (async () => {
@@ -360,7 +383,7 @@
   {#if info}
     <div class="trade">
       <span class="label small">{m.price_trade()}</span>
-      <div class="mods">
+      <div class="mods" class:muted={baseOnly} inert={baseOnly}>
         {#each marks as mk, i (mk.line)}
           <label class="mod" class:off={!mk.checked}>
             <input type="checkbox" bind:checked={marks[i].checked} />
@@ -434,7 +457,8 @@
 
       <div class="toggles small">
         {#if !info.unique}
-          <label class="toggle"><input type="checkbox" bind:checked={baseType} /> {m.price_base_type()}</label>
+          <label class="toggle" title={m.price_base_only_title()}><input type="checkbox" bind:checked={baseOnly} /> {m.price_base_only()}</label>
+          <label class="toggle" class:off={baseOnly}><input type="checkbox" checked={baseType || baseOnly} disabled={baseOnly} onchange={(e) => (baseType = (e.target as HTMLInputElement).checked)} /> {m.price_base_type()}</label>
         {/if}
         <label class="toggle">
           <input type="checkbox" bind:checked={useItemLevel} /> {m.price_ilvl()} ≥
@@ -442,10 +466,8 @@
         </label>
       </div>
       <div class="row">
-        {#if !info.unique}
-          <button class="btn sm ghost" onclick={baseOnly} disabled={searching} title={m.price_base_only_title()}>{m.price_base_only()}</button>
-        {:else}<span></span>{/if}
-        <button class="btn sm" onclick={() => void search()} disabled={searching}>{searching ? m.price_searching() : m.price_search()}</button>
+        <span class="dim small">{searching ? m.price_searching() : ""}</span>
+        <button class="btn sm ghost" onclick={() => void search()} disabled={searching} title={m.price_search_again_title()}>{m.price_search_again()}</button>
       </div>
       {#if error}<p class="bad small">{error}</p>{/if}
       {#if result}
@@ -517,8 +539,8 @@
         </label>
       </div>
       <div class="row">
-        <span></span>
-        <button class="btn sm" onclick={() => void search()} disabled={searching}>{searching ? m.price_searching() : m.price_search()}</button>
+        <span class="dim small">{searching ? m.price_searching() : ""}</span>
+        <button class="btn sm ghost" onclick={() => void search()} disabled={searching} title={m.price_search_again_title()}>{m.price_search_again()}</button>
       </div>
       {#if error}<p class="bad small">{error}</p>{/if}
       {#if result}
@@ -570,6 +592,8 @@
     background: color-mix(in oklch, var(--fg-3) 18%, transparent); text-transform: lowercase; }
   .foul { color: oklch(68% 0.16 350); }
   .tag.mutated { color: oklch(72% 0.15 350); background: color-mix(in oklch, oklch(60% 0.16 350) 18%, transparent); }
+  .mods.muted { opacity: 0.4; }
+  .toggle.off { opacity: 0.55; }
   .tag.q20 { color: var(--fg-1); background: var(--bg-3); }
   .tag.pseudo { color: var(--brand); background: color-mix(in oklch, var(--brand) 16%, transparent); }
   .tag.eldritch { color: oklch(72% 0.14 300); background: color-mix(in oklch, oklch(60% 0.15 300) 20%, transparent); }

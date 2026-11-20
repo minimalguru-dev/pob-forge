@@ -65,7 +65,8 @@ game copies the item, then opens a price card just left of the inventory panel. 
   items, Fractured, Synthesised, Mirrored and Split (PoE2: Fractured, Mirrored, Sanctified) are ticked filters.
   Maps and waystones also offer their quantity, rarity and pack figures (unticked), and blighted or blight-ravaged maps
   search their own market.
-  **Base only** turns every mod filter off and searches the base type alone. Untick mods or change the minimums and search again. The ten cheapest listings show with their age; **Open on the trade site** opens
+  Every change to a filter searches again by itself, half a second after the last one. **Base only** is a switch:
+  while it is on the mod filters are left out (and kept for when it goes off) and the base type alone is searched. The ten cheapest listings show with their age; **Open on the trade site** opens
   the full search on pathofexile.com in your browser. Under each mod are its tags, as in Awakened PoE Trade: pseudo,
   implicit, enchant, crafted, fractured, eldritch (Searing Exarch and Eater of Worlds) and what else the game marks.
 - **Temples, gems, maps and the rest.** A Chronicle of Atzoatl is searched by its open rooms, with Locus of
