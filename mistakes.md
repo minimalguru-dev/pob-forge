@@ -172,3 +172,12 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Ispravak:** `valid_search_id` dopušta i `-` i `_` (do 4096 znakova) i dalje odbija sve što bi promijenilo URL; unit test s base64url id-jem.
 - **Prevencija:** validaciju vanjskih ID-jeva pisati prema stvarnom uzorku odgovora i taj uzorak staviti u test.
 - **Validacija:** unit test; ručni anonimni search + fetch s istim id-jem vratio listinge. U igri neprovjereno do novog installera.
+
+## 2026-11-20 — Simulirani Ctrl-up poništio korisnikov držani Ctrl
+
+- **Simptom:** u igri price kartica ne nestaje kad korisnik pusti Ctrl.
+- **Dokaz:** `send_copy` je slao Ctrl-down, C, C-up, Ctrl-up dok korisnik fizički drži Ctrl (od Ctrl+D); `GetAsyncKeyState` prati logičko stanje uključujući poslane događaje, pa je nakon slanja Ctrl izgledao pušten, a hold watcher ga nikad nije vidio pritisnutog.
+- **Uzrok:** simulirani pritisak nije uzeo u obzir tipke koje korisnik već drži.
+- **Ispravak:** ako je Ctrl već dolje, šalje se samo C; Ctrl se šalje samo kad nije držan. Kartica prikazana nakon puštanja Ctrl-a zatvara se kad se kursor pomakne >120 px (Awakened ponašanje) umjesto da čeka timer.
+- **Prevencija:** kod simuliranog unosa ne slati key-up za modifikatore koje korisnik drži.
+- **Validacija:** Rust testovi prolaze; u igri neprovjereno do novog installera.

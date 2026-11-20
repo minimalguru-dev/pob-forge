@@ -17,8 +17,8 @@ pub const LABEL: &str = "overlay";
 const POLL: Duration = Duration::from_millis(100);
 /// How often a card held open with Ctrl checks the key and the cursor.
 const HOLD_POLL: Duration = Duration::from_millis(30);
-/// A card whose Ctrl was let go before it appeared keeps its own timer instead.
-const HOLD_GRACE: Duration = Duration::from_millis(1500);
+/// A card shown after Ctrl was already let go closes once the cursor moves this far, as in Awakened.
+const MOVE_AWAY: f64 = 120.0;
 /// Larger than any item or map the game copies; anything bigger is not ours to read.
 const MAX_ITEM_TEXT: usize = 16 * 1024;
 
@@ -69,8 +69,14 @@ fn over_overlay(app: &AppHandle) -> bool {
     x >= 0.0 && y >= 0.0 && x < size.width as f64 && y < size.height as f64
 }
 
+fn cursor(app: &AppHandle) -> Option<(f64, f64)> {
+    let p = app.get_webview_window(LABEL)?.cursor_position().ok()?;
+    Some((p.x, p.y))
+}
+
 /// Hold to look, as in Awakened PoE Trade: once Ctrl has been seen down, letting it go closes the
-/// card. Moving the cursor onto the overlay pins it open until it is closed by hand.
+/// card; a card that appears after Ctrl was let go closes when the cursor moves away. Moving the
+/// cursor onto the overlay pins it open until it is closed by hand.
 fn spawn_hold_watch(app: &AppHandle, kind: &'static str) {
     if crate::game_window::ctrl_held().is_none() {
         return;
@@ -78,7 +84,7 @@ fn spawn_hold_watch(app: &AppHandle, kind: &'static str) {
     let generation = app.state::<OverlayState>().card_generation.fetch_add(1, Ordering::Relaxed) + 1;
     let app = app.clone();
     let _ = std::thread::Builder::new().name("overlay-hold".into()).spawn(move || {
-        let started = std::time::Instant::now();
+        let start = cursor(&app);
         let mut held = false;
         loop {
             std::thread::sleep(HOLD_POLL);
@@ -94,8 +100,17 @@ fn spawn_hold_watch(app: &AppHandle, kind: &'static str) {
                     let _ = app.emit_to(LABEL, "overlay:dismiss", kind);
                     return;
                 }
-                _ if started.elapsed() > HOLD_GRACE => return,
-                _ => {}
+                Some(false) => {
+                    let moved = match (start, cursor(&app)) {
+                        (Some((x0, y0)), Some((x, y))) => ((x - x0).powi(2) + (y - y0).powi(2)).sqrt() > MOVE_AWAY,
+                        _ => false,
+                    };
+                    if moved {
+                        let _ = app.emit_to(LABEL, "overlay:dismiss", kind);
+                        return;
+                    }
+                }
+                None => return,
             }
         }
     });

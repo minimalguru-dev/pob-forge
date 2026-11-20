@@ -109,11 +109,19 @@ mod imp {
     }
 
     /// Down, a short hold, then up: a game that reads keys once a frame still sees the press.
+    /// When the user still holds Ctrl (from Ctrl+D) only C is sent: a sent Ctrl-up would make
+    /// Windows report Ctrl as released while the finger is still on it, and the card holds on Ctrl.
     pub fn send_copy() -> bool {
-        let down = send(&[key(VK_CONTROL, false), key(VK_C, false)]);
+        let ctrl = !ctrl_held().unwrap_or(false);
+        let mut down = vec![key(VK_C, false)];
+        let mut up = vec![key(VK_C, true)];
+        if ctrl {
+            down.insert(0, key(VK_CONTROL, false));
+            up.push(key(VK_CONTROL, true));
+        }
+        let pressed = send(&down);
         std::thread::sleep(std::time::Duration::from_millis(30));
-        let up = send(&[key(VK_C, true), key(VK_CONTROL, true)]);
-        down && up
+        pressed && send(&up)
     }
 }
 
