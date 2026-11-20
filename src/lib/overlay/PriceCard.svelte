@@ -55,24 +55,28 @@
   /** The base alone, as for crafting: mod filters are left out (not lost) while it is on. */
   let baseOnly = $state(false);
   let result = $state<TradeResult | null>(null);
-  /** Every choice that changes the search; a change searches again by itself. */
+  /**
+   * As in Awakened PoE Trade: changing a mod, a minimum or a filter does not search; the results
+   * go stale and Search (or Enter) asks again. Choices that make it a different search altogether
+   * (Base only, same base type, the listing kind, the currency) search at once, as a league does.
+   */
+  const whole = () => JSON.stringify([simple, baseOnly, baseType, listed, priceIn]);
   const choices = () =>
     JSON.stringify([
-      simple, baseOnly, baseType, listed, useItemLevel, itemLevel, quality, links, corrupted, priceIn, emptyPrefix, emptySuffix,
+      whole(), useItemLevel, itemLevel, quality, links, corrupted, emptyPrefix, emptySuffix,
       mods, defences, dps, pseudo, marks, rooms, gemLevel, mapTier, areaLevel, maps, blighted,
     ]);
-  let searchedWith = "";
+  let searchedWith = $state("");
+  let searchedWhole = "";
   let again = false;
-  /** Changes made by typing or ticking search a moment after the last one. */
-  const AUTO_SEARCH_MS = 500;
   $effect(() => {
-    const now = choices();
-    if (!(info || simple) || !league || now === searchedWith) return;
-    // A search started meanwhile (the first one, a league change) may already have these choices.
-    const timer = setTimeout(() => { if (choices() !== searchedWith) void search(); }, AUTO_SEARCH_MS);
-    return () => clearTimeout(timer);
+    const now = whole();
+    if (!(info || simple) || !league || !searchedWhole || now === searchedWhole) return;
+    void search();
   });
   let searching = $state(false);
+  /** The filters changed since the listings shown were found. */
+  const outdated = $derived(!!result && !searching && choices() !== searchedWith);
   let error = $state<string | null>(null);
 
   const friendly = (e: unknown) => String(e).split("\n")[0].replace(/^EngineError: [a-z_]+: /, "").replace(/^(runtime )?error: /i, "");
@@ -119,6 +123,7 @@
     if (searching) { again = true; return; }
     searching = true;
     searchedWith = choices();
+    searchedWhole = whole();
     error = null;
     try {
       const query = simpleQuery(item, {
@@ -143,7 +148,7 @@
 
   /** A change made while a search ran gets its own search once that one is back. */
   function searchAgain() {
-    if (again && choices() !== searchedWith) void search();
+    if (again && whole() !== searchedWhole) void search();
     again = false;
   }
 
@@ -178,6 +183,7 @@
     if (searching) { again = true; return; }
     searching = true;
     searchedWith = choices();
+    searchedWhole = whole();
     error = null;
     const modsOn = !baseOnly;
     try {
@@ -466,11 +472,17 @@
         </label>
       </div>
       <div class="row">
-        <span class="dim small">{searching ? m.price_searching() : ""}</span>
-        <button class="btn sm ghost" onclick={() => void search()} disabled={searching} title={m.price_search_again_title()}>{m.price_search_again()}</button>
+        <span class="small" class:dim={!outdated} class:warn={outdated}>{searching ? m.price_searching() : outdated ? m.price_outdated() : ""}</span>
+        {#if outdated}
+          <!-- As in Awakened PoE Trade: moving onto Search is enough, no click needed. -->
+          <button class="btn primary searchbtn" onclick={() => void search()} onmouseenter={() => void search()}>{m.price_search()}</button>
+        {:else}
+          <button class="btn sm ghost" onclick={() => void search()} disabled={searching} title={m.price_search_again_title()}>{m.price_search_again()}</button>
+        {/if}
       </div>
       {#if error}<p class="bad small">{error}</p>{/if}
       {#if result}
+        <div class="results" class:stale={outdated}>
         {#if result.listings.length}
           <p class="dim small">{m.price_total({ count: result.total })}</p>
           <div class="listings">
@@ -484,6 +496,7 @@
           <p class="dim small">{m.price_no_results()}</p>
         {/if}
         <button class="btn sm ghost" onclick={() => void openUrl(result!.url)}>{m.price_open_trade()}</button>
+        </div>
       {/if}
     </div>
   {:else if simple && item}
@@ -539,11 +552,17 @@
         </label>
       </div>
       <div class="row">
-        <span class="dim small">{searching ? m.price_searching() : ""}</span>
-        <button class="btn sm ghost" onclick={() => void search()} disabled={searching} title={m.price_search_again_title()}>{m.price_search_again()}</button>
+        <span class="small" class:dim={!outdated} class:warn={outdated}>{searching ? m.price_searching() : outdated ? m.price_outdated() : ""}</span>
+        {#if outdated}
+          <!-- As in Awakened PoE Trade: moving onto Search is enough, no click needed. -->
+          <button class="btn primary searchbtn" onclick={() => void search()} onmouseenter={() => void search()}>{m.price_search()}</button>
+        {:else}
+          <button class="btn sm ghost" onclick={() => void search()} disabled={searching} title={m.price_search_again_title()}>{m.price_search_again()}</button>
+        {/if}
       </div>
       {#if error}<p class="bad small">{error}</p>{/if}
       {#if result}
+        <div class="results" class:stale={outdated}>
         {#if result.listings.length}
           <p class="dim small">{m.price_total({ count: result.total })}</p>
           <div class="listings">
@@ -557,6 +576,7 @@
           <p class="dim small">{m.price_no_results()}</p>
         {/if}
         <button class="btn sm ghost" onclick={() => void openUrl(result!.url)}>{m.price_open_trade()}</button>
+        </div>
       {/if}
     </div>
   {/if}
@@ -593,6 +613,10 @@
   .foul { color: oklch(68% 0.16 350); }
   .tag.mutated { color: oklch(72% 0.15 350); background: color-mix(in oklch, oklch(60% 0.16 350) 18%, transparent); }
   .mods.muted { opacity: 0.4; }
+  .results { display: contents; }
+  .results.stale { display: block; opacity: 0.4; }
+  .warn { color: var(--warn); }
+  .searchbtn { min-width: 112px; height: 30px; padding: 0 18px; font-size: var(--fs-md, 14px); font-weight: 600; }
   .toggle.off { opacity: 0.55; }
   .tag.q20 { color: var(--fg-1); background: var(--bg-3); }
   .tag.pseudo { color: var(--brand); background: color-mix(in oklch, var(--brand) 16%, transparent); }

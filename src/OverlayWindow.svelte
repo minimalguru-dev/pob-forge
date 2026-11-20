@@ -115,10 +115,13 @@
   /** The cursor where the item was copied, in window coordinates, and which side has room. */
   let anchor = $state<{ x: number; y: number; left: boolean; middle?: boolean } | null>(null);
   let cardHeight = $state(0);
+  /** The cards are drawn 10% larger than their CSS size; placement works in drawn pixels. */
+  const ZOOM = 1.1;
   const cardWidth = $derived(s?.width ?? 380);
+  const drawnWidth = $derived(cardWidth * ZOOM);
   // Beside the cursor; an overlay opened by the interact key with nothing copied sits top right.
   const left = $derived(
-    anchor ? Math.max(4, Math.min(innerWidth - cardWidth - 4, anchor.left ? anchor.x - 28 - cardWidth : anchor.x + 28)) : innerWidth - cardWidth - 24,
+    anchor ? Math.max(4, Math.min(innerWidth - drawnWidth - 4, anchor.left ? anchor.x - 28 - drawnWidth : anchor.x + 28)) : innerWidth - drawnWidth - 24,
   );
   // Beside the inventory the card is centred on a typical card's height, not its current one, so it
   // does not jump as prices and listings arrive; only a card taller than that moves up to stay centred.
@@ -266,8 +269,9 @@
   bind:this={root}
   onpointerdown={onPointerDown}
   style:--panel-alpha={s?.opacity ?? 0.92}
-  style:left="{left}px"
-  style:top="{top}px"
+  style:zoom={ZOOM}
+  style:left="{left / ZOOM}px"
+  style:top="{top / ZOOM}px"
   style:width="{cardWidth}px"
 >
   {#if interact}

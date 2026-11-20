@@ -6,7 +6,7 @@
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import { getVersion } from "@tauri-apps/api/app";
   import { appUpdate } from "$lib/state/update.svelte";
-  import { ui, type Theme } from "$lib/state/ui.svelte";
+  import { ui, BASE_ZOOM, type Theme } from "$lib/state/ui.svelte";
   import { CURSORS, cursorImage, cursorValue } from "$lib/cursors";
   import { save } from "@tauri-apps/plugin-dialog";
   import { exportDiagnostics, openUrl, revealLogs } from "$lib/engine.svelte";
@@ -269,7 +269,7 @@
               {m.settings_scale()}
               <span class="hint">{m.settings_scale_hint()}</span>
               {#if ui.scaleLimited}
-                <span class="hint warn">{m.settings_scale_limited({ applied: pct(ui.scaleApplied), wanted: pct(ui.scale) })}</span>
+                <span class="hint warn">{m.settings_scale_limited({ applied: pct(ui.scaleApplied / BASE_ZOOM), wanted: pct(ui.scale) })}</span>
               {/if}
             </span>
             <select class="select" value={String(ui.scale)} onchange={(e) => ui.setScale(Number((e.target as HTMLSelectElement).value))}>

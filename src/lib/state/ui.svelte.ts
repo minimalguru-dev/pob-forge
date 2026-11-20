@@ -1,3 +1,4 @@
+import { IS_OVERLAY_WINDOW } from "$lib/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { WeaponSetMode } from "$lib/engine.svelte";
@@ -5,6 +6,8 @@ import { CURSORS, cursorValue } from "$lib/cursors";
 
 const KEY = "pob-forge:ui";
 /** Must match the window's minimum size in tauri.conf.json. */
+/** What Settings' 100% interface scale means in webview zoom. */
+export const BASE_ZOOM = 1.1;
 const LAYOUT_MIN_W = 1100;
 const LAYOUT_MIN_H = 680;
 
@@ -83,7 +86,7 @@ class UiStore {
   }
 
   get scaleLimited() {
-    return this.scaleApplied < this.scale;
+    return this.scaleApplied < this.scale * BASE_ZOOM - 1e-6;
   }
 
   toggleSidebar() {
@@ -193,7 +196,10 @@ class UiStore {
   }
 
   private async applyScale() {
-    let target = this.scale;
+    // The overlay draws its cards at its own size; webview zoom would also break its hit testing.
+    if (IS_OVERLAY_WINDOW) return;
+    // 100% in Settings is 110% of the webview's own size: the old 110% became the default.
+    let target = this.scale * BASE_ZOOM;
     if (target > 1) {
       try {
         const win = getCurrentWindow();

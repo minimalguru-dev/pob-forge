@@ -107,6 +107,25 @@
     bd = null;
   });
 
+  // A pinned breakdown takes the mouse (to scroll it) and closes with Escape or a click elsewhere.
+  $effect(() => {
+    if (!bd?.pinned) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") bd = null;
+    };
+    const onDown = (e: PointerEvent) => {
+      const at = e.target as Element | null;
+      if (at && (bdPop?.contains(at) || at.closest(".srow"))) return;
+      bd = null;
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDown, true);
+    };
+  });
+
   const info = $derived(build.info);
   const side = $derived(build.sidebar);
   const sections = $derived(side ? groupSidebar(side.rows) : []);
@@ -380,7 +399,7 @@
   {/snippet}
 
   {#if bd}
-    <div bind:this={bdPop} class="bdpop" class:ready={bd.ready} style:top={`${bd.y}px`}>
+    <div bind:this={bdPop} class="bdpop" class:ready={bd.ready} class:pinned={bd.pinned} style:top={`${bd.y}px`}>
       <div class="bdhead">
         <span class="label"><PobText text={bd.title} /></span>
         {#if bd.pinned}<span class="bdpin" title={m.sidebar_breakdown_pinned()}><Icon name="push-pin" size={12} /></span>{/if}
@@ -608,6 +627,10 @@
   .bdpop.ready {
     visibility: visible;
   }
+  /* Hovered it lets the mouse through; pinned it takes the wheel so its list scrolls. */
+  .bdpop.pinned {
+    pointer-events: auto;
+  }
   .bdhead {
     display: flex;
     justify-content: space-between;
@@ -620,8 +643,10 @@
     font-weight: 700;
   }
   .bdscroll {
+    min-height: 0;
     padding: 10px 12px;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .warnings {
     display: flex;
