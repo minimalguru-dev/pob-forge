@@ -404,8 +404,34 @@ fn app_paths(state: State<'_, AppState>) -> AppPaths {
     }
 }
 
+/// PoB Forge's own builds folder: Documents\PoB Forge\Builds\PoE1 or PoE2.
 pub(crate) fn builds_dir(user_dir: &Path, game: Game) -> PathBuf {
+    user_dir.join("PoB Forge").join("Builds").join(match game {
+        Game::Poe1 => "PoE1",
+        Game::Poe2 => "PoE2",
+    })
+}
+
+/// Path of Building's own builds folder for the game, listed beside ours so nothing saved there
+/// (by PoB, or by this app before it had its own folder) disappears.
+pub(crate) fn pob_builds_dir(user_dir: &Path, game: Game) -> PathBuf {
     user_dir.join(game.user_subdir()).join("Builds")
+}
+
+/// The group Path of Building's folder shows under in the Builds tab.
+const POB_GROUP: &str = "Path of Building";
+
+/// Our folder's builds, then Path of Building's under their own group, newest first.
+fn list_both(root: &Path, pob: &Path) -> Result<Vec<BuildEntry>, String> {
+    let mut out = scan_builds(root)?;
+    if pob != root && !pob.starts_with(root) && !root.starts_with(pob) {
+        for mut b in scan_builds(pob)? {
+            b.folder = if b.folder.is_empty() { POB_GROUP.into() } else { format!("{POB_GROUP}/{}", b.folder) };
+            out.push(b);
+        }
+        out.sort_by(|a, b| b.modified.partial_cmp(&a.modified).unwrap_or(std::cmp::Ordering::Equal));
+    }
+    Ok(out)
 }
 
 /// Choose the current game's builds folder; `None` goes back to the default under Documents.
@@ -448,7 +474,10 @@ pub(crate) struct BuildEntry {
 
 #[tauri::command]
 fn list_builds(state: State<'_, AppState>) -> Result<Vec<BuildEntry>, String> {
-    scan_builds(&state.builds_dir())
+    let root = state.builds_dir();
+    // The default folder is made on first look, so saving and browsing land somewhere real.
+    let _ = std::fs::create_dir_all(&root);
+    list_both(&root, &pob_builds_dir(&state.user_dir, state.game()))
 }
 
 pub(crate) fn scan_builds(root: &Path) -> Result<Vec<BuildEntry>, String> {
@@ -1478,6 +1507,38 @@ pub fn run() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod builds_dir_tests {
+    use super::{builds_dir, list_both, pob_builds_dir};
+    use crate::game::Game;
+    use std::path::Path;
+
+    #[test]
+    fn our_folder_is_separate_from_path_of_buildings() {
+        let docs = Path::new("C:/Users/x/Documents");
+        assert_eq!(builds_dir(docs, Game::Poe1), docs.join("PoB Forge").join("Builds").join("PoE1"));
+        assert_eq!(builds_dir(docs, Game::Poe2), docs.join("PoB Forge").join("Builds").join("PoE2"));
+        assert_eq!(pob_builds_dir(docs, Game::Poe2), docs.join("Path of Building (PoE2)").join("Builds"));
+    }
+
+    #[test]
+    fn path_of_buildings_builds_are_listed_under_their_own_group() {
+        let root = std::env::temp_dir().join(format!("pob-forge-builds-{}", std::process::id()));
+        let (ours, pob) = (root.join("ours"), root.join("pob"));
+        std::fs::create_dir_all(ours.join("Leveling")).unwrap();
+        std::fs::create_dir_all(pob.join("Old")).unwrap();
+        std::fs::write(ours.join("Leveling").join("a.xml"), "<Build level=\"10\">").unwrap();
+        std::fs::write(pob.join("b.xml"), "<Build>").unwrap();
+        std::fs::write(pob.join("Old").join("c.xml"), "<Build>").unwrap();
+        let mut folders: Vec<String> = list_both(&ours, &pob).unwrap().into_iter().map(|b| b.folder).collect();
+        folders.sort();
+        assert_eq!(folders, vec!["Leveling", "Path of Building", "Path of Building/Old"]);
+        // A chosen folder that is Path of Building's own is not listed twice.
+        assert_eq!(list_both(&pob, &pob).unwrap().len(), 2);
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }
 
 #[cfg(test)]

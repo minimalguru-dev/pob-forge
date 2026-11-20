@@ -25,8 +25,10 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 pub const LABEL: &str = "overlay";
-/// Short, so a card follows Ctrl+C at once; a clipboard read is cheap.
-const POLL: Duration = Duration::from_millis(100);
+/// How often Ctrl+C is looked for. Only the keys' state is read here, never the clipboard.
+const POLL: Duration = Duration::from_millis(15);
+/// After a copy, how often Windows' clipboard counter is checked until the game has written.
+const SEQUENCE_POLL: Duration = Duration::from_millis(4);
 /// How long the game gets to put the item on the clipboard after the price check's Ctrl+C.
 const COPY_WAIT: Duration = Duration::from_millis(1000);
 /// Larger than any item or map the game copies; anything bigger is not ours to read.
@@ -52,6 +54,8 @@ pub struct OverlayState {
     game_window: AtomicIsize,
     /// The price check's own copy, which the clipboard watcher must not also show as an item card.
     suppress: AtomicU64,
+    /// A price check is sending its Ctrl+C: the watcher leaves that copy to it.
+    price_busy: AtomicBool,
 }
 
 fn text_hash(text: &str) -> u64 {
@@ -454,27 +458,21 @@ pub fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, state: ShortcutState) {
 async fn price_check(app: &AppHandle) -> Result<(), String> {
     let Some(game) = crate::game_window::foreground_game() else { return Ok(()) };
     let state = app.state::<OverlayState>();
-    let before = app.clipboard().read_text().ok();
-    if !crate::game_window::send_copy() {
+    // One read per key press (GGG's overlay rule): the counter says when the game has written,
+    // then the clipboard is read once.
+    let seq = crate::game_window::clipboard_sequence();
+    state.price_busy.store(true, Ordering::Relaxed);
+    let sent = crate::game_window::send_copy();
+    let changed = sent && wait_for_copy(seq).await;
+    state.price_busy.store(false, Ordering::Relaxed);
+    if !sent {
         return Err("Windows refused the Ctrl+C for the price check.".into());
     }
-    log::info!("overlay: price check sent Ctrl+C to the game");
-    let started = std::time::Instant::now();
-    let mut copied = None;
-    while started.elapsed() < COPY_WAIT {
-        tokio::time::sleep(Duration::from_millis(30)).await;
-        if let Ok(text) = app.clipboard().read_text() {
-            if before.as_ref() != Some(&text) {
-                copied = Some(text);
-                break;
-            }
-        }
+    if !changed {
+        log::info!("overlay: the game did not copy within {} ms of the Ctrl+C", COPY_WAIT.as_millis());
+        return Err("Hover over an item in the game, then press the price check shortcut.".into());
     }
-    if copied.is_none() {
-        log::info!("overlay: the clipboard did not change within {} ms of the Ctrl+C", COPY_WAIT.as_millis());
-    }
-    // Checking the same item twice leaves the clipboard as it was.
-    let text = copied.or(before).filter(|t| t.len() <= MAX_ITEM_TEXT && classify(t).is_some());
+    let text = app.clipboard().read_text().ok().filter(|t| t.len() <= MAX_ITEM_TEXT && classify(t).is_some());
     let Some(text) = text else {
         return Err("Hover over an item in the game, then press the price check shortcut.".into());
     };
@@ -485,6 +483,18 @@ async fn price_check(app: &AppHandle) -> Result<(), String> {
     state.game_window.store(game, Ordering::Relaxed);
     let _ = app.emit_to(LABEL, "overlay:price", serde_json::json!({ "raw": text, "anchor": anchor }));
     Ok(())
+}
+
+/// Waits until Windows' clipboard counter moves past `seq`, or COPY_WAIT passes.
+async fn wait_for_copy(seq: Option<u32>) -> bool {
+    let started = std::time::Instant::now();
+    while started.elapsed() < COPY_WAIT {
+        if crate::game_window::clipboard_sequence() != seq {
+            return true;
+        }
+        tokio::time::sleep(SEQUENCE_POLL).await;
+    }
+    false
 }
 
 async fn open_window(app: &AppHandle) -> Result<(), String> {
@@ -571,41 +581,85 @@ pub fn classify(text: &str) -> Option<&'static str> {
 
 /// Watches the clipboard while the overlay is showing, for text the game wrote with Ctrl+C.
 /// Other clipboard text is ignored and never logged or kept.
+/// Shows the card for a copied item or map. `text` is what one read of the clipboard returned.
+fn on_copied(app: &AppHandle, text: String) {
+    if text.len() > MAX_ITEM_TEXT {
+        return;
+    }
+    // The price check's own copy already has its card.
+    if app.state::<OverlayState>().suppress.swap(0, Ordering::Relaxed) == text_hash(&text) {
+        return;
+    }
+    let Some(kind) = classify(&text) else { return };
+    log::info!("overlay: {kind} copied");
+    let s = settings(app);
+    if (kind == "map" && s.map_check) || (kind == "item" && s.item_check) {
+        remember(app, kind, &text);
+        let anchor = place_near_cursor(app);
+        let _ = app.emit_to(LABEL, "overlay:item", serde_json::json!({ "raw": text, "kind": kind, "anchor": anchor }));
+    }
+}
+
+/// Watches for the user's Ctrl+C while the overlay shows, and reads the clipboard once for each
+/// press (GGG's overlay rule), as soon as Windows' change counter says the copy has landed.
+/// Between presses the clipboard is not touched, so nothing else that is copied is ever read.
 fn spawn_clipboard_watch(app: AppHandle) {
     std::thread::Builder::new()
         .name("overlay-clipboard".into())
         .spawn(move || {
-            let mut last: Option<u64> = None;
+            let mut was_down = false;
+            // The counter as it stood just before the keys went down: a game that writes faster
+            // than POLL has already moved it by the time the press is seen.
+            let mut seq_before = crate::game_window::clipboard_sequence();
             loop {
                 std::thread::sleep(POLL);
                 let showing = app.get_webview_window(LABEL).is_some_and(|w| w.is_visible().unwrap_or(false));
-                if !showing {
-                    last = None;
+                let Some(down) = crate::game_window::copy_keys_down() else {
+                    legacy_clipboard_poll(&app, showing);
                     continue;
-                }
-                let Ok(text) = app.clipboard().read_text() else { continue };
-                let hash = text_hash(&text);
-                // The first read after the overlay appears only sets the baseline.
-                let first = last.is_none();
-                if last.replace(hash) == Some(hash) || first || text.len() > MAX_ITEM_TEXT {
-                    continue;
-                }
-                // The price check's own copy already has its card.
-                if app.state::<OverlayState>().suppress.swap(0, Ordering::Relaxed) == hash {
-                    continue;
-                }
-                if let Some(kind) = classify(&text) {
-                    log::info!("overlay: {kind} copied from the game");
-                    let s = settings(&app);
-                    if (kind == "map" && s.map_check) || (kind == "item" && s.item_check) {
-                        remember(&app, kind, &text);
-                        let anchor = place_near_cursor(&app);
-                        let _ = app.emit_to(LABEL, "overlay:item", serde_json::json!({ "raw": text, "kind": kind, "anchor": anchor }));
+                };
+                let pressed = down && !was_down;
+                was_down = down;
+                if !pressed || !showing || app.state::<OverlayState>().price_busy.load(Ordering::Relaxed) {
+                    if !down {
+                        seq_before = crate::game_window::clipboard_sequence();
                     }
+                    continue;
+                }
+                let started = std::time::Instant::now();
+                while crate::game_window::clipboard_sequence() == seq_before && started.elapsed() < COPY_WAIT {
+                    std::thread::sleep(SEQUENCE_POLL);
+                }
+                if crate::game_window::clipboard_sequence() == seq_before {
+                    continue;
+                }
+                seq_before = crate::game_window::clipboard_sequence();
+                if let Ok(text) = app.clipboard().read_text() {
+                    on_copied(&app, text);
                 }
             }
         })
         .expect("spawn overlay clipboard watcher");
+}
+
+/// Where key state cannot be read (not Windows): the clipboard is checked for a change while the
+/// overlay shows, as before. The overlay is meant for Windows.
+fn legacy_clipboard_poll(app: &AppHandle, showing: bool) {
+    static LAST: Mutex<Option<u64>> = Mutex::new(None);
+    std::thread::sleep(Duration::from_millis(85));
+    let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+    if !showing {
+        *last = None;
+        return;
+    }
+    let Ok(text) = app.clipboard().read_text() else { return };
+    let hash = text_hash(&text);
+    let first = last.is_none();
+    if last.replace(hash) == Some(hash) || first {
+        return;
+    }
+    drop(last);
+    on_copied(app, text);
 }
 
 pub fn setup(app: &AppHandle) {

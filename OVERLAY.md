@@ -93,10 +93,13 @@ ring I just copied better?" works without pasting anything.
 
 ## What it reads, and what it never does
 
-- While the overlay is showing, it reads the clipboard every 300 ms and acts only on item text: text that starts with
-  `Item Class:`, which is what the game writes on Ctrl+C, or a `Rarity:` line followed by the game's `--------`
-  section breaks, which is what a trade site Copy can leave. Other clipboard text is ignored and never logged or
-  stored. When the overlay is hidden or off, the clipboard is not read.
+- It reads the clipboard once per key press, as GGG's overlay rules ask. While the overlay shows, it watches only
+  whether Ctrl+C is pressed (Windows' `GetAsyncKeyState`) and Windows' clipboard change counter, which says that
+  something was copied without reading it. After your Ctrl+C, the clipboard is read once, as soon as the copy has
+  landed (usually a few tens of milliseconds). Between presses it is not read at all, so nothing else you copy is
+  seen. It acts only on item text: text that starts with `Item Class:`, or a `Rarity:` line followed by the game's
+  `--------` section breaks. Other text is ignored and never logged or stored. A trade site's Copy button is a click,
+  not a key press, so use Ctrl+C there instead. Ctrl+D reads the clipboard once, after its own Ctrl+C.
 - The last five items it acted on are kept in memory for the assistant and forgotten when the app closes.
 - It reads the game's own log file, which the game writes for players.
 - It never reads the game's memory or injects anything into the game, and it never clicks.

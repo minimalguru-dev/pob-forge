@@ -35,10 +35,13 @@ Import takes:
 
 A build from the other game switches the app to that game first.
 
-Builds are saved in the same folders Path of Building uses, so either app can open them:
+Builds are saved in PoB Forge's own folder, and the Builds tab also lists Path of Building's folder under
+"Path of Building", so builds saved there stay where you can open them:
 
-- Path of Exile 2: `Documents/Path of Building (PoE2)/Builds`
-- Path of Exile 1: `Documents/Path of Building/Builds`
+- Path of Exile 1: `Documents/PoB Forge/Builds/PoE1` (and `Documents/Path of Building/Builds`)
+- Path of Exile 2: `Documents/PoB Forge/Builds/PoE2` (and `Documents/Path of Building (PoE2)/Builds`)
+
+**Browse** on the Builds tab picks another folder; **Reset** goes back to PoB Forge's.
 
 ## Updating
 

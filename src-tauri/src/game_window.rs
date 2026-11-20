@@ -34,6 +34,17 @@ pub fn ctrl_held() -> Option<bool> {
     imp::ctrl_held()
 }
 
+/// Whether Ctrl and C are both down: the user copying something.
+pub fn copy_keys_down() -> Option<bool> {
+    imp::copy_keys_down()
+}
+
+/// Windows' clipboard change counter. It goes up on every copy, the same text again included,
+/// and reading it does not read the clipboard's contents.
+pub fn clipboard_sequence() -> Option<u32> {
+    imp::clipboard_sequence()
+}
+
 /// Taps Ctrl+C. Only called right after the price shortcut, while the game has focus.
 pub fn send_copy() -> bool {
     imp::send_copy()
@@ -52,9 +63,22 @@ mod imp {
     use windows_sys::Win32::Foundation::RECT;
     use windows_sys::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow, GetWindowRect, GetWindowTextW, SetForegroundWindow};
 
-    pub fn ctrl_held() -> Option<bool> {
+    fn down(vk: i32) -> bool {
         // SAFETY: a plain state query; the high bit means the key is down.
-        Some(unsafe { GetAsyncKeyState(VK_CONTROL as i32) } as u16 & 0x8000 != 0)
+        (unsafe { GetAsyncKeyState(vk) } as u16 & 0x8000) != 0
+    }
+
+    pub fn ctrl_held() -> Option<bool> {
+        Some(down(VK_CONTROL as i32))
+    }
+
+    pub fn copy_keys_down() -> Option<bool> {
+        Some(down(VK_CONTROL as i32) && down(VK_C as i32))
+    }
+
+    pub fn clipboard_sequence() -> Option<u32> {
+        // SAFETY: returns a counter; touches no clipboard data.
+        Some(unsafe { windows_sys::Win32::System::DataExchange::GetClipboardSequenceNumber() })
     }
 
     pub fn rect(window: Handle) -> Option<(i32, i32, i32, i32)> {
@@ -136,6 +160,14 @@ mod imp {
     }
 
     pub fn ctrl_held() -> Option<bool> {
+        None
+    }
+
+    pub fn copy_keys_down() -> Option<bool> {
+        None
+    }
+
+    pub fn clipboard_sequence() -> Option<u32> {
         None
     }
 

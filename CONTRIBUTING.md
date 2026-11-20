@@ -158,9 +158,9 @@ With the app running and its MCP server on, `bun run mcp` calls the same tools a
 
 ## Where builds are stored
 
-PoB Forge reads and writes the same folder as Path of Building:
-`Documents/Path of Building (PoE2)/Builds`. It reads PoB's `Settings.xml` to find a custom build path,
-and never writes that file.
+PoB Forge saves to `Documents/PoB Forge/Builds/PoE1` or `PoE2` (or the folder chosen on the Builds tab), and also
+lists Path of Building's `Documents/Path of Building[ (PoE2)]/Builds` under a "Path of Building" group. Moving,
+renaming and deleting work in its own folder only.
 
 | Variable | Effect |
 |---|---|
