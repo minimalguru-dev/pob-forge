@@ -1360,6 +1360,7 @@ pub fn run() {
             ggg::ggg_trade_request,
             price::price_trade,
             price::price_ninja,
+            price::price_bulk,
             ninja_characters,
             ninja_character_code,
             save_game_build_files,

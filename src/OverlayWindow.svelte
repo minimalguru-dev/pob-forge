@@ -289,7 +289,7 @@
       {#key card.raw}
         <PriceCard raw={card.raw} onclose={() => void invoke("overlay_dismiss")} />
       {/key}
-      {#if !pinned && !interact}<p class="dim small hint">{m.overlay_pin_hint()}</p>{/if}
+      {#if !pinned && !interact}<p class="dim small hint">{m.price_click_hint()}</p>{/if}
     </section>
   {:else if card?.kind === "price"}
     <section class="panel item">

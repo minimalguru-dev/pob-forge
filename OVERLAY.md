@@ -39,17 +39,23 @@ has. This is PoB's own "Equipping this item" calculation (`item_evaluate`); the 
 rebuild the passive tree (Timeless, Impossible Escape and similar) are not scored; compare them in the Items tab.
 
 **Price check (Windows).** Hover an item in the game and press **Ctrl+D**. The app presses Ctrl+C once so the
-game copies the item, then opens a price card just left of the inventory panel. Ctrl+click it to change the filters;
-Esc or ✕ closes it and gives focus back to the game.
+game copies the item, then opens a price card just left of the inventory panel. Click the card to change its filters
+(no Ctrl needed); Enter searches again, Esc or ✕ closes it and gives focus back to the game.
 
 - **poe.ninja** prices currency, fragments, scarabs, essences, divination cards, gems (by level, quality and
-  corruption) and uniques (six-links separately on PoE1), for the league you pick. A stack shows its total.
+  corruption) and uniques (six-links separately on PoE1), for the league you pick, with its seven-day trend. A stack
+  shows its total.
+- **Currency exchange.** Currency and divination cards also show the cheapest online offers on the trade site's bulk
+  exchange, per unit, in chaos (PoE1) or exalted orbs (PoE2).
 - **Trade site.** For equipment, PoB's own Buy Similar search (the same one as the Items tab) is built from the item:
-  a unique by name, a rare by its base type and searchable mods at 90% of their rolls. Untick mods or change the
-  minimums and press **Search** again. The ten cheapest listings show with their age; **Open on the trade site** opens
+  a unique by name, a rare by its base type, its resistances and life as the trade site's pseudo totals ("+#% total
+  Elemental Resistance", "+# total maximum Life") and its other searchable mods, all at 90% of the item's values.
+  Mods counted in a ticked total are not searched on their own. Item level, quality, links (PoE1), corruption, the
+  listing kind and the currency the price is in are filters too. Untick mods or change the minimums and search again. The ten cheapest listings show with their age; **Open on the trade site** opens
   the full search in the trade window.
 - Searches are anonymous: no sign-in and no cookies. pathofexile.com allows about five searches every ten seconds;
   when a limit is reached the card says how long to wait instead of sending more.
+- **Wiki** and **poedb** open the item's pages in your browser.
 - Ctrl+D is taken only while the game window has focus, so it keeps working in other programs. Change it or turn the
   price check off in Settings → Overlay.
 

@@ -32,6 +32,9 @@ export interface NinjaLine {
   mapTier: number | null;
   value: number;
   listings: number | null;
+  /** Seven-day change in percent, and the daily points behind it (null: no data that day). */
+  change: number | null;
+  trend: (number | null)[];
 }
 export interface NinjaTable {
   primary: string;
@@ -190,4 +193,124 @@ export function defaultChoices(info: BuySimilarInfo): { mods: Choice[]; defences
   });
   const defences = info.defences.map((d) => ({ checked: false, min: String(Math.floor(d.value * 0.9)), max: "" }));
   return { mods, defences };
+}
+
+/** The trade site's pseudo stats: one filter for a total that several mods add to. */
+export const PSEUDO = {
+  life: { id: "pseudo.pseudo_total_life", label: "+# total maximum Life" },
+  es: { id: "pseudo.pseudo_total_energy_shield", label: "+# total maximum Energy Shield" },
+  ele: { id: "pseudo.pseudo_total_elemental_resistance", label: "+#% total Elemental Resistance" },
+  chaos: { id: "pseudo.pseudo_total_chaos_resistance", label: "+#% total to Chaos Resistance" },
+} as const;
+export type PseudoKey = keyof typeof PSEUDO;
+
+export interface PseudoTotal {
+  key: PseudoKey;
+  total: number;
+  /** Indexes into the Buy Similar mods that make up the total. */
+  mods: number[];
+}
+
+const plainLine = (s: string) => s.replace(/\^x[0-9a-f]{6}|\^\d/gi, "").trim();
+const ELEMENT = "(?:Fire|Cold|Lightning)";
+
+/** What one mod line adds to a pseudo total, if anything. */
+function contribution(line: string, armour: boolean): [PseudoKey, number] | null {
+  const l = plainLine(line);
+  let m: RegExpMatchArray | null;
+  if ((m = l.match(new RegExp(`^([+-]?\\d+)% to ${ELEMENT} Resistance$`)))) return ["ele", +m[1]];
+  if ((m = l.match(new RegExp(`^([+-]?\\d+)% to ${ELEMENT} and ${ELEMENT} Resistances$`)))) return ["ele", 2 * +m[1]];
+  if ((m = l.match(/^([+-]?\d+)% to all Elemental Resistances$/))) return ["ele", 3 * +m[1]];
+  if ((m = l.match(/^([+-]?\d+)% to Chaos Resistance$/))) return ["chaos", +m[1]];
+  if ((m = l.match(new RegExp(`^([+-]?\\d+)% to ${ELEMENT} and Chaos Resistances$`)))) return ["chaos", +m[1]];
+  if ((m = l.match(/^([+-]?\d+) to maximum Life$/))) return ["life", +m[1]];
+  // On armour, flat energy shield is local and already in the item's own value.
+  if (!armour && (m = l.match(/^([+-]?\d+) to maximum Energy Shield$/))) return ["es", +m[1]];
+  return null;
+}
+
+/** Totals the way Awakened PoE Trade searches by default: resistances and life as one number each. */
+export function pseudoTotals(info: BuySimilarInfo): PseudoTotal[] {
+  const armour = info.defences.length > 0;
+  const out = new Map<PseudoKey, PseudoTotal>();
+  info.mods.forEach((mod, i) => {
+    if (!mod.searchable) return;
+    for (const line of mod.lines) {
+      const c = contribution(line, armour);
+      if (!c) continue;
+      const [key, v] = c;
+      const p = out.get(key) ?? { key, total: 0, mods: [] };
+      p.total += v;
+      if (!p.mods.includes(i)) p.mods.push(i);
+      out.set(key, p);
+    }
+    // "+12% to Fire and Chaos Resistances" also adds to the elemental total.
+    for (const line of mod.lines) {
+      const m = plainLine(line).match(new RegExp(`^([+-]?\\d+)% to ${ELEMENT} and Chaos Resistances$`));
+      if (!m) continue;
+      const p = out.get("ele") ?? { key: "ele", total: 0, mods: [] };
+      p.total += +m[1];
+      if (!p.mods.includes(i)) p.mods.push(i);
+      out.set("ele", p);
+    }
+  });
+  return [...out.values()].filter((p) => p.total > 0);
+}
+
+export interface Filters {
+  pseudo: { id: string; min: number | null }[];
+  itemLevel: number | null;
+  quality: number | null;
+  links: number | null;
+  /** "any", or whether the listing must be corrupted. */
+  corrupted: "any" | "yes" | "no";
+  /** Only listings priced in this currency; "any" for all. */
+  priceIn: string;
+}
+
+/** Adds the price check's own filters to the query Buy Similar built. */
+export function applyFilters(queryJson: string, f: Filters): string {
+  const q = JSON.parse(queryJson);
+  const query = q.query && typeof q.query === "object" ? q.query : q;
+  query.filters ??= {};
+  const group = (name: string) => ((query.filters[name] ??= { filters: {} }).filters ??= {});
+  if (f.itemLevel !== null) group("misc_filters").ilvl = { min: f.itemLevel };
+  if (f.quality !== null) group("misc_filters").quality = { min: f.quality };
+  if (f.corrupted !== "any") group("misc_filters").corrupted = { option: f.corrupted === "yes" ? "true" : "false" };
+  if (f.links !== null) group("socket_filters").links = { min: f.links };
+  if (f.priceIn !== "any") group("trade_filters").price = { option: f.priceIn };
+  const pseudo = f.pseudo.map((p) => (p.min === null ? { id: p.id } : { id: p.id, value: { min: p.min } }));
+  if (pseudo.length) {
+    query.stats ??= [];
+    let and = query.stats.find((s: { type?: string }) => s.type === "and");
+    if (!and) query.stats.push((and = { type: "and", filters: [] }));
+    and.filters = [...(and.filters ?? []), ...pseudo];
+  }
+  return JSON.stringify(q);
+}
+
+/** The item's wiki page (uniques and gems) and its poedb page (bases and uniques). */
+export function wikiUrl(game: Game, item: CopiedItem): string | null {
+  if (item.rarity !== "Unique" && item.rarity !== "Gem" && item.rarity !== "Divination Card" && item.rarity !== "Currency") return null;
+  const host = game === "poe1" ? "https://www.poewiki.net/wiki/" : "https://www.poe2wiki.net/wiki/";
+  return host + encodeURIComponent(item.name.replace(/ /g, "_"));
+}
+
+export function poedbUrl(game: Game, item: CopiedItem): string {
+  const host = game === "poe1" ? "https://poedb.tw/us/" : "https://poe2db.tw/us/";
+  const name = item.rarity === "Unique" || !item.baseType ? item.name : item.baseType;
+  return host + encodeURIComponent(name.replace(/ /g, "_"));
+}
+
+/** An SVG polyline for a sparkline, gaps skipped. */
+export function sparkPoints(trend: (number | null)[], width: number, height: number): string {
+  const known = trend.filter((v): v is number => v !== null);
+  if (known.length < 2) return "";
+  const lo = Math.min(...known), hi = Math.max(...known);
+  const span = hi - lo || 1;
+  const step = width / Math.max(1, trend.length - 1);
+  return trend
+    .map((v, i) => (v === null ? null : `${(i * step).toFixed(1)},${(height - ((v - lo) / span) * height).toFixed(1)}`))
+    .filter(Boolean)
+    .join(" ");
 }

@@ -19,10 +19,29 @@ const NINJA_TTL: Duration = Duration::from_secs(10 * 60);
 /// Listings fetched per search: the cheapest ten, as the trade site shows first.
 const FETCH: usize = 10;
 
+/// The only pathofexile.com addresses an anonymous price check may call; the first matching
+/// prefix is also the rate-limit bucket.
+const ANON_API: [&str; 8] = [
+    "https://www.pathofexile.com/api/trade/search/",
+    "https://www.pathofexile.com/api/trade/fetch/",
+    "https://www.pathofexile.com/api/trade/exchange/",
+    "https://www.pathofexile.com/api/trade/data/static",
+    "https://www.pathofexile.com/api/trade2/search/",
+    "https://www.pathofexile.com/api/trade2/fetch/",
+    "https://www.pathofexile.com/api/trade2/exchange/",
+    "https://www.pathofexile.com/api/trade2/data/static",
+];
+
+fn anon_policy(url: &str) -> Result<&'static str, String> {
+    ANON_API.iter().copied().find(|prefix| url.starts_with(prefix)).ok_or_else(|| "not a pathofexile.com trade request".to_string())
+}
+
 #[derive(Default)]
 pub struct PriceState {
     not_before: Mutex<HashMap<&'static str, Instant>>,
     ninja: Mutex<HashMap<String, (Instant, NinjaTable)>>,
+    /// The trade site's own ids for bulk items ("divine", "alch"…), by name, per game.
+    static_ids: Mutex<HashMap<&'static str, HashMap<String, String>>>,
 }
 
 impl PriceState {
@@ -99,7 +118,7 @@ fn error_message(body: &str) -> Option<String> {
 }
 
 async fn send(state: &PriceState, request: reqwest::RequestBuilder, url: &str) -> Result<String, String> {
-    let policy = crate::ggg::trade_policy(url)?;
+    let policy = anon_policy(url)?;
     if let Some(wait) = state.wait(policy) {
         return Err(crate::ggg::limited(wait));
     }
@@ -213,6 +232,10 @@ pub struct NinjaLine {
     /// In the table's primary currency.
     value: f64,
     listings: Option<u64>,
+    /// poe.ninja's change over the last seven days, in percent.
+    change: Option<f64>,
+    /// Daily change from seven days ago, in percent; a day without data is null.
+    trend: Vec<Option<f64>>,
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -227,6 +250,14 @@ pub struct NinjaTable {
 
 fn text(v: &Value, key: &str) -> Option<String> {
     v.get(key).and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_string)
+}
+
+/// The seven-day sparkline: `sparkline` on exchange tables, `sparkLine` on stash ones.
+fn spark(line: &Value) -> Option<&Value> {
+    ["sparkline", "sparkLine", "lowConfidenceSparkline"]
+        .iter()
+        .filter_map(|k| line.get(*k))
+        .find(|s| s.get("data").and_then(Value::as_array).is_some_and(|d| !d.is_empty()))
 }
 
 /// Both of poe.ninja's shapes: exchange tables (`lines` of ids, `items` naming them) and stash
@@ -266,6 +297,8 @@ fn parse_ninja(v: &Value) -> NinjaTable {
             map_tier: line.get("mapTier").and_then(Value::as_u64),
             value,
             listings: line.get("listingCount").and_then(Value::as_u64),
+            change: spark(line).and_then(|s| s.get("totalChange")).and_then(Value::as_f64),
+            trend: spark(line).and_then(|s| s.get("data")).and_then(Value::as_array).map(|d| d.iter().map(Value::as_f64).collect()).unwrap_or_default(),
         });
     }
     NinjaTable { primary, rates, lines }
@@ -302,6 +335,106 @@ pub async fn price_ninja(state: State<'_, PriceState>, game: Game, league: Strin
     let table = parse_ninja(&v);
     state.ninja.lock().unwrap().insert(key, (Instant::now(), table.clone()));
     Ok(table)
+}
+
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkOffer {
+    /// What one of the wanted item costs, in `have`.
+    each: f64,
+    stock: Option<u64>,
+    indexed: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkResult {
+    total: u64,
+    /// The trade site's ids: what is paid with and what is bought.
+    have: String,
+    want: String,
+    url: String,
+    offers: Vec<BulkOffer>,
+}
+
+/// The cheapest offers of a bulk exchange reply, cheapest first.
+fn bulk_offers(body: &str) -> Result<(u64, Vec<BulkOffer>), String> {
+    let v: Value = serde_json::from_str(body).map_err(|_| "pathofexile.com sent offers this app could not read".to_string())?;
+    let mut offers: Vec<BulkOffer> = v
+        .get("result")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(|m| m.values())
+        .filter_map(|r| {
+            let listing = r.get("listing")?;
+            let offer = listing.get("offers")?.as_array()?.first()?;
+            let pay = offer.pointer("/exchange/amount")?.as_f64()?;
+            let get = offer.pointer("/item/amount")?.as_f64().filter(|a| *a > 0.0)?;
+            Some(BulkOffer {
+                each: pay / get,
+                stock: offer.pointer("/item/stock").and_then(Value::as_u64),
+                indexed: listing.get("indexed").and_then(Value::as_str).map(str::to_string),
+            })
+        })
+        .collect();
+    offers.sort_by(|a, b| a.each.total_cmp(&b.each));
+    offers.truncate(8);
+    Ok((v.get("total").and_then(Value::as_u64).unwrap_or(0), offers))
+}
+
+/// The trade site's bulk id for an item name, from its static data (kept for the session).
+async fn static_id(state: &PriceState, game: Game, name: &str) -> Result<Option<String>, String> {
+    if let Some(map) = state.static_ids.lock().unwrap().get(game.id()) {
+        return Ok(map.get(name).cloned());
+    }
+    let (api, _) = trade_paths(game);
+    let mut segments: Vec<&str> = api.to_vec();
+    segments.extend(["data", "static"]);
+    let url = trade_url(&segments)?;
+    let v: Value = serde_json::from_str(&send(state, client().get(url.clone()), url.as_str()).await?).map_err(|_| "pathofexile.com sent static data this app could not read".to_string())?;
+    let mut map = HashMap::new();
+    for group in v.get("result").and_then(Value::as_array).into_iter().flatten() {
+        for e in group.get("entries").and_then(Value::as_array).into_iter().flatten() {
+            if let (Some(id), Some(text)) = (e.get("id").and_then(Value::as_str), e.get("text").and_then(Value::as_str)) {
+                map.entry(text.to_string()).or_insert_with(|| id.to_string());
+            }
+        }
+    }
+    let found = map.get(name).cloned();
+    state.static_ids.lock().unwrap().insert(game.id(), map);
+    Ok(found)
+}
+
+/// Bulk prices for a stackable item on the trade site's currency exchange: what online sellers
+/// ask for one, in chaos (PoE1) or exalted orbs (PoE2), or divines when that is the item itself.
+#[tauri::command]
+pub async fn price_bulk(state: State<'_, PriceState>, game: Game, league: String, name: String) -> Result<Option<BulkResult>, String> {
+    let league = league.trim();
+    if league.is_empty() {
+        return Err("Choose a league first.".into());
+    }
+    let Some(want) = static_id(&state, game, name.trim()).await? else { return Ok(None) };
+    let base = if game == Game::Poe1 { "chaos" } else { "exalted" };
+    let have = if want == base { "divine" } else { base };
+    let (api, site) = trade_paths(game);
+    let mut path: Vec<&str> = api.to_vec();
+    path.push("exchange");
+    path.extend(realm(game));
+    path.push(league);
+    let url = trade_url(&path)?;
+    let body = serde_json::json!({
+        "query": { "status": { "option": "online" }, "have": [have], "want": [want] },
+        "sort": { "have": "asc" },
+        "engine": "new",
+    });
+    let request = client().post(url.clone()).header("content-type", "application/json").body(body.to_string());
+    let (total, offers) = bulk_offers(&send(&state, request, url.as_str()).await?)?;
+    let mut site_path: Vec<&str> = site.to_vec();
+    site_path.push("exchange");
+    site_path.extend(realm(game));
+    site_path.push(league);
+    let site_url = trade_url(&site_path)?.to_string();
+    Ok(Some(BulkResult { total, have: have.into(), want, url: site_url, offers }))
 }
 
 #[cfg(test)]
@@ -362,9 +495,9 @@ mod tests {
     fn trade_urls_encode_the_league_and_stay_on_the_api() {
         let url = trade_url(&["api", "trade2", "search", "poe2", "HC Forbidden Rites"]).unwrap();
         assert_eq!(url.as_str(), "https://www.pathofexile.com/api/trade2/search/poe2/HC%20Forbidden%20Rites");
-        assert!(crate::ggg::trade_policy(url.as_str()).is_ok());
+        assert!(anon_policy(url.as_str()).is_ok());
         let fetch = trade_url(&["api", "trade", "fetch", "a,b"]).unwrap();
-        assert!(crate::ggg::trade_policy(fetch.as_str()).is_ok());
+        assert!(anon_policy(fetch.as_str()).is_ok());
     }
 
     #[test]
@@ -382,6 +515,37 @@ mod tests {
         assert!(valid_search_id("H4sIAAAAAAAAA3WPUQuCMBSF_0rcZxPbZlN_RvUWIUuXXJhO3LRE-w"));
         assert!(valid_search_id("Ab12Cd"));
         assert!(!valid_search_id("") && !valid_search_id("a/b") && !valid_search_id("a?b") && !valid_search_id("a b"));
+    }
+
+    #[test]
+    fn bulk_offers_are_per_unit_and_cheapest_first() {
+        let body = json!({ "total": 3, "result": {
+            "a": { "listing": { "indexed": "2026-11-20T15:20:22+00:00", "offers": [{ "exchange": { "currency": "chaos", "amount": 450 }, "item": { "currency": "divine", "amount": 2, "stock": 9 } }] } },
+            "b": { "listing": { "offers": [{ "exchange": { "currency": "chaos", "amount": 220 }, "item": { "currency": "divine", "amount": 1 } }] } },
+            "c": { "listing": { "offers": [{ "exchange": { "currency": "chaos", "amount": 5 }, "item": { "currency": "divine", "amount": 0 } }] } }
+        }})
+        .to_string();
+        let (total, offers) = bulk_offers(&body).unwrap();
+        assert_eq!(total, 3);
+        assert_eq!(offers.iter().map(|o| o.each).collect::<Vec<_>>(), vec![220.0, 225.0]);
+        assert_eq!(offers[1].stock, Some(9));
+    }
+
+    #[test]
+    fn ninja_lines_keep_their_seven_day_trend() {
+        let t = parse_ninja(&json!({ "lines": [
+            { "name": "Mageblood", "chaosValue": 40000.0, "sparkLine": { "totalChange": 12.5, "data": [0, 3.1, null, 12.5] } }
+        ]}));
+        assert_eq!(t.lines[0].change, Some(12.5));
+        assert_eq!(t.lines[0].trend, vec![Some(0.0), Some(3.1), None, Some(12.5)]);
+    }
+
+    #[test]
+    fn anonymous_calls_stay_on_the_trade_api() {
+        assert!(anon_policy("https://www.pathofexile.com/api/trade/exchange/Covens").is_ok());
+        assert!(anon_policy("https://www.pathofexile.com/api/trade2/data/static").is_ok());
+        assert!(anon_policy("https://www.pathofexile.com/api/trade/data/leagues").is_err());
+        assert!(anon_policy("https://www.pathofexile.com.evil.example/api/trade/search/x").is_err());
     }
 
     #[test]

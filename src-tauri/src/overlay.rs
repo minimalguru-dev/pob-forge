@@ -166,6 +166,8 @@ struct Follow {
     opened: Option<std::time::Instant>,
     /// Ctrl was still held `HOLD_AFTER` after the card opened: letting go of it closes the card.
     held: bool,
+    /// A price card: it takes clicks whenever the cursor is on it, Ctrl or not.
+    trade: bool,
     scale: f64,
     /// The card's rectangle in the window, logical pixels (x, y, width, height); only it takes clicks.
     card: (f64, f64, f64, f64),
@@ -247,7 +249,7 @@ fn place_near_cursor(app: &AppHandle) -> Option<Anchor> {
         let edge = crate::game_window::inventory_left(rect);
         anchor = Anchor { x: (edge as f64 - p.x as f64) / scale - 8.0 + CARD_GAP, y: anchor.y, left: true };
     }
-    *follow(app) = Follow { origin: Some((c.x, c.y)), pinned: false, clickable: false, opened: Some(std::time::Instant::now()), held: false, scale, card: (0.0, 0.0, 0.0, 0.0) };
+    *follow(app) = Follow { origin: Some((c.x, c.y)), pinned: false, clickable: false, opened: Some(std::time::Instant::now()), held: false, trade: false, scale, card: (0.0, 0.0, 0.0, 0.0) };
     if !app.state::<OverlayState>().interact.load(Ordering::Relaxed) {
         let _ = w.set_ignore_cursor_events(true);
     }
@@ -292,7 +294,7 @@ fn spawn_follow(app: AppHandle) {
                 }
                 _ => false,
             };
-            let clickable = ctrl && inside;
+            let clickable = (ctrl || state.trade) && inside;
             if clickable != state.clickable {
                 let _ = w.set_ignore_cursor_events(!clickable);
                 follow(&app).clickable = clickable;
@@ -472,6 +474,7 @@ async fn price_check(app: &AppHandle) -> Result<(), String> {
     state.suppress.store(text_hash(&text), Ordering::Relaxed);
     open_window(app).await?;
     let anchor = place_near_cursor(app);
+    follow(app).trade = true;
     state.game_window.store(game, Ordering::Relaxed);
     let _ = app.emit_to(LABEL, "overlay:price", serde_json::json!({ "raw": text, "anchor": anchor }));
     Ok(())
