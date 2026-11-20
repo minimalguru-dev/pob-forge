@@ -6,7 +6,7 @@
   import { m } from "$lib/paraglide/messages";
   import {
     age, applyFilters, defaultChoices, formatListing, formatValue, matchNinja, ninjaSources, parseCopied, poedbUrl,
-    pseudoTotals, sparkPoints, wikiUrl, PSEUDO,
+    pseudoTotals, sparkPoints, wikiUrl, PSEUDO, modTags, templeRooms, roomFilter, isTemple, isMap, simpleQuery, VALUABLE_ROOMS,
     type Choice, type NinjaLine, type NinjaTable, type PseudoTotal,
   } from "./price";
 
@@ -24,7 +24,6 @@
   let ninja = $state<{ line: NinjaLine; table: NinjaTable } | null | "loading">(null);
   let bulk = $state<BulkResult | null | "loading">(null);
   let info = $state<BuySimilarInfo | null>(null);
-  let unsearchable = $state(false);
   let mods = $state<Choice[]>([]);
   let defences = $state<Choice[]>([]);
   let pseudo = $state<(PseudoTotal & Choice)[]>([]);
@@ -39,6 +38,11 @@
   let priceIn = $state("any");
   let emptyPrefix = $state("");
   let emptySuffix = $state("");
+  /** Temples, gems, maps and anything Buy Similar cannot read get a search built here. */
+  let simple = $state(false);
+  let rooms = $state<{ name: string; id: string | null; checked: boolean }[]>([]);
+  let gemLevel = $state("");
+  let mapTier = $state("");
   let result = $state<TradeResult | null>(null);
   let searching = $state(false);
   let error = $state<string | null>(null);
@@ -82,7 +86,46 @@
     }
   }
 
+  async function searchSimple() {
+    if (!item || searching || !league) return;
+    searching = true;
+    error = null;
+    try {
+      const query = simpleQuery(item, {
+        rooms: rooms.filter((r) => r.checked && r.id).map((r) => r.id!),
+        gemLevel: num(gemLevel),
+        quality: num(quality),
+        mapTier: num(mapTier),
+        corrupted,
+      });
+      result = await invoke<TradeResult>("price_trade", { game: game.current, league, query });
+    } catch (e) {
+      error = friendly(e);
+    } finally {
+      searching = false;
+    }
+  }
+
+  /** The temple's rooms, each with its trade filter; the rooms players pay for are ticked. */
+  async function loadRooms() {
+    if (!item) return;
+    const stats = await invoke<{ id: string; text: string }[]>("price_stats", { game: game.current, group: "pseudo" }).catch(() => []);
+    rooms = templeRooms(raw).open.map((name) => ({ name, id: roomFilter(name, stats), checked: VALUABLE_ROOMS.some((re) => re.test(name)) }));
+  }
+
+  function startSimple() {
+    if (!item) return;
+    simple = true;
+    corrupted = item.corrupted ? "yes" : "any";
+    if (item.rarity === "Gem") {
+      gemLevel = item.gemLevel !== null ? String(item.gemLevel) : "";
+      quality = item.gemQuality ? String(item.gemQuality) : "";
+    }
+    if (isMap(item) && item.mapTier !== null) mapTier = String(item.mapTier);
+  }
+
   async function search() {
+    if (simple) return searchSimple();
     if (!info || searching || !league) return;
     searching = true;
     error = null;
@@ -134,7 +177,7 @@
     result = null;
     void lookNinja();
     void lookBulk();
-    if (info) void search();
+    if (info || simple) void search();
   }
 
   function close() {
@@ -145,7 +188,7 @@
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
-      if (e.key === "Enter" && info && !searching) void search();
+      if (e.key === "Enter" && (info || simple) && !searching) void search();
     };
     window.addEventListener("keydown", onKey);
     void (async () => {
@@ -159,8 +202,20 @@
       league = leagues.some((l) => l.id === saved) ? saved : (leagues[0]?.id ?? "Standard");
       void lookNinja();
       void lookBulk();
-      // Currency, gems and cards are poe.ninja's and the exchange's; the trade search reads equipment.
-      if (item && !["Currency", "Gem", "Divination Card"].includes(item.rarity)) {
+      if (!item) return;
+      if (isTemple(item)) {
+        startSimple();
+        await loadRooms();
+        void search();
+        return;
+      }
+      if (item.rarity === "Gem" || isMap(item)) {
+        startSimple();
+        void search();
+        return;
+      }
+      // Currency and cards are poe.ninja's and the exchange's; equipment goes through Buy Similar.
+      if (!["Currency", "Divination Card"].includes(item.rarity)) {
         try {
           info = await engine.buySimilarInfo({ raw });
           ({ mods, defences } = defaultChoices(info));
@@ -173,7 +228,9 @@
           if (game.isPoe1 && (item.links ?? 0) >= 5) links = String(item.links);
           void search();
         } catch {
-          unsearchable = true;
+          // Buy Similar cannot read it: search by its name and base instead.
+          startSimple();
+          void search();
         }
       }
     })();
@@ -256,7 +313,7 @@
       {:else}
         <p class="dim small">{m.price_no_results()}</p>
       {/if}
-      <button class="btn sm ghost" onclick={() => void invoke("trade_window_open", { url: b.url })}>{m.price_open_trade()}</button>
+      <button class="btn sm ghost" onclick={() => void openUrl(b.url)}>{m.price_open_trade()}</button>
     </div>
   {/if}
 
@@ -267,7 +324,7 @@
         {#each pseudo as p, i (p.key)}
           <label class="mod pseudo" class:off={!p.checked}>
             <input type="checkbox" bind:checked={pseudo[i].checked} />
-            <span class="small">{PSEUDO[p.key].label.replace("#", String(p.total))}</span>
+            <span class="small">{PSEUDO[p.key].label.replace("#", String(p.total))}<span class="tags"><span class="tag pseudo">pseudo</span></span></span>
             <input class="input sm mono" bind:value={pseudo[i].min} aria-label={m.price_min()} />
           </label>
         {/each}
@@ -282,7 +339,10 @@
           {@const counted = inTotal.has(i)}
           <label class="mod" class:off={!mods[i].checked || counted} class:dead={!mod.searchable || counted} title={counted ? m.price_in_total() : ""}>
             <input type="checkbox" bind:checked={mods[i].checked} disabled={!mod.searchable || counted} />
-            <span class="small">{mod.lines.map(plain).join(" / ")}{#if counted}<span class="dim">&nbsp;· {m.price_in_total()}</span>{/if}</span>
+            <span class="small">
+              {mod.lines.map(plain).join(" / ")}{#if counted}<span class="dim">&nbsp;· {m.price_in_total()}</span>{/if}
+              {#if modTags(raw, mod).length}<span class="tags">{#each modTags(raw, mod) as tag (tag)}<span class="tag {tag}">{tag}</span>{/each}</span>{/if}
+            </span>
             {#if mod.ranged && !counted}<input class="input sm mono" bind:value={mods[i].min} aria-label={m.price_min()} />{/if}
           </label>
         {/each}
@@ -348,11 +408,62 @@
         {:else}
           <p class="dim small">{m.price_no_results()}</p>
         {/if}
-        <button class="btn sm ghost" onclick={() => void invoke("trade_window_open", { url: result!.url })}>{m.price_open_trade()}</button>
+        <button class="btn sm ghost" onclick={() => void openUrl(result!.url)}>{m.price_open_trade()}</button>
       {/if}
     </div>
-  {:else if unsearchable && !bulk}
-    <p class="dim small">{m.price_not_searchable()}</p>
+  {:else if simple && item}
+    <div class="trade">
+      <span class="label small">{m.price_trade()}</span>
+      {#if rooms.length}
+        <div class="mods">
+          {#each rooms as r, i (r.name)}
+            <label class="mod" class:off={!r.checked} class:dead={!r.id}>
+              <input type="checkbox" bind:checked={rooms[i].checked} disabled={!r.id} />
+              <span class="small">{r.name}<span class="tags"><span class="tag pseudo">room</span></span></span>
+            </label>
+          {/each}
+        </div>
+      {/if}
+      <div class="filters small">
+        {#if item.rarity === "Gem"}
+          <label><span class="dim">{m.price_gem_level()}</span><input class="input sm mono" bind:value={gemLevel} placeholder="—" /></label>
+        {/if}
+        {#if isMap(item)}
+          <label><span class="dim">{m.price_map_tier()}</span><input class="input sm mono" bind:value={mapTier} placeholder="—" /></label>
+        {/if}
+        {#if !isTemple(item)}
+          <label><span class="dim">{m.price_quality()}</span><input class="input sm mono" bind:value={quality} placeholder="—" /></label>
+        {/if}
+        <label>
+          <span class="dim">{m.price_corrupted_filter()}</span>
+          <select class="select sm" bind:value={corrupted}>
+            <option value="any">{m.price_any()}</option>
+            <option value="yes">{m.price_yes()}</option>
+            <option value="no">{m.price_no()}</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <span></span>
+        <button class="btn sm" onclick={() => void search()} disabled={searching}>{searching ? m.price_searching() : m.price_search()}</button>
+      </div>
+      {#if error}<p class="bad small">{error}</p>{/if}
+      {#if result}
+        {#if result.listings.length}
+          <p class="dim small">{m.price_total({ count: result.total })}</p>
+          <div class="listings">
+            {#each result.listings as l, i (i)}
+              <span class="mono">{formatListing(l.amount, l.currency)}</span>
+              <span class="dim small">{l.stack && l.stack > 1 ? `×${l.stack}` : ""}</span>
+              <span class="dim small">{age(l.indexed)}</span>
+            {/each}
+          </div>
+        {:else}
+          <p class="dim small">{m.price_no_results()}</p>
+        {/if}
+        <button class="btn sm ghost" onclick={() => void openUrl(result!.url)}>{m.price_open_trade()}</button>
+      {/if}
+    </div>
   {/if}
 </div>
 
@@ -381,6 +492,13 @@
   .filters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 8px; }
   .filters label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .filters .input, .filters .select { width: 100%; box-sizing: border-box; }
+  .tags { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-left: 6px; vertical-align: 1px; }
+  .tag { font-size: 10px; line-height: 1; padding: 2px 4px; border-radius: 3px; color: var(--fg-2);
+    background: color-mix(in oklch, var(--fg-3) 18%, transparent); text-transform: lowercase; }
+  .tag.pseudo { color: var(--brand); background: color-mix(in oklch, var(--brand) 16%, transparent); }
+  .tag.eldritch { color: oklch(72% 0.14 300); background: color-mix(in oklch, oklch(60% 0.15 300) 20%, transparent); }
+  .tag.crafted { color: oklch(78% 0.08 230); } .tag.fractured { color: oklch(80% 0.12 85); }
+  .tag.implicit, .tag.enchant { color: oklch(80% 0.06 250); }
   .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
   .toggle { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
   .toggle .ilvl { width: 44px; }

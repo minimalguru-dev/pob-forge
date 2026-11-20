@@ -1361,6 +1361,7 @@ pub fn run() {
             price::price_trade,
             price::price_ninja,
             price::price_bulk,
+            price::price_stats,
             ninja_characters,
             ninja_character_code,
             save_game_build_files,

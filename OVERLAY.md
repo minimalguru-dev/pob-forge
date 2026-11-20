@@ -26,6 +26,7 @@ cursor. The card is as tall as its content. It follows the Awakened PoE Trade ru
 - **Hold Ctrl to look.** Keep Ctrl down after Ctrl+C or Ctrl+D and the card stays; let go and it closes, unless the
   cursor is on the card.
 - **A quick Ctrl+C** (Ctrl already let go) keeps the card until the mouse moves away.
+- **Let go of Ctrl with the cursor on the card** and it stays, as if Ctrl+clicked.
 - **Ctrl+click** the card to keep it open and make its buttons and fields work. A kept card closes when you click back
   in the game or press **Esc**. While Ctrl is held over a card, the card takes the click instead of the game.
 
@@ -55,7 +56,11 @@ game copies the item, then opens a price card just left of the inventory panel. 
   listing kind, the currency the price is in, and a minimum of empty prefixes or suffixes are filters too. Same base
   type and item level are toggles, both off at first; item level starts at the copied item's own.
   **Base only** turns every mod filter off and searches the base type alone. Untick mods or change the minimums and search again. The ten cheapest listings show with their age; **Open on the trade site** opens
-  the full search in the trade window.
+  the full search on pathofexile.com in your browser. Under each mod are its tags, as in Awakened PoE Trade: pseudo,
+  implicit, enchant, crafted, fractured, eldritch (Searing Exarch and Eater of Worlds) and what else the game marks.
+- **Temples, gems, maps and the rest.** A Chronicle of Atzoatl is searched by its open rooms, with Locus of
+  Corruption, Doryani's Institute and the Apex ticked; gems by level, quality and corruption; maps and waystones by
+  tier. Anything else Buy Similar cannot read is searched by its name and base.
 - Searches are anonymous: no sign-in and no cookies. pathofexile.com allows about five searches every ten seconds;
   when a limit is reached the card says how long to wait instead of sending more.
 - **Wiki** and **poedb** open the item's pages in your browser.

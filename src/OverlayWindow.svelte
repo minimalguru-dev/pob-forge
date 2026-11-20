@@ -120,8 +120,11 @@
   const left = $derived(
     anchor ? Math.max(4, Math.min(innerWidth - cardWidth - 4, anchor.left ? anchor.x - 28 - cardWidth : anchor.x + 28)) : innerWidth - cardWidth - 24,
   );
+  // Beside the inventory the card is centred on a typical card's height, not its current one, so it
+  // does not jump as prices and listings arrive; only a card taller than that moves up to stay centred.
+  const settled = $derived(Math.max(cardHeight, Math.min(innerHeight * 0.6, 640)));
   const top = $derived(
-    anchor ? Math.max(4, Math.min(innerHeight - cardHeight - 4, anchor.middle ? anchor.y - cardHeight / 2 : anchor.y - 60)) : 96,
+    anchor ? Math.max(4, Math.min(innerHeight - cardHeight - 4, anchor.middle ? anchor.y - settled / 2 : anchor.y - 60)) : 96,
   );
 
   // Tell Rust where the card is (only it takes Ctrl clicks) and nudge the unfocused window to paint.
@@ -190,6 +193,17 @@
   }
 
   onMount(() => {
+    // The card grows as its content arrives. Each change must reach Rust (the card's rectangle is
+    // what takes Ctrl clicks and keeps the card open under the mouse) and be painted: WebView2
+    // does not repaint an unfocused window on its own.
+    const resize = new ResizeObserver(() => {
+      const r = root?.getBoundingClientRect();
+      if (!r) return;
+      cardHeight = Math.ceil(r.height);
+      const shown = !!card || busy || interact;
+      void invoke("overlay_fit", shown ? { x: r.left, y: r.top, width: r.width, height: r.height } : { x: 0, y: 0, width: 0, height: 0 }).catch(() => {});
+    });
+    if (root) resize.observe(root);
     // The overlay sits over the game: nothing behind the panel is painted.
     document.documentElement.style.background = "transparent";
     document.body.style.background = "transparent";
@@ -238,6 +252,7 @@
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointerdown", onWindowPointerDown);
+      resize.disconnect();
       for (const off of offs) void off.then((f) => f());
     };
   });

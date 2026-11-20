@@ -21,7 +21,9 @@ const FETCH: usize = 10;
 
 /// The only pathofexile.com addresses an anonymous price check may call; the first matching
 /// prefix is also the rate-limit bucket.
-const ANON_API: [&str; 8] = [
+const ANON_API: [&str; 10] = [
+    "https://www.pathofexile.com/api/trade/data/stats",
+    "https://www.pathofexile.com/api/trade2/data/stats",
     "https://www.pathofexile.com/api/trade/search/",
     "https://www.pathofexile.com/api/trade/fetch/",
     "https://www.pathofexile.com/api/trade/exchange/",
@@ -42,6 +44,14 @@ pub struct PriceState {
     ninja: Mutex<HashMap<String, (Instant, NinjaTable)>>,
     /// The trade site's own ids for bulk items ("divine", "alch"…), by name, per game.
     static_ids: Mutex<HashMap<&'static str, HashMap<String, String>>>,
+    /// The trade site's stat filters, per game and group ("pseudo", "explicit"…).
+    stats: Mutex<HashMap<String, Vec<TradeStat>>>,
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct TradeStat {
+    id: String,
+    text: String,
 }
 
 impl PriceState {
@@ -437,6 +447,41 @@ pub async fn price_bulk(state: State<'_, PriceState>, game: Game, league: String
     Ok(Some(BulkResult { total, have: have.into(), want, url: site_url, offers }))
 }
 
+fn parse_stats(v: &Value) -> HashMap<String, Vec<TradeStat>> {
+    let mut out: HashMap<String, Vec<TradeStat>> = HashMap::new();
+    for group in v.get("result").and_then(Value::as_array).into_iter().flatten() {
+        let Some(id) = group.get("id").and_then(Value::as_str) else { continue };
+        let list = out.entry(id.to_string()).or_default();
+        for e in group.get("entries").and_then(Value::as_array).into_iter().flatten() {
+            if let (Some(sid), Some(text)) = (e.get("id").and_then(Value::as_str), e.get("text").and_then(Value::as_str)) {
+                list.push(TradeStat { id: sid.into(), text: text.into() });
+            }
+        }
+    }
+    out
+}
+
+/// The trade site's stat filters in one group, such as the pseudo "Has Room: …" temple filters.
+#[tauri::command]
+pub async fn price_stats(state: State<'_, PriceState>, game: Game, group: String) -> Result<Vec<TradeStat>, String> {
+    let key = |g: &str| format!("{}/{g}", game.id());
+    if let Some(list) = state.stats.lock().unwrap().get(&key(&group)) {
+        return Ok(list.clone());
+    }
+    let (api, _) = trade_paths(game);
+    let mut segments: Vec<&str> = api.to_vec();
+    segments.extend(["data", "stats"]);
+    let url = trade_url(&segments)?;
+    let v: Value = serde_json::from_str(&send(&state, client().get(url.clone()), url.as_str()).await?).map_err(|_| "pathofexile.com sent stats this app could not read".to_string())?;
+    let all = parse_stats(&v);
+    let found = all.get(&group).cloned().unwrap_or_default();
+    let mut cache = state.stats.lock().unwrap();
+    for (g, list) in all {
+        cache.insert(key(&g), list);
+    }
+    Ok(found)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -541,7 +586,18 @@ mod tests {
     }
 
     #[test]
+    fn stats_are_grouped() {
+        let all = parse_stats(&json!({ "result": [
+            { "id": "pseudo", "entries": [{ "id": "pseudo.pseudo_temple_apex", "text": "Has Room: Apex of Atzoatl" }] },
+            { "id": "explicit", "entries": [{ "id": "explicit.stat_1", "text": "+# to maximum Life", "type": "explicit" }] }
+        ]}));
+        assert_eq!(all["pseudo"], vec![TradeStat { id: "pseudo.pseudo_temple_apex".into(), text: "Has Room: Apex of Atzoatl".into() }]);
+        assert_eq!(all["explicit"].len(), 1);
+    }
+
+    #[test]
     fn anonymous_calls_stay_on_the_trade_api() {
+        assert!(anon_policy("https://www.pathofexile.com/api/trade/data/stats").is_ok());
         assert!(anon_policy("https://www.pathofexile.com/api/trade/exchange/Covens").is_ok());
         assert!(anon_policy("https://www.pathofexile.com/api/trade2/data/static").is_ok());
         assert!(anon_policy("https://www.pathofexile.com/api/trade/data/leagues").is_err());

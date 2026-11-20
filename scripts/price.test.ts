@@ -139,3 +139,52 @@ test("draws a sparkline across gaps", () => {
   expect(sparkPoints([0, null, 10], 10, 10)).toBe("0.0,10.0 10.0,0.0");
   expect(sparkPoints([null, 5], 10, 10)).toBe("");
 });
+
+import { isMap, isTemple, modTags, roomFilter, simpleQuery, templeRooms } from "../src/lib/overlay/price";
+
+const CHRONICLE = `Item Class: Misc Map Items
+Rarity: Normal
+Chronicle of Atzoatl
+--------
+Area Level: 83
+--------
+Open Rooms:
+Apex of Atzoatl
+Locus of Corruption (Tier 3)
+Hall of Champions (Tier 1)
+--------
+Obstructed Rooms:
+Doryani's Institute (Tier 3)`;
+
+test("tags each mod with what the copy and PoB say about it", () => {
+  const raw = "Item Class: Rings\nRarity: Rare\nX\nIron Ring\n--------\n+12% to Fire Resistance (implicit)\n--------\n+78 to maximum Life (crafted)\n+20% to Cold Resistance (fractured)";
+  expect(modTags(raw, { type: "explicit", lines: ["^x8888FF+78 to maximum Life"] })).toEqual(["crafted"]);
+  expect(modTags(raw, { type: "explicit", lines: ["+20% to Cold Resistance"] })).toEqual(["fractured"]);
+  expect(modTags(raw, { type: "implicit", lines: ["+12% to Fire Resistance"] })).toEqual(["implicit"]);
+  expect(modTags(raw, { type: "implicit", lines: ["5% increased Life if the Searing Exarch is dominant"] })).toEqual(["implicit", "eldritch"]);
+  expect(modTags(raw, { type: "explicit", lines: ["+5 to Strength"] })).toEqual([]);
+});
+
+test("reads a temple's rooms and finds their trade filters", () => {
+  const item = parseCopied(CHRONICLE)!;
+  expect(isTemple(item)).toBe(true);
+  expect(templeRooms(CHRONICLE)).toEqual({ open: ["Apex of Atzoatl", "Locus of Corruption (Tier 3)", "Hall of Champions (Tier 1)"], obstructed: ["Doryani's Institute (Tier 3)"] });
+  const stats = [{ id: "pseudo.pseudo_temple_corruption_room_3", text: "Has Room: Locus of Corruption (Tier 3)" }];
+  expect(roomFilter("Locus of Corruption (Tier 3)", stats)).toBe("pseudo.pseudo_temple_corruption_room_3");
+  expect(roomFilter("Hall of Champions (Tier 1)", stats)).toBeNull();
+  const q = JSON.parse(simpleQuery(item, { rooms: ["pseudo.pseudo_temple_corruption_room_3"], gemLevel: null, quality: null, mapTier: null, corrupted: "any" }));
+  expect(q.query.type).toBe("Chronicle of Atzoatl");
+  expect(q.query.stats[0].filters).toEqual([{ id: "pseudo.pseudo_temple_corruption_room_3" }]);
+});
+
+test("builds gem and map searches", () => {
+  const gem = JSON.parse(simpleQuery(parseCopied(GEM)!, { rooms: [], gemLevel: 20, quality: 20, mapTier: null, corrupted: "yes" }));
+  expect(gem.query.type).toBe("Vaal Rejuvenation Totem");
+  expect(gem.query.filters.misc_filters.filters).toEqual({ gem_level: { min: 20 }, quality: { min: 20 }, corrupted: { option: "true" } });
+  const map = parseCopied("Item Class: Maps\nRarity: Normal\nStrand Map\n--------\nMap Tier: 16")!;
+  expect(isMap(map)).toBe(true);
+  const q = JSON.parse(simpleQuery(map, { rooms: [], gemLevel: null, quality: null, mapTier: 16, corrupted: "any" }));
+  expect(q.query.type).toBeUndefined();
+  expect(q.query.filters.type_filters.filters.category).toEqual({ option: "map" });
+  expect(q.query.filters.map_filters.filters.map_tier).toEqual({ min: 16, max: 16 });
+});

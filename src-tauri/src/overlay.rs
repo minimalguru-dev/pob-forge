@@ -307,7 +307,10 @@ fn spawn_follow(app: AppHandle) {
             if ctrl && age >= HOLD_AFTER && !state.held {
                 follow(&app).held = true;
             }
-            if state.held && !ctrl && !inside {
+            if state.held && !ctrl && inside {
+                // Ctrl let go over the card: the user wants it, so it stays until Esc or a click elsewhere.
+                pin(&app);
+            } else if state.held && !ctrl {
                 // Ctrl let go away from the card: done looking.
                 dismiss(&app);
             } else if ctrl || inside || age < GRACE {
@@ -669,9 +672,17 @@ pub fn overlay_interact(app: AppHandle, on: Option<bool>) {
 /// Ctrl+click on a card: it stays open, and its buttons work, until a click elsewhere or Esc.
 #[tauri::command]
 pub fn overlay_pin(app: AppHandle) {
+    pin(&app);
+}
+
+/// Keeps the open card: it takes clicks and typing until Esc or a click elsewhere.
+fn pin(app: &AppHandle) {
     {
-        let mut f = follow(&app);
+        let mut f = follow(app);
         if f.origin.is_none() {
+            return;
+        }
+        if f.pinned {
             return;
         }
         f.pinned = true;

@@ -1832,6 +1832,8 @@
   "price_item_level": "item level {level}",
   "price_corrupted": "corrupted",
   "price_min": "min",
+  "price_gem_level": "Gem level",
+  "price_map_tier": "Map tier",
   "price_empty_prefix": "Empty prefixes",
   "price_empty_suffix": "Empty suffixes",
   "price_base_only": "Base only",

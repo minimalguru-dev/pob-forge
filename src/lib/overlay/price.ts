@@ -314,3 +314,94 @@ export function sparkPoints(trend: (number | null)[], width: number, height: num
     .filter(Boolean)
     .join(" ");
 }
+
+/**
+ * Tags for one Buy Similar mod, as Awakened PoE Trade shows them: its kind (implicit, enchant…),
+ * what the game wrote after it on the copied text ("(crafted)", "(fractured)"…), and eldritch for
+ * the Searing Exarch and Eater of Worlds implicits. Explicit is the default and gets no tag.
+ */
+export function modTags(raw: string, mod: { type: string; lines: string[] }): string[] {
+  const marks = new Map<string, string[]>();
+  for (const line of raw.replace(/\r/g, "").split("\n")) {
+    const m = line.trim().match(/^(.*?)((?:\s*\([a-z ]+\))+)$/i);
+    if (!m) continue;
+    const tags = [...m[2].matchAll(/\(([a-z ]+)\)/gi)].map((x) => x[1].toLowerCase());
+    marks.set(m[1].trim().toLowerCase(), tags);
+  }
+  const tags = new Set<string>();
+  if (mod.type && mod.type !== "explicit") tags.add(mod.type);
+  for (const line of mod.lines) {
+    const l = plainLine(line);
+    for (const tag of marks.get(l.toLowerCase()) ?? []) tags.add(tag);
+    if (/Searing Exarch|Eater of Worlds/.test(l)) tags.add("eldritch");
+  }
+  return [...tags];
+}
+
+/** A Chronicle of Atzoatl's rooms, as the game copies them. */
+export function templeRooms(raw: string): { open: string[]; obstructed: string[] } {
+  const out = { open: [] as string[], obstructed: [] as string[] };
+  let into: string[] | null = null;
+  for (const line of raw.replace(/\r/g, "").split("\n").map((l) => l.trim())) {
+    if (/^Open Rooms:?$/i.test(line)) into = out.open;
+    else if (/^Obstructed Rooms:?$/i.test(line)) into = out.obstructed;
+    else if (/^-{4,}$/.test(line) || !line) into = line ? null : into;
+    else if (into) into.push(line);
+  }
+  return out;
+}
+
+/** The temple rooms worth searching for first, as players price them. */
+export const VALUABLE_ROOMS = [/Locus of Corruption/, /Doryani's Institute/, /Apex of Atzoatl/];
+
+/** A room line ("Locus of Corruption (Tier 3)") to its trade filter, by the filter's text. */
+export function roomFilter(room: string, stats: { id: string; text: string }[]): string | null {
+  const want = `Has Room: ${room}`.toLowerCase();
+  return stats.find((s) => s.text.toLowerCase() === want)?.id ?? null;
+}
+
+export function isTemple(item: CopiedItem): boolean {
+  return item.name === "Chronicle of Atzoatl" || item.baseType === "Chronicle of Atzoatl";
+}
+
+export function isMap(item: CopiedItem): boolean {
+  return item.itemClass === "Maps" || item.itemClass === "Waystones" || item.mapTier !== null;
+}
+
+export interface SimpleChoices {
+  /** Temple room filters to require. */
+  rooms: string[];
+  gemLevel: number | null;
+  quality: number | null;
+  mapTier: number | null;
+  corrupted: "any" | "yes" | "no";
+}
+
+/**
+ * A trade search built here, for what PoB's Buy Similar does not read: temples, gems, maps and
+ * waystones, and anything else by its name and base.
+ */
+export function simpleQuery(item: CopiedItem, c: SimpleChoices): string {
+  const query: Record<string, any> = { status: { option: "available" } };
+  const misc: Record<string, unknown> = {};
+  if (isTemple(item)) {
+    query.type = "Chronicle of Atzoatl";
+    if (c.rooms.length) query.stats = [{ type: "and", filters: c.rooms.map((id) => ({ id })) }];
+  } else if (item.rarity === "Gem") {
+    query.type = item.name;
+    if (c.gemLevel !== null) misc.gem_level = { min: c.gemLevel };
+    if (c.quality !== null) misc.quality = { min: c.quality };
+  } else if (isMap(item)) {
+    // Maps are priced by tier: since 3.26 their names no longer tell them apart on the trade site.
+    if (item.rarity === "Unique") query.name = item.name;
+    query.filters = { type_filters: { filters: { category: { option: item.itemClass === "Waystones" ? "map.waystone" : "map" } } } };
+    if (c.mapTier !== null) query.filters.map_filters = { filters: { map_tier: { min: c.mapTier, max: c.mapTier } } };
+  } else {
+    if (item.rarity === "Unique") query.name = item.name;
+    query.type = item.baseType ?? item.name;
+    if (c.quality !== null) misc.quality = { min: c.quality };
+  }
+  if (c.corrupted !== "any") misc.corrupted = { option: c.corrupted === "yes" ? "true" : "false" };
+  if (Object.keys(misc).length) (query.filters ??= {}).misc_filters = { filters: misc };
+  return JSON.stringify({ query, sort: { price: "asc" } });
+}
