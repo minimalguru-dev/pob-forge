@@ -55,27 +55,66 @@ function pieces(name: string, min: number, max: number, into: (p: string) => voi
 }
 
 /**
+ * Every name the window could show, broken into pieces once: each piece with the names it is in.
+ * Built once per price table, so changing the price or the groups only redoes the quick part.
+ */
+export interface PieceIndex {
+  min: number;
+  max: number;
+  /** Lower-cased names, without repeats. */
+  names: string[];
+  ids: Map<string, number>;
+  byPiece: Map<string, number[]>;
+}
+
+export function indexNames(names: Iterable<string>, min: number, max = 10): PieceIndex {
+  const ids = new Map<string, number>();
+  const list: string[] = [];
+  for (const name of names) {
+    const n = norm(name);
+    if (!ids.has(n)) {
+      ids.set(n, list.length);
+      list.push(n);
+    }
+  }
+  const byPiece = new Map<string, number[]>();
+  list.forEach((n, id) =>
+    pieces(n, min, max, (p) => {
+      const at = byPiece.get(p);
+      if (!at) byPiece.set(p, [id]);
+      else if (at[at.length - 1] !== id) at.push(id);
+    }),
+  );
+  return { min, max, names: list, ids, byPiece };
+}
+
+/**
  * The shortest regex that highlights the wanted names and none of the others, as far as the
  * limit allows: pieces of the wanted names found in no other name, chosen for the most value
  * per character. The others should be every name the window could show (the whole price table),
  * since the search matches any of them.
  */
 export function buildHighlight(wanted: Named[], others: string[], o: HighlightOptions): Highlight {
-  const max = o.maxPiece ?? 10;
-  const wantedNames = new Set(wanted.map((w) => norm(w.name)));
-  const forbidden = new Set<string>();
-  for (const name of others) if (!wantedNames.has(norm(name))) pieces(name, o.minPiece, max, (p) => forbidden.add(p));
+  return highlightFrom(indexNames([...others, ...wanted.map((w) => w.name)], o.minPiece, o.maxPiece ?? 10), wanted, o.limit);
+}
 
-  // Each usable piece and the wanted names it covers.
-  const covers = new Map<string, Set<number>>();
-  wanted.forEach((w, i) =>
-    pieces(w.name, o.minPiece, max, (p) => {
-      if (forbidden.has(p)) return;
-      let set = covers.get(p);
-      if (!set) covers.set(p, (set = new Set()));
-      set.add(i);
-    }),
-  );
+/** buildHighlight against an index made by indexNames, which must hold every wanted name too. */
+export function highlightFrom(index: PieceIndex, wanted: Named[], limit: number): Highlight {
+  // Wanted names by their id in the index; a piece is usable when every name it is in is wanted.
+  const wantedAt = new Map<number, number>();
+  wanted.forEach((w, i) => {
+    const id = index.ids.get(norm(w.name));
+    if (id !== undefined) wantedAt.set(id, i);
+  });
+  const covers = new Map<string, number[]>();
+  for (const w of wanted) {
+    pieces(w.name, index.min, index.max, (p) => {
+      if (covers.has(p)) return;
+      const ids = index.byPiece.get(p);
+      if (!ids || !ids.every((id) => wantedAt.has(id))) return;
+      covers.set(p, ids.map((id) => wantedAt.get(id)!));
+    });
+  }
   const reachable = new Set<number>();
   for (const set of covers.values()) for (const i of set) reachable.add(i);
 
@@ -84,7 +123,8 @@ export function buildHighlight(wanted: Named[], others: string[], o: HighlightOp
   // Two quotes around it, a bar between pieces.
   let used = 2;
   const candidates = new Map(covers);
-  while (candidates.size) {
+  for (;;) {
+    const room = limit - used - (chosen.length ? 1 : 0);
     let best: string | null = null;
     let bestScore = 0;
     for (const [p, set] of candidates) {
@@ -94,24 +134,23 @@ export function buildHighlight(wanted: Named[], others: string[], o: HighlightOp
         candidates.delete(p);
         continue;
       }
-      const cost = p.length + (chosen.length ? 1 : 0);
-      const score = gain / cost;
+      // Only pieces that still fit are weighed, so a full regex ends the search at once.
+      if (p.length > room) continue;
+      const score = gain / (p.length + (chosen.length ? 1 : 0));
       if (score > bestScore || (score === bestScore && best !== null && p.length < best.length)) {
         best = p;
         bestScore = score;
       }
     }
     if (best === null) break;
-    const cost = best.length + (chosen.length ? 1 : 0);
-    candidates.delete(best);
-    if (used + cost > o.limit) continue;
-    used += cost;
+    used += best.length + (chosen.length ? 1 : 0);
     chosen.push(best);
+    candidates.delete(best);
     for (const i of covers.get(best)!) covered.add(i);
   }
 
   const byValue = (a: Named, b: Named) => b.value - a.value;
-  const piecesOut = chosen.map((p) => ({ piece: p, names: [...covers.get(p)!].map((i) => wanted[i].name) }));
+  const piecesOut = chosen.map((p) => ({ piece: p, names: covers.get(p)!.map((i) => wanted[i].name) }));
   return {
     regex: chosen.length ? `"${chosen.join("|")}"` : "",
     pieces: piecesOut,

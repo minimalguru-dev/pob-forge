@@ -51,6 +51,7 @@
   let rooms = $state<{ name: string; id: string | null; checked: boolean }[]>([]);
   let gemLevel = $state("");
   let mapTier = $state("");
+  let areaLevel = $state("");
   let result = $state<TradeResult | null>(null);
   let searching = $state(false);
   let error = $state<string | null>(null);
@@ -107,6 +108,8 @@
         corrupted,
         mapStats: maps.filter((s) => s.checked).map((s) => ({ filter: s.filter, min: num(s.min) })),
         blight: blighted && item ? blight(item) : null,
+        areaLevel: num(areaLevel),
+        game: game.current,
       });
       result = await invoke<TradeResult>("price_trade", { game: game.current, league, query });
     } catch (e) {
@@ -127,6 +130,7 @@
     if (!item) return;
     simple = true;
     corrupted = item.corrupted ? "yes" : "any";
+    areaLevel = item.areaLevel !== null && !isMap(item) ? String(item.areaLevel) : "";
     if (item.rarity === "Gem") {
       gemLevel = item.gemLevel !== null ? String(item.gemLevel) : "";
       quality = item.gemQuality ? String(item.gemQuality) : "";
@@ -496,6 +500,9 @@
         {/if}
         {#if isMap(item)}
           <label><span class="dim">{m.price_map_tier()}</span><input class="input sm mono" bind:value={mapTier} placeholder="—" /></label>
+        {/if}
+        {#if item.areaLevel !== null && !isMap(item)}
+          <label><span class="dim">{m.price_area_level()}</span><input class="input sm mono" bind:value={areaLevel} placeholder="—" /></label>
         {/if}
         {#if !isTemple(item)}
           <label><span class="dim">{m.price_quality()}</span><input class="input sm mono" bind:value={quality} placeholder="—" /></label>

@@ -1832,6 +1832,7 @@
   "price_item_level": "item level {level}",
   "price_corrupted": "corrupted",
   "price_min": "min",
+  "price_area_level": "Area level ≥",
   "view_regex": "Regex",
   "regex_title": "Search regexes",
   "regex_intro": "Text for the game's search box. Copy it here, then paste it into the stash, vendor or Ritual search yourself (Ctrl+F, Ctrl+V).",

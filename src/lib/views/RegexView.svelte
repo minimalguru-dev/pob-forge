@@ -6,7 +6,7 @@
   import { game } from "$lib/state/game.svelte";
   import { m } from "$lib/paraglide/messages";
   import { ninjaGroups, valuesByName, type NinjaTable } from "$lib/overlay/price";
-  import { buildHighlight, loadSaved, storeSaved, type SavedRegex } from "$lib/regex/highlight";
+  import { highlightFrom, indexNames, loadSaved, storeSaved, type SavedRegex } from "$lib/regex/highlight";
 
   const g = game.current;
   const unit = g === "poe1" ? "chaos" : "exalted";
@@ -25,15 +25,21 @@
     return base;
   }
   const settings = $state<Settings>(loadSettings());
+  /** The settings the regex was last built from: typing waits for a pause before it rebuilds. */
+  let applied = $state.raw<Settings>(JSON.parse(JSON.stringify(settings)));
   $effect(() => {
     const snapshot = JSON.stringify(settings);
-    try { localStorage.setItem(settingsKey, snapshot); } catch {}
+    const timer = setTimeout(() => {
+      applied = JSON.parse(snapshot);
+      try { localStorage.setItem(settingsKey, snapshot); } catch {}
+    }, 150);
+    return () => clearTimeout(timer);
   });
 
   let leagues = $state<{ id: string; text: string }[]>([]);
   let league = $state("");
   /** Per group: every name poe.ninja prices in it, and what it is worth. */
-  let prices = $state<Map<string, number>[] | null>(null);
+  let prices = $state.raw<Map<string, number>[] | null>(null);
   let loading = $state(false);
   let error = $state<string | null>(null);
   let copied = $state<string | null>(null);
@@ -72,17 +78,18 @@
     }
   }
 
+  /** Every name broken into pieces: only redone when the prices or the shortest piece change. */
+  const minPiece = $derived(Math.min(8, Math.max(2, Math.round(applied.minPiece) || 3)));
+  const index = $derived.by(() => (prices ? indexNames(prices.flatMap((map) => [...map.keys()]), minPiece) : null));
+
   const result = $derived.by(() => {
-    if (!prices) return null;
+    if (!prices || !index) return null;
     const wanted: { name: string; value: number }[] = [];
-    const all: string[] = [];
     prices.forEach((map, i) => {
-      for (const [name, value] of map) {
-        all.push(name);
-        if (settings.wanted[i] && value >= settings.min) wanted.push({ name, value });
-      }
+      if (!applied.wanted[i]) return;
+      for (const [name, value] of map) if (value >= applied.min) wanted.push({ name, value });
     });
-    return buildHighlight(wanted, all, { limit: settings.limit, minPiece: Math.max(2, settings.minPiece) });
+    return highlightFrom(index, wanted, applied.limit);
   });
 
   async function copy(text: string) {
@@ -171,7 +178,7 @@
         {#if result.regex}
           <div class="out">
             <code class="mono selectable">{result.regex}</code>
-            <span class="dim small" class:bad={result.regex.length > settings.limit}>{m.regex_length({ length: result.regex.length, limit: settings.limit })}</span>
+            <span class="dim small" class:bad={result.regex.length > applied.limit}>{m.regex_length({ length: result.regex.length, limit: applied.limit })}</span>
             <button class="btn sm primary" onclick={() => void copy(result.regex)}>{copied === result.regex ? m.regex_copied() : m.regex_copy()}</button>
           </div>
           <div class="saveRow small">

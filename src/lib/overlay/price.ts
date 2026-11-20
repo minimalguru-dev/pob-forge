@@ -20,6 +20,8 @@ export interface CopiedItem {
   /** Largest linked socket group (PoE1). */
   links: number | null;
   mapTier: number | null;
+  /** Forbidden Tomes, logbooks, contracts: the area level they open, which sets their price. */
+  areaLevel: number | null;
   /** A Foulborn unique's mutated mod lines, as copied without the "(mutated)" mark. */
   mutated: string[];
   /** The marks the game writes on their own line: influences, Fractured Item, Mirrored… */
@@ -88,6 +90,7 @@ export function parseCopied(text: string): CopiedItem | null {
     corrupted: all.includes("Corrupted"),
     links,
     mapTier: num(after("Map Tier:") ?? after("Waystone Tier:")),
+    areaLevel: num(after("Area Level:")),
     mutated: all.filter((l) => /\(mutated\)$/i.test(l)).map((l) => l.replace(/\s*\(mutated\)$/i, "")),
     marks: all.filter((l) => MARKS.has(l)),
   };
@@ -108,7 +111,7 @@ const JEWEL = new Set(["Jewels", "Abyss Jewels"]);
 
 const POE1_UNIQUES = ["UniqueWeapon", "UniqueArmour", "UniqueAccessory", "UniqueFlask", "UniqueJewel"];
 const POE2_UNIQUES = ["UniqueWeapons", "UniqueArmours", "UniqueAccessories", "UniqueFlasks", "UniqueJewels", "UniqueCharms"];
-const POE1_EXCHANGE = ["Currency", "Fragment", "Scarab", "Essence", "Fossil", "Resonator", "Oil", "DeliriumOrb", "Incubator", "Omen", "Tattoo", "Artifact", "Invitation"];
+const POE1_EXCHANGE = ["Currency", "Fragment", "Scarab", "Essence", "Fossil", "Resonator", "Oil", "DeliriumOrb", "Incubator", "Omen", "Tattoo", "Artifact", "Invitation", "AllflameEmber"];
 const POE2_EXCHANGE = ["Currency", "Fragments", "Essences", "Runes", "SoulCores", "Ritual", "Expedition", "Delirium", "Breach", "Abyss", "Idols"];
 
 function uniqueGuess(game: Game, itemClass: string): string {
@@ -564,6 +567,9 @@ export interface SimpleChoices {
   mapStats?: { filter: string; min: number | null }[];
   /** Blighted or blight-ravaged, when ticked. */
   blight?: string | null;
+  /** Minimum area level (Forbidden Tomes, logbooks, contracts). */
+  areaLevel?: number | null;
+  game?: Game;
 }
 
 /**
@@ -595,6 +601,11 @@ export function simpleQuery(item: CopiedItem, c: SimpleChoices): string {
     if (c.quality !== null) misc.quality = { min: c.quality };
   }
   if (c.corrupted !== "any") misc.corrupted = { option: c.corrupted === "yes" ? "true" : "false" };
+  if (c.areaLevel != null && !isMap(item)) {
+    // PoE1 keeps area level with the map filters, PoE2 with the misc ones.
+    if (c.game === "poe2") misc.area_level = { min: c.areaLevel };
+    else (((query.filters ??= {}).map_filters ??= { filters: {} }).filters.area_level = { min: c.areaLevel });
+  }
   if (Object.keys(misc).length) (query.filters ??= {}).misc_filters = { filters: misc };
   return JSON.stringify({ query, sort: { price: "asc" } });
 }

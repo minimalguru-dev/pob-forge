@@ -196,7 +196,9 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Uzrok:** ručni testovi zaobišli su ograničenje koje aplikacija poštuje (`price.rs` čita zaglavlja); GGG kažnjava prekoračenje dugom blokadom za cijeli IP, pa i korisnikov price check.
 - **Ispravak:** testovi zaustavljeni; korisnik obaviješten da trade rezultati ne rade do isteka blokade.
 - **Prevencija:** najviše 3–4 ručne pretrage u minuti, pročitati `X-Rate-Limit-Ip` i `-State` prije sljedeće; za pitanja tipa "postoji li filter" koristiti `/data/filters` i `/data/stats` (nisu search).
-- **Validacija:** nema; blokada traje 30 min.
+- **Posljedica (isti dan):** korisnik je u tom razmaku javio da price check ne nalazi Forbidden Tome. PoB ga ne čita pa kartica ide na običnu pretragu po imenu, a ona je u tom trenutku dobivala blokadu; nakon isteka ista pretraga (`type: "Forbidden Tome"`) vraća rezultate. Točna poruka koju je korisnik vidio nije potvrđena.
+- **Pravilo iz zaglavlja:** `X-Rate-Limit-Ip: 5:10:60,15:60:300,30:300:1800,600:21600:3600` – 5 pretraga u 10 s, 15 u minuti, 30 u 5 min (inače 30 min blokade), 600 u 6 h. Ručni testovi i korisnikovi price checkovi dijele isti IP i isti brojač.
+- **Validacija:** blokada istekla ~20:20; dvije pretrage nakon toga prošle su (stanje 2:300).
 
 ## 2026-11-20 — Bash heredoc pojeo backslasheve u regexima
 

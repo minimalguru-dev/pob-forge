@@ -49,6 +49,17 @@ test("turns influence and item marks into trade filters", () => {
   expect(itemMarks("poe2", item).map((m) => m.misc)).toEqual(["fractured_item", "mirrored"]);
 });
 
+test("searches a Forbidden Tome by its area level", () => {
+  const raw = "Item Class: Sanctum Research\nRarity: Normal\nForbidden Tome\n--------\nArea Level: 83\n--------\nItem Level: 83\n";
+  const item = parseCopied(raw)!;
+  expect(item.areaLevel).toBe(83);
+  const c = { rooms: [], gemLevel: null, quality: null, mapTier: null, corrupted: "any" as const, areaLevel: 83 };
+  const poe1 = JSON.parse(simpleQuery(item, { ...c, game: "poe1" }));
+  expect(poe1.query.type).toBe("Forbidden Tome");
+  expect(poe1.query.filters.map_filters.filters.area_level).toEqual({ min: 83 });
+  expect(JSON.parse(simpleQuery(item, { ...c, game: "poe2" })).query.filters.misc_filters.filters.area_level).toEqual({ min: 83 });
+});
+
 test("reads a map's figures and blight", () => {
   const raw = `Item Class: Maps\nRarity: Rare\nGrim Hollow\nBlighted Cemetery Map\n--------\nMap Tier: 16\nItem Quantity: +85% (augmented)\nItem Rarity: +50% (augmented)\nMonster Pack Size: +30% (augmented)\n--------\nItem Level: 83\n`;
   const item = parseCopied(raw)!;
