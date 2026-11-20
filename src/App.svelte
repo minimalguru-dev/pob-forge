@@ -7,6 +7,7 @@
   import DownloadToast from "$lib/components/DownloadToast.svelte";
   import TreeView from "$lib/views/TreeView.svelte";
   import StatStrip from "$lib/components/StatStrip.svelte";
+  import RegexView from "$lib/views/RegexView.svelte";
   import OverviewView from "$lib/views/OverviewView.svelte";
   import CharacterDialog from "$lib/components/CharacterDialog.svelte";
   import SkillsView from "$lib/views/SkillsView.svelte";
@@ -94,7 +95,7 @@
   <TitleBar />
   <UpdateBanner />
   <div class="body">
-    {#if !ui.sidebarCollapsed && (build.view !== "tree" || treeSheet || appOptions.open)}<Sidebar />{/if}
+    {#if !ui.sidebarCollapsed && (build.view !== "tree" || treeSheet || appOptions.open) && (build.view !== "regex" || appOptions.open)}<Sidebar />{/if}
     <main class="view">
       {#if appOptions.open}
         <SettingsView />
@@ -118,6 +119,8 @@
             </div>
           </div>
         </div>
+      {:else if build.view === "regex"}
+        <RegexView />
       {:else if build.view === "overview"}
         <OverviewView />
       {:else if build.view === "tree"}

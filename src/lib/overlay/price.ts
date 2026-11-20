@@ -140,6 +140,67 @@ export function ninjaSources(game: Game, item: CopiedItem): NinjaSource[] {
   return [];
 }
 
+export interface NinjaGroup {
+  /** Shown to the player. */
+  label: string;
+  sources: NinjaSource[];
+  /** Ticked when a highlight regex is first built. */
+  wanted: boolean;
+}
+
+/**
+ * The poe.ninja tables a Ritual window (or a stash) can show, grouped as players think of them.
+ * All of them are loaded for a highlight regex, ticked or not, so its pieces miss everything else.
+ */
+export function ninjaGroups(game: Game): NinjaGroup[] {
+  const ex = (...c: string[]) => c.map((category) => ({ kind: "exchange" as const, category }));
+  const st = (...c: string[]) => c.map((category) => ({ kind: "stash" as const, category }));
+  if (game === "poe1") {
+    return [
+      { label: "Currency", sources: ex("Currency"), wanted: true },
+      { label: "Divination cards", sources: ex("DivinationCard"), wanted: true },
+      { label: "Fragments", sources: ex("Fragment"), wanted: true },
+      { label: "Scarabs", sources: ex("Scarab"), wanted: true },
+      { label: "Omens", sources: ex("Omen"), wanted: true },
+      { label: "Essences", sources: ex("Essence"), wanted: false },
+      { label: "Fossils & resonators", sources: ex("Fossil", "Resonator"), wanted: false },
+      { label: "Oils", sources: ex("Oil"), wanted: false },
+      { label: "Delirium orbs", sources: ex("DeliriumOrb"), wanted: false },
+      { label: "Tattoos", sources: ex("Tattoo"), wanted: false },
+      { label: "Uniques", sources: st(...POE1_UNIQUES), wanted: false },
+      { label: "Gems", sources: st("SkillGem"), wanted: false },
+    ];
+  }
+  return [
+    { label: "Currency", sources: ex("Currency"), wanted: true },
+    { label: "Omens & ritual", sources: ex("Ritual"), wanted: true },
+    { label: "Fragments", sources: ex("Fragments"), wanted: true },
+    { label: "Essences", sources: ex("Essences"), wanted: false },
+    { label: "Runes & soul cores", sources: ex("Runes", "SoulCores", "Idols"), wanted: false },
+    { label: "Expedition, Delirium, Breach, Abyss", sources: ex("Expedition", "Delirium", "Breach", "Abyss"), wanted: false },
+    { label: "Uniques", sources: st(...POE2_UNIQUES), wanted: false },
+    { label: "Gems", sources: ex("UncutGems", "LineageSupportGems"), wanted: false },
+  ];
+}
+
+/** A line's value in chaos (PoE1) or exalted orbs (PoE2), the units prices are asked in. */
+export function valueIn(game: Game, value: number, table: Pick<NinjaTable, "primary" | "rates">): number {
+  const unit = game === "poe1" ? "chaos" : "exalted";
+  if (table.primary === unit) return value;
+  const rate = table.rates[unit];
+  return rate ? value * rate : value;
+}
+
+/** One value per name: the line most listed, as a plain copy of the item would be. */
+export function valuesByName(game: Game, table: NinjaTable): Map<string, number> {
+  const best = new Map<string, NinjaLine>();
+  for (const l of table.lines) {
+    const had = best.get(l.name);
+    if (!had || (l.listings ?? 0) > (had.listings ?? 0)) best.set(l.name, l);
+  }
+  return new Map([...best].map(([name, l]) => [name, valueIn(game, l.value, table)]));
+}
+
 /** The item's line in a table, or null. Gems match on level, quality and corruption; uniques on links. */
 export function matchNinja(item: CopiedItem, table: NinjaTable): NinjaLine | null {
   let found = table.lines.filter((l) => l.name === item.name);

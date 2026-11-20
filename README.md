@@ -99,6 +99,13 @@ Ctrl+D prices the item under the cursor from poe.ninja and the trade site, with 
 only what you copy and the game's log file; the only keys it presses are your chat macros and the price check's
 Ctrl+C. See [OVERLAY.md](OVERLAY.md).
 
+### Search regexes
+
+The Regex tab builds text for the game's search box: tick what you want highlighted (currency, divination cards,
+fragments, omens, uniques…) and a minimum price, and it writes the shortest regex that lights up everything worth that
+much on poe.ninja and nothing else poe.ninja lists, within the search box's character limit. Use it in the Ritual
+window or a stash. Copy it and paste it into the game yourself; regexes you build or write yourself can be saved.
+
 ### MCP server
 
 Lets an AI client such as Claude Code, Claude Desktop or Cursor read and edit the open build, in
