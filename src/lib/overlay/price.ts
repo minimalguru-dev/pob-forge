@@ -20,6 +20,10 @@ export interface CopiedItem {
   /** Largest linked socket group (PoE1). */
   links: number | null;
   mapTier: number | null;
+  /** A Foulborn unique's mutated mod lines, as copied without the "(mutated)" mark. */
+  mutated: string[];
+  /** The marks the game writes on their own line: influences, Fractured Item, Mirrored… */
+  marks: string[];
 }
 
 /** Mirrors `NinjaLine` / `NinjaTable` in src-tauri/src/price.rs. */
@@ -32,6 +36,8 @@ export interface NinjaLine {
   corrupted: boolean;
   links: number | null;
   mapTier: number | null;
+  /** A Foulborn line's mutated mods. */
+  mutated?: string[];
   value: number;
   listings: number | null;
   /** Seven-day change in percent, and the daily points behind it (null: no data that day). */
@@ -81,9 +87,20 @@ export function parseCopied(text: string): CopiedItem | null {
     quality: num(after("Quality:")?.match(/\d+/)?.[0]),
     corrupted: all.includes("Corrupted"),
     links,
-    mapTier: num(after("Map Tier:")),
+    mapTier: num(after("Map Tier:") ?? after("Waystone Tier:")),
+    mutated: all.filter((l) => /\(mutated\)$/i.test(l)).map((l) => l.replace(/\s*\(mutated\)$/i, "")),
+    marks: all.filter((l) => MARKS.has(l)),
   };
 }
+
+/** Lines the game writes alone on a copied item to say what it is. */
+const MARKS = new Set([
+  "Shaper Item", "Elder Item", "Crusader Item", "Redeemer Item", "Hunter Item", "Warlord Item",
+  "Searing Exarch Item", "Eater of Worlds Item", "Fractured Item", "Synthesised Item", "Mirrored", "Split", "Sanctified",
+]);
+
+/** A mod line with its numbers and ranges taken out, to compare rolls of the same mod. */
+const shape = (line: string) => line.replace(/\(?[+-]?\d+(\.\d+)?(-\d+(\.\d+)?)?\)?/g, "#").replace(/\s+/g, " ").trim().toLowerCase();
 
 const ARMOUR = new Set(["Body Armours", "Helmets", "Gloves", "Boots", "Shields", "Quivers", "Bucklers", "Foci"]);
 const ACCESSORY = new Set(["Rings", "Amulets", "Belts"]);
@@ -140,6 +157,14 @@ export function matchNinja(item: CopiedItem, table: NinjaTable): NinjaLine | nul
     const linked = (item.links ?? 0) >= 5 ? item.links : null;
     const byLinks = found.filter((l) => (l.links ?? null) === linked || (!linked && !l.links));
     if (byLinks.length) found = byLinks;
+    if (!item.mutated.length && /^Foulborn /.test(item.name) && found.some((l) => l.mutated?.length)) return null;
+    if (item.mutated.length && found.some((l) => l.mutated?.length)) {
+      // Foulborn: poe.ninja prices each set of mutated mods apart.
+      const mine = new Set(item.mutated.map(shape));
+      const same = found.filter((l) => l.mutated?.length && l.mutated.every((m) => mine.has(shape(m))));
+      if (same.length) return [...same].sort((a, b) => (b.mutated!.length - a.mutated!.length) || (b.listings ?? 0) - (a.listings ?? 0))[0];
+      return null;
+    }
     const plain = found.filter((l) => !l.variant || l.links);
     if (plain.length) found = plain;
   }
@@ -290,11 +315,38 @@ export function pseudoTotals(info: BuySimilarInfo): PseudoTotal[] {
   return [...out.values()].filter((p) => p.total > 0);
 }
 
+export interface Mark {
+  /** The line as the game wrote it. */
+  line: string;
+  checked: boolean;
+  /** A trade misc filter set to true, or a pseudo stat to require. */
+  misc?: string;
+  pseudo?: string;
+}
+
+const INFLUENCE = ["Shaper", "Elder", "Crusader", "Redeemer", "Hunter", "Warlord"];
+
+/** The marks the trade site can search on, each ticked: they are part of what the item is. */
+export function itemMarks(game: Game, item: CopiedItem): Mark[] {
+  const out: Mark[] = [];
+  for (const line of item.marks) {
+    const influence = INFLUENCE.find((i) => line === `${i} Item`);
+    if (influence && game === "poe1") out.push({ line, checked: true, pseudo: `pseudo.pseudo_has_${influence.toLowerCase()}_influence` });
+    const misc: Record<string, string> = game === "poe1"
+      ? { "Searing Exarch Item": "searing_item", "Eater of Worlds Item": "tangled_item", "Fractured Item": "fractured_item", "Synthesised Item": "synthesised_item", Mirrored: "mirrored", Split: "split" }
+      : { "Fractured Item": "fractured_item", Mirrored: "mirrored", Sanctified: "sanctified" };
+    if (misc[line]) out.push({ line, checked: true, misc: misc[line] });
+  }
+  return out;
+}
+
 export interface Filters {
   pseudo: { id: string; min: number | null }[];
   /** Weapon DPS minimums (counted by the trade site at 20% quality). */
   dps?: { key: DpsKey; min: number | null }[];
   game?: Game;
+  /** Ticked item marks. */
+  marks?: Mark[];
   itemLevel: number | null;
   quality: number | null;
   links: number | null;
@@ -318,7 +370,11 @@ export function applyFilters(queryJson: string, f: Filters): string {
   // PoE2's site keeps weapon figures with the armour ones.
   const weapons = f.game === "poe2" ? "equipment_filters" : "weapon_filters";
   for (const d of f.dps ?? []) if (d.min !== null) group(weapons)[d.key] = { min: d.min };
-  const pseudo = f.pseudo.map((p) => (p.min === null ? { id: p.id } : { id: p.id, value: { min: p.min } }));
+  for (const mk of f.marks ?? []) if (mk.misc) group("misc_filters")[mk.misc] = { option: "true" };
+  const pseudo = [
+    ...f.pseudo.map((p) => (p.min === null ? { id: p.id } : { id: p.id, value: { min: p.min } })),
+    ...(f.marks ?? []).filter((mk) => mk.pseudo).map((mk) => ({ id: mk.pseudo! })),
+  ];
   if (pseudo.length) {
     query.stats ??= [];
     let and = query.stats.find((s: { type?: string }) => s.type === "and");
@@ -359,7 +415,7 @@ export function sparkPoints(trend: (number | null)[], width: number, height: num
  * what the game wrote after it on the copied text ("(crafted)", "(fractured)"…), and eldritch for
  * the Searing Exarch and Eater of Worlds implicits. Explicit is the default and gets no tag.
  */
-export function modTags(raw: string, mod: { type: string; lines: string[] }): string[] {
+export function modTags(raw: string, mod: { type: string; lines: string[]; kinds?: string[] }): string[] {
   const marks = new Map<string, string[]>();
   for (const line of raw.replace(/\r/g, "").split("\n")) {
     const m = line.trim().match(/^(.*?)((?:\s*\([a-z ]+\))+)$/i);
@@ -369,6 +425,7 @@ export function modTags(raw: string, mod: { type: string; lines: string[] }): st
   }
   const tags = new Set<string>();
   if (mod.type && mod.type !== "explicit") tags.add(mod.type);
+  for (const kind of mod.kinds ?? []) tags.add(kind);
   for (const line of mod.lines) {
     const l = plainLine(line);
     for (const tag of marks.get(l.toLowerCase()) ?? []) tags.add(tag);
@@ -407,6 +464,34 @@ export function isMap(item: CopiedItem): boolean {
   return item.itemClass === "Maps" || item.itemClass === "Waystones" || item.mapTier !== null;
 }
 
+export interface MapStat {
+  label: string;
+  value: number;
+  filter: string;
+  checked: boolean;
+  min: string;
+}
+
+/** A map's or waystone's quantity, rarity and pack figures, each with its trade filter; unticked. */
+export function mapStats(game: Game, raw: string): MapStat[] {
+  const filters: [RegExp, string][] = game === "poe1"
+    ? [[/^Item Quantity:/, "map_iiq"], [/^Item Rarity:/, "map_iir"], [/^Monster Pack Size:/, "map_packsize"]]
+    : [[/^Item Rarity:/, "map_iir"], [/^(Monster )?Pack Size:/, "map_packsize"], [/^Magic Monsters:/, "map_magic_monsters"], [/^Rare Monsters:/, "map_rare_monsters"]];
+  const out: MapStat[] = [];
+  for (const line of raw.replace(/\r/g, "").split("\n").map((l) => l.trim())) {
+    const hit = filters.find(([re]) => re.test(line));
+    const value = Number(line.match(/[+-]?(\d+)%/)?.[1]);
+    if (hit && value > 0) out.push({ label: line.split(":")[0], value, filter: hit[1], checked: false, min: String(value) });
+  }
+  return out;
+}
+
+/** Blighted and blight-ravaged maps are their own market (PoE1). */
+export function blight(item: CopiedItem): "map_blighted" | "map_uberblighted" | null {
+  const text = `${item.name} ${item.baseType ?? ""}`;
+  return /Blight-ravaged/i.test(text) ? "map_uberblighted" : /\bBlighted\b/i.test(text) ? "map_blighted" : null;
+}
+
 export interface SimpleChoices {
   /** Temple room filters to require. */
   rooms: string[];
@@ -414,6 +499,10 @@ export interface SimpleChoices {
   quality: number | null;
   mapTier: number | null;
   corrupted: "any" | "yes" | "no";
+  /** Ticked map figures. */
+  mapStats?: { filter: string; min: number | null }[];
+  /** Blighted or blight-ravaged, when ticked. */
+  blight?: string | null;
 }
 
 /**
@@ -434,7 +523,11 @@ export function simpleQuery(item: CopiedItem, c: SimpleChoices): string {
     // Maps are priced by tier: since 3.26 their names no longer tell them apart on the trade site.
     if (item.rarity === "Unique") query.name = item.name;
     query.filters = { type_filters: { filters: { category: { option: item.itemClass === "Waystones" ? "map.waystone" : "map" } } } };
-    if (c.mapTier !== null) query.filters.map_filters = { filters: { map_tier: { min: c.mapTier, max: c.mapTier } } };
+    const mapf: Record<string, unknown> = {};
+    if (c.mapTier !== null) mapf.map_tier = { min: c.mapTier, max: c.mapTier };
+    for (const s of c.mapStats ?? []) if (s.min !== null) mapf[s.filter] = { min: s.min };
+    if (c.blight) mapf[c.blight] = { option: "true" };
+    if (Object.keys(mapf).length) query.filters.map_filters = { filters: mapf };
   } else {
     if (item.rarity === "Unique") query.name = item.name;
     query.type = item.baseType ?? item.name;

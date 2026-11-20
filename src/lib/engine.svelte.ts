@@ -1658,7 +1658,9 @@ export interface BuySimilarInfo {
   /** Weapon damage per second at trade quality. */
   weapon?: { pdps: number; edps: number; dps: number } | null;
   /** `searchable` is false when the trade site has no filter for the mod; `ranged` rows take min/max. */
-  mods: { lines: string[]; type: string; searchable: boolean; value: number | string | null; ranged: boolean }[];
+  mods: { lines: string[]; type: string; searchable: boolean; value: number | string | null; ranged: boolean; kinds?: string[] }[];
+  /** A Foulborn unique: its mutated mods have kind "mutated". */
+  foulborn?: boolean;
 }
 
 export interface BuySimilarChoices {

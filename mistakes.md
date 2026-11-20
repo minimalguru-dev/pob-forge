@@ -189,6 +189,24 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Prevencija:** validaciju vanjskih ID-jeva pisati prema stvarnom uzorku odgovora i taj uzorak staviti u test.
 - **Validacija:** unit test; ručni anonimni search + fetch s istim id-jem vratio listinge. U igri neprovjereno do novog installera.
 
+## 2026-11-20 — Testiranje trade API-ja curlom zaključalo IP na 30 minuta
+
+- **Simptom:** `Rate limit exceeded; Please wait 1800 seconds` na anonimnom trade searchu.
+- **Dokaz:** u kratkom razmaku poslano je desetak pretraga curlom (Foulborn filter, PoE2 grupe filtera, crafted/fractured), s pauzom od 2 s, bez čitanja `X-Rate-Limit-*` zaglavlja.
+- **Uzrok:** ručni testovi zaobišli su ograničenje koje aplikacija poštuje (`price.rs` čita zaglavlja); GGG kažnjava prekoračenje dugom blokadom za cijeli IP, pa i korisnikov price check.
+- **Ispravak:** testovi zaustavljeni; korisnik obaviješten da trade rezultati ne rade do isteka blokade.
+- **Prevencija:** najviše 3–4 ručne pretrage u minuti, pročitati `X-Rate-Limit-Ip` i `-State` prije sljedeće; za pitanja tipa "postoji li filter" koristiti `/data/filters` i `/data/stats` (nisu search).
+- **Validacija:** nema; blokada traje 30 min.
+
+## 2026-11-20 — Bash heredoc pojeo backslasheve u regexima
+
+- **Simptom:** `/\(mutated\)$/` završio kao `/(mutated)$/`, `\r` kao stvarni CR, `\b` kao backspace; test parsiranja qualityja pao.
+- **Dokaz:** isti TS skript zapisan kroz Bash heredoc dao je datoteku bez backslasheva; zapisan Write alatom radi ispravno.
+- **Uzrok:** Bash alat na Windowsu ne čuva `\\` u heredocu ni s navodnicima oko oznake.
+- **Ispravak:** pogođene linije popravljene; skripte s backslashevima pišu se Write alatom pa pokreću Bunom.
+- **Prevencija:** nikad heredoc za kod s regexima ili escape sekvencama; nakon zapisa grep za `\d`/`\s` u izmijenjenim linijama.
+- **Validacija:** `bun test scripts` 34 pass.
+
 ## 2026-11-20 — Ctrl+D ponekad otvorio i compare karticu
 
 - **Simptom:** korisnik javlja da Ctrl+D ponekad pokrene compare.

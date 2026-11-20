@@ -239,6 +239,8 @@ pub struct NinjaLine {
     corrupted: bool,
     links: Option<u64>,
     map_tier: Option<u64>,
+    /// A Foulborn unique's mutated mods: poe.ninja prices each set of them on its own line.
+    mutated: Vec<String>,
     /// In the table's primary currency.
     value: f64,
     listings: Option<u64>,
@@ -305,6 +307,11 @@ fn parse_ninja(v: &Value) -> NinjaTable {
             corrupted: line.get("corrupted").and_then(Value::as_bool).unwrap_or(false),
             links: line.get("links").and_then(Value::as_u64),
             map_tier: line.get("mapTier").and_then(Value::as_u64),
+            mutated: line
+                .get("mutatedModifiers")
+                .and_then(Value::as_array)
+                .map(|m| m.iter().filter_map(|x| text(x, "text")).collect())
+                .unwrap_or_default(),
             value,
             listings: line.get("listingCount").and_then(Value::as_u64),
             change: spark(line).and_then(|s| s.get("totalChange")).and_then(Value::as_f64),
@@ -518,6 +525,14 @@ mod tests {
         }));
         assert_eq!((t.primary.as_str(), t.rates.get("chaos")), ("divine", Some(&10.86)));
         assert_eq!(t.lines[0].base_type.as_deref(), Some("Elegant Ringmail"));
+    }
+
+    #[test]
+    fn foulborn_lines_keep_their_mutated_mods() {
+        let t = parse_ninja(&json!({ "lines": [
+            { "name": "Foulborn Headhunter", "variant": "Culling Strike", "chaosValue": 900.0, "mutatedModifiers": [{ "text": "Culling Strike", "optional": false }] }
+        ]}));
+        assert_eq!(t.lines[0].mutated, vec!["Culling Strike".to_string()]);
     }
 
     #[test]

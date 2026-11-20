@@ -59,6 +59,12 @@ game copies the item, then opens a price card just left of the inventory panel. 
   had 20% quality: an item below 20% is priced at 20% (rows marked **Q20**), and weapons get physical and elemental
   DPS rows, the larger one ticked on a rare. The quality filter starts at the item's own quality on flasks,
   tinctures and charms, and on anything past 20%; gems search their own quality.
+  **Foulborn** uniques are priced by their mutated mods: PoB knows which they are (the game's copy does not mark
+  them), ticks them, and poe.ninja's line for that set of mutated mods is shown. Mods are tagged by what PoB says they
+  are (mutated, crafted, fractured…); crafted mods start unticked. Influences, Searing Exarch and Eater of Worlds
+  items, Fractured, Synthesised, Mirrored and Split (PoE2: Fractured, Mirrored, Sanctified) are ticked filters.
+  Maps and waystones also offer their quantity, rarity and pack figures (unticked), and blighted or blight-ravaged maps
+  search their own market.
   **Base only** turns every mod filter off and searches the base type alone. Untick mods or change the minimums and search again. The ten cheapest listings show with their age; **Open on the trade site** opens
   the full search on pathofexile.com in your browser. Under each mod are its tags, as in Awakened PoE Trade: pseudo,
   implicit, enchant, crafted, fractured, eldritch (Searing Exarch and Eater of Worlds) and what else the game marks.

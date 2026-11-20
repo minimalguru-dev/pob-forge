@@ -6,7 +6,7 @@
   import { m } from "$lib/paraglide/messages";
   import {
     age, applyFilters, defaultChoices, formatListing, formatValue, matchNinja, ninjaSources, parseCopied, poedbUrl,
-    pseudoTotals, sparkPoints, wikiUrl, PSEUDO, defaultQuality, weaponChoices, type DpsChoice, modTags, templeRooms, roomFilter, isTemple, isMap, simpleQuery, VALUABLE_ROOMS,
+    pseudoTotals, sparkPoints, wikiUrl, PSEUDO, defaultQuality, weaponChoices, itemMarks, mapStats, blight, type DpsChoice, type Mark, type MapStat, modTags, templeRooms, roomFilter, isTemple, isMap, simpleQuery, VALUABLE_ROOMS,
     type Choice, type NinjaLine, type NinjaTable, type PseudoTotal,
   } from "./price";
 
@@ -27,6 +27,13 @@
   let mods = $state<Choice[]>([]);
   let defences = $state<Choice[]>([]);
   let dps = $state<DpsChoice[]>([]);
+  /** Influences, Fractured Item, Mirrored…: ticked, since they are part of what the item is. */
+  let marks = $state<Mark[]>([]);
+  let maps = $state<MapStat[]>([]);
+  let blighted = $state(false);
+  /** A Foulborn unique's mutated mods, as PoB read them (the game's copy does not mark them). */
+  let mutatedLines = $state<string[]>([]);
+  const foulborn = $derived(!!item && (item.mutated.length > 0 || mutatedLines.length > 0 || /^Foulborn /.test(item.name)));
   let pseudo = $state<(PseudoTotal & Choice)[]>([]);
   let baseType = $state(false);
   let listed = $state(1);
@@ -66,7 +73,7 @@
     for (const source of sources) {
       try {
         const table = await invoke<NinjaTable>("price_ninja", { game: game.current, league, ...source });
-        const line = matchNinja(it, table);
+        const line = matchNinja(it.mutated.length ? it : { ...it, mutated: mutatedLines }, table);
         if (line) { ninja = { line, table }; return; }
       } catch {
         // A table poe.ninja lacks for this league is not an error for the next one.
@@ -98,6 +105,8 @@
         quality: num(quality),
         mapTier: num(mapTier),
         corrupted,
+        mapStats: maps.filter((s) => s.checked).map((s) => ({ filter: s.filter, min: num(s.min) })),
+        blight: blighted && item ? blight(item) : null,
       });
       result = await invoke<TradeResult>("price_trade", { game: game.current, league, query });
     } catch (e) {
@@ -124,7 +133,11 @@
     } else {
       quality = defaultQuality(item);
     }
-    if (isMap(item) && item.mapTier !== null) mapTier = String(item.mapTier);
+    if (isMap(item)) {
+      if (item.mapTier !== null) mapTier = String(item.mapTier);
+      maps = mapStats(game.current, raw);
+      blighted = game.isPoe1 && blight(item) !== null;
+    }
   }
 
   async function search() {
@@ -152,6 +165,7 @@
           ...(num(emptySuffix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_suffix_mods", min: num(emptySuffix) }] : []),
         ],
         dps: dps.filter((d) => d.checked).map((d) => ({ key: d.key, min: num(d.min) })),
+        marks: marks.filter((mk) => mk.checked),
         game: game.current,
         itemLevel: useItemLevel ? num(itemLevel) : null,
         quality: num(quality),
@@ -173,6 +187,7 @@
     defences = defences.map((c) => ({ ...c, checked: false }));
     dps = dps.map((c) => ({ ...c, checked: false }));
     pseudo = pseudo.map((p) => ({ ...p, checked: false }));
+    marks = marks.map((mk) => ({ ...mk, checked: false }));
     baseType = true;
     void search();
   }
@@ -227,6 +242,17 @@
           ({ mods, defences } = defaultChoices(info));
           dps = weaponChoices(info);
           quality = defaultQuality(item);
+          marks = itemMarks(game.current, item);
+          mutatedLines = info.mods.filter((mod) => mod.kinds?.includes("mutated")).flatMap((mod) => mod.lines.map(plain));
+          if (mutatedLines.length) void lookNinja();
+          // Crafted mods cost little to put back, so they are not searched at first. A Foulborn
+          // unique's mutated mods are what it is priced by, so those are.
+          const tagged = info.mods.map((mod) => modTags(raw, mod));
+          mods = mods.map((c, i) => {
+            if (tagged[i].includes("crafted")) return { ...c, checked: false };
+            if (tagged[i].includes("mutated") && info!.mods[i].searchable) return { ...c, checked: true };
+            return c;
+          });
           // Awakened's default: totals for resistances and life, at 90% of the item's.
           pseudo = info.unique ? [] : pseudoTotals(info).map((p) => ({ ...p, checked: true, min: String(Math.floor(p.total * 0.9)), max: "" }));
           baseType = false;
@@ -251,11 +277,12 @@
     <div class="title">
       <strong class="rarity {item?.rarity.toLowerCase()}">{item?.name ?? m.price_title()}</strong>
       {#if item?.baseType}<span class="dim">{item.baseType}</span>{/if}
-      {#if info?.itemLevel || item?.corrupted || item?.quality}
+      {#if info?.itemLevel || item?.corrupted || item?.quality || foulborn}
         <span class="dim small">
           {#if info?.itemLevel}{m.price_item_level({ level: info.itemLevel })}{/if}
           {#if item?.quality}{#if info?.itemLevel} · {/if}{m.price_item_quality({ quality: item.quality })}{/if}
           {#if item?.corrupted} · <span class="bad">{m.price_corrupted()}</span>{/if}
+          {#if foulborn} · <span class="foul">Foulborn</span>{/if}
         </span>
       {/if}
     </div>
@@ -330,6 +357,12 @@
     <div class="trade">
       <span class="label small">{m.price_trade()}</span>
       <div class="mods">
+        {#each marks as mk, i (mk.line)}
+          <label class="mod" class:off={!mk.checked}>
+            <input type="checkbox" bind:checked={marks[i].checked} />
+            <span class="small">{mk.line}</span>
+          </label>
+        {/each}
         {#each pseudo as p, i (p.key)}
           <label class="mod pseudo" class:off={!p.checked}>
             <input type="checkbox" bind:checked={pseudo[i].checked} />
@@ -440,6 +473,23 @@
           {/each}
         </div>
       {/if}
+      {#if maps.length || (blighted && blight(item))}
+        <div class="mods">
+          {#if blight(item) && game.isPoe1}
+            <label class="mod" class:off={!blighted}>
+              <input type="checkbox" bind:checked={blighted} />
+              <span class="small">{blight(item) === "map_uberblighted" ? "Blight-ravaged" : "Blighted"}</span>
+            </label>
+          {/if}
+          {#each maps as s, i (s.filter)}
+            <label class="mod" class:off={!s.checked}>
+              <input type="checkbox" bind:checked={maps[i].checked} />
+              <span class="small">{s.label} {s.value}%</span>
+              <input class="input sm mono" bind:value={maps[i].min} aria-label={m.price_min()} />
+            </label>
+          {/each}
+        </div>
+      {/if}
       <div class="filters small">
         {#if item.rarity === "Gem"}
           <label><span class="dim">{m.price_gem_level()}</span><input class="input sm mono" bind:value={gemLevel} placeholder="—" /></label>
@@ -511,6 +561,8 @@
   .tags { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-left: 6px; vertical-align: 1px; }
   .tag { font-size: 10px; line-height: 1; padding: 2px 4px; border-radius: 3px; color: var(--fg-2);
     background: color-mix(in oklch, var(--fg-3) 18%, transparent); text-transform: lowercase; }
+  .foul { color: oklch(68% 0.16 350); }
+  .tag.mutated { color: oklch(72% 0.15 350); background: color-mix(in oklch, oklch(60% 0.16 350) 18%, transparent); }
   .tag.q20 { color: var(--fg-1); background: var(--bg-3); }
   .tag.pseudo { color: var(--brand); background: color-mix(in oklch, var(--brand) 16%, transparent); }
   .tag.eldritch { color: oklch(72% 0.14 300); background: color-mix(in oklch, oklch(60% 0.15 300) 20%, transparent); }

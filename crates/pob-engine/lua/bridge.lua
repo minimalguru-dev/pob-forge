@@ -9865,6 +9865,26 @@ function itemUtil.buySimilarRows(item)
 	return isUnique, mods, defences
 end
 
+--- What PoB's colour on a formatted mod line says it is: fractured, crafted, mutated (a Foulborn
+--- unique's), scourge, crucible or vestigial. The game's plain copy does not mark mutated mods;
+--- PoB knows them from its Foulborn table.
+itemUtil.MOD_KINDS = { "FRACTURED", "CRAFTED", "MUTATED", "SCOURGE", "CRUCIBLE", "VESTIGIAL" }
+function itemUtil.modLineKinds(lines)
+	local kinds = array({})
+	for _, line in ipairs(lines) do
+		for _, key in ipairs(itemUtil.MOD_KINDS) do
+			local code = colorCodes[key]
+			if code and line:sub(1, #code) == code then
+				local kind = key:lower()
+				local seen = false
+				for _, k in ipairs(kinds) do seen = seen or k == kind end
+				if not seen then kinds[#kinds + 1] = kind end
+			end
+		end
+	end
+	return kinds
+end
+
 --- The rows PoB's Buy Similar popup offers for an item.
 --- params: { itemId } for this build's item, or { slot, side = "mine"|"theirs" } on the Compare tab
 M.buy_similar_info = function(p)
@@ -9881,6 +9901,7 @@ M.buy_similar_info = function(p)
 			searchable = #m.tradeIds > 0,
 			value = opt(m.value),
 			ranged = not (m.isOption or m.needsExactValue) and m.value ~= nil,
+			kinds = itemUtil.modLineKinds(m.formattedLines),
 		}
 	end
 	local outDefences = array({})
@@ -9906,6 +9927,7 @@ M.buy_similar_info = function(p)
 		quality = opt(item.copiedQuality or item.quality),
 		tradeQuality = opt(item.tradeQuality),
 		weapon = itemUtil.buySimilarWeapon(item),
+		foulborn = item.foulborn == true,
 	}
 end
 
