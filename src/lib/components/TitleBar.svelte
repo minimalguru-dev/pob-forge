@@ -146,7 +146,7 @@
 <header class="titlebar" data-tauri-drag-region>
   <div class="brand" class:wide={!ui.sidebarCollapsed} data-tauri-drag-region>
     <LogoMark class="mark" />
-    <span class="name">PoB <span class="thin">Forge</span></span>
+    <span class="name">PoB Forge</span>
     <button
       class="sb"
       class:on={!ui.sidebarCollapsed}
@@ -202,6 +202,9 @@
 
   <div class="findcell">
     {#if build.loaded}
+      <button class="save" class:dirty={build.info?.unsaved} title={m.palette_save()} onclick={() => void build.save()}>
+        {m.import_save()}{#if build.info?.unsaved}<span class="dot" aria-label={m.sidebar_unsaved()}></span>{/if}
+      </button>
       <button class="find" title={m.palette_title()} onclick={() => (ui.paletteOpen = true)}>
         <Icon name="magnifying-glass" size={12} />
         <span>{m.palette_button()}</span>
@@ -288,15 +291,11 @@
     user-select: none;
   }
   .name {
-    font-size: var(--fs-sm);
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--fg-0);
-  }
-  .thin {
-    font-weight: 400;
-    color: var(--fg-2);
+    font-family: var(--font-display);
+    font-size: 15px;
+    letter-spacing: 0.06em;
+    color: var(--brand);
+    white-space: nowrap;
   }
   .game {
     display: flex;
@@ -339,16 +338,16 @@
   .tabs::-webkit-scrollbar {
     display: none;
   }
+  /* Tabs are words: the open one is lit and underlined, nothing is boxed. */
   .tab {
     flex: none;
     white-space: nowrap;
     appearance: none;
     border: 0;
-    border-right: 1px solid var(--line-0);
     background: transparent;
-    color: var(--fg-2);
+    color: var(--fg-3);
     font-size: var(--fs-sm);
-    padding: 0 16px;
+    padding: 0 10px;
     cursor: var(--cursor-pointer, pointer);
     position: relative;
     letter-spacing: 0.01em;
@@ -371,29 +370,23 @@
   }
   .tab:hover:not(:disabled) {
     color: var(--fg-0);
-    background: var(--bg-2);
   }
   .tab.active {
     color: var(--fg-0);
-    background: var(--bg-0);
   }
   .tab.active::after {
     content: "";
     position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -1px;
+    left: 10px;
+    right: 10px;
+    bottom: 8px;
     height: 1px;
-    background: var(--bg-0);
+    background: var(--brand);
   }
-  .tab.active::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    height: 1px;
-    background: var(--accent);
+  .tabs.compact .tab.active::after {
+    left: 8px;
+    right: 8px;
+    bottom: 5px;
   }
   .tab:disabled {
     color: var(--fg-4);
@@ -414,6 +407,30 @@
     align-items: center;
     padding-right: 6px;
     -webkit-app-region: no-drag;
+  }
+  .save {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    margin-right: 6px;
+    padding: 0 10px;
+    border: 1px solid color-mix(in oklch, var(--brand) 55%, transparent);
+    border-radius: var(--r-1);
+    background: transparent;
+    color: var(--brand);
+    font: inherit;
+    font-size: var(--fs-xs);
+    white-space: nowrap;
+  }
+  .save:hover {
+    background: color-mix(in oklch, var(--brand) 14%, transparent);
+  }
+  .save .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--brand);
   }
   .find {
     display: flex;

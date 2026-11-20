@@ -6,6 +6,7 @@
   import StatusBar from "$lib/components/StatusBar.svelte";
   import DownloadToast from "$lib/components/DownloadToast.svelte";
   import TreeView from "$lib/views/TreeView.svelte";
+  import StatStrip from "$lib/components/StatStrip.svelte";
   import OverviewView from "$lib/views/OverviewView.svelte";
   import CharacterDialog from "$lib/components/CharacterDialog.svelte";
   import SkillsView from "$lib/views/SkillsView.svelte";
@@ -37,6 +38,8 @@
   import { m } from "$lib/paraglide/messages";
 
   let bootDots = $state(0);
+  /** The tree takes the whole window; its stats sit in a strip, the full sheet only when asked for. */
+  let treeSheet = $state(false);
   const status = $derived(app.status);
   const paths = $derived(app.paths);
 
@@ -91,7 +94,7 @@
   <TitleBar />
   <UpdateBanner />
   <div class="body">
-    {#if !ui.sidebarCollapsed}<Sidebar />{/if}
+    {#if !ui.sidebarCollapsed && (build.view !== "tree" || treeSheet || appOptions.open)}<Sidebar />{/if}
     <main class="view">
       {#if appOptions.open}
         <SettingsView />
@@ -119,6 +122,7 @@
         <OverviewView />
       {:else if build.view === "tree"}
         <TreeView />
+        <StatStrip sheet={treeSheet} ontoggle={() => (treeSheet = !treeSheet)} />
       {:else if build.view === "skills"}
         <SkillsView />
       {:else if build.view === "items"}

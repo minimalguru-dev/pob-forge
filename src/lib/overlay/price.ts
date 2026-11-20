@@ -14,6 +14,8 @@ export interface CopiedItem {
   stack: number | null;
   gemLevel: number | null;
   gemQuality: number | null;
+  /** The item's quality (the plain "Quality:" line, not a catalyst's), null for none. */
+  quality: number | null;
   corrupted: boolean;
   /** Largest linked socket group (PoE1). */
   links: number | null;
@@ -76,6 +78,7 @@ export function parseCopied(text: string): CopiedItem | null {
     stack: num(after("Stack Size:")?.split("/")[0]),
     gemLevel: isGem ? num(after("Level:")?.match(/^\d+/)?.[0]) : null,
     gemQuality: num(after("Quality:")?.match(/\d+/)?.[0]) ?? (isGem ? 0 : null),
+    quality: num(after("Quality:")?.match(/\d+/)?.[0]),
     corrupted: all.includes("Corrupted"),
     links,
     mapTier: num(after("Map Tier:")),
@@ -195,6 +198,36 @@ export function defaultChoices(info: BuySimilarInfo): { mods: Choice[]; defences
   return { mods, defences };
 }
 
+/** Items whose quality changes what they do beyond defences and damage: flasks, tinctures, charms. */
+const QUALITY_MATTERS = /Flask|Tincture|Charm/i;
+
+/**
+ * The quality to search for, as Awakened PoE Trade sets it: on flasks, tinctures and charms the
+ * quality itself; on anything else only quality past the usual 20%, which costs extra to reach.
+ * Below that the trade site already compares defences and damage at 20%.
+ */
+export function defaultQuality(item: CopiedItem): string {
+  const q = item.quality ?? 0;
+  if (q <= 0 || item.rarity === "Gem") return "";
+  if (QUALITY_MATTERS.test(item.itemClass) || q > 20) return String(q);
+  return "";
+}
+
+export type DpsKey = "pdps" | "edps";
+export interface DpsChoice extends Choice {
+  key: DpsKey;
+  value: number;
+}
+
+/** A weapon's physical and elemental DPS rows; on a rare the larger one is ticked, at 90%. */
+export function weaponChoices(info: BuySimilarInfo): DpsChoice[] {
+  const w = info.weapon;
+  if (!w) return [];
+  const rows = ([["pdps", w.pdps], ["edps", w.edps]] as const).filter(([, v]) => v > 0);
+  const best: DpsKey = w.pdps >= w.edps ? "pdps" : "edps";
+  return rows.map(([key, value]) => ({ key, value, checked: !info.unique && key === best, min: String(Math.floor(value * 0.9)), max: "" }));
+}
+
 /** The trade site's pseudo stats: one filter for a total that several mods add to. */
 export const PSEUDO = {
   life: { id: "pseudo.pseudo_total_life", label: "+# total maximum Life" },
@@ -259,6 +292,9 @@ export function pseudoTotals(info: BuySimilarInfo): PseudoTotal[] {
 
 export interface Filters {
   pseudo: { id: string; min: number | null }[];
+  /** Weapon DPS minimums (counted by the trade site at 20% quality). */
+  dps?: { key: DpsKey; min: number | null }[];
+  game?: Game;
   itemLevel: number | null;
   quality: number | null;
   links: number | null;
@@ -279,6 +315,9 @@ export function applyFilters(queryJson: string, f: Filters): string {
   if (f.corrupted !== "any") group("misc_filters").corrupted = { option: f.corrupted === "yes" ? "true" : "false" };
   if (f.links !== null) group("socket_filters").links = { min: f.links };
   if (f.priceIn !== "any") group("trade_filters").price = { option: f.priceIn };
+  // PoE2's site keeps weapon figures with the armour ones.
+  const weapons = f.game === "poe2" ? "equipment_filters" : "weapon_filters";
+  for (const d of f.dps ?? []) if (d.min !== null) group(weapons)[d.key] = { min: d.min };
   const pseudo = f.pseudo.map((p) => (p.min === null ? { id: p.id } : { id: p.id, value: { min: p.min } }));
   if (pseudo.length) {
     query.stats ??= [];

@@ -189,6 +189,15 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Prevencija:** validaciju vanjskih ID-jeva pisati prema stvarnom uzorku odgovora i taj uzorak staviti u test.
 - **Validacija:** unit test; ručni anonimni search + fetch s istim id-jem vratio listinge. U igri neprovjereno do novog installera.
 
+## 2026-11-20 — Ctrl+D ponekad otvorio i compare karticu
+
+- **Simptom:** korisnik javlja da Ctrl+D ponekad pokrene compare.
+- **Dokaz:** clipboard watcher reagira na svaki Ctrl+C koji vidi kroz `GetAsyncKeyState`, a price check šalje vlastiti C dok korisnik drži Ctrl. `price_busy` se gasio prije nego što je `suppress` hash bio spremljen, i odmah nakon slanja, bez rezerve za kasno javljeno stanje tipke. Točan put u igri nije reproduciran.
+- **Uzrok (vjerojatan):** utrka između gašenja `price_busy` i watcherovog uzorka tipki, pa je poslani C izgledao kao korisnikov.
+- **Ispravak:** `PriceBusy` guard gasi zastavicu tek nakon spremanja hasha i na svakom izlazu; još 400 ms (`PRICE_QUIET`) watcher ignorira Ctrl+C.
+- **Prevencija:** kod simuliranog unosa, stanje "naš unos u tijeku" držati dok svi tragovi tog unosa ne prođu, ne samo dok traje slanje.
+- **Validacija:** Rust testovi prolaze; u igri neprovjereno do novog installera.
+
 ## 2026-11-20 — Simulirani Ctrl-up poništio korisnikov držani Ctrl
 
 - **Simptom:** u igri price kartica ne nestaje kad korisnik pusti Ctrl.

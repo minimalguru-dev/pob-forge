@@ -22,31 +22,31 @@
 .scope-dark {
   color-scheme: dark;
 
-  --bg-0: oklch(15.0% 0.002 58);
-  --bg-1: oklch(17.4% 0.004 58);
-  --bg-2: oklch(19.7% 0.006 58);
-  --bg-3: oklch(22.4% 0.008 58);
-  --bg-hover: oklch(24.6% 0.009 58);
-  --bg-active: oklch(27.1% 0.011 58);
+  --bg-0: oklch(13.6% 0.003 70);
+  --bg-1: oklch(15.4% 0.005 70);
+  --bg-2: oklch(18.0% 0.008 72);
+  --bg-3: oklch(21.0% 0.010 72);
+  --bg-hover: oklch(22.8% 0.012 72);
+  --bg-active: oklch(25.6% 0.014 74);
 
-  --line-0: oklch(22.9% 0.010 58);
-  --line-1: oklch(27.5% 0.011 58);
-  --line-2: oklch(33.2% 0.014 58);
+  --line-0: oklch(21.5% 0.010 70);
+  --line-1: oklch(26.0% 0.013 70);
+  --line-2: oklch(31.5% 0.018 72);
 
-  --fg-0: oklch(96.2% 0.003 58);
+  --fg-0: oklch(93.0% 0.012 80);
   /* The contrast control lifts fg-1..4 from the ramp toward fg-0, so the ramp
      holds the unlifted end and fg-1..4 are whatever the control resolved to. */
-  --ramp-1: oklch(78.8% 0.011 58);
-  --ramp-2: oklch(63.7% 0.015 58);
-  --ramp-3: oklch(58.5% 0.014 58);
-  --ramp-4: oklch(46.0% 0.013 58);
+  --ramp-1: oklch(85.5% 0.015 80);
+  --ramp-2: oklch(66.0% 0.017 72);
+  --ramp-3: oklch(60.0% 0.017 70);
+  --ramp-4: oklch(46.0% 0.015 70);
   --fg-1: var(--ramp-1);
   --fg-2: var(--ramp-2);
   --fg-3: var(--ramp-3);
   --fg-4: var(--ramp-4);
 
-  --focus: oklch(74.0% 0.140 52);
-  --brand: oklch(69% 0.175 45);
+  --focus: oklch(78.0% 0.090 85);
+  --brand: oklch(74.5% 0.085 85);
   --ok: oklch(78.4% 0.145 152);
   --warn: oklch(79.0% 0.130 79);
   --bad: oklch(68.8% 0.166 22);
@@ -392,8 +392,10 @@
   --fs-lg: 15px;
   --fs-xl: 20px;
 
-  --r-1: 3px;
-  --r-2: 5px;
+  --r-1: 2px;
+  --r-2: 3px;
+  /* Names and headings: the game's own face. */
+  --font-display: "Fontin SmallCaps", var(--font-ui);
 
   --titlebar-h: 38px;
   --statusbar-h: 24px;

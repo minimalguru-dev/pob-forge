@@ -56,6 +56,38 @@ pub struct OverlayState {
     suppress: AtomicU64,
     /// A price check is sending its Ctrl+C: the watcher leaves that copy to it.
     price_busy: AtomicBool,
+    /// Until when, after a price check, a Ctrl+C the watcher sees is still the price check's own:
+    /// Windows can report the sent C as down a little after it was released.
+    price_quiet: Mutex<Option<std::time::Instant>>,
+}
+
+/// How long after a price check its Ctrl+C is still ignored by the clipboard watcher.
+const PRICE_QUIET: Duration = Duration::from_millis(400);
+
+/// Marks a price check as running; when it ends, by any path, its copy stays the price check's
+/// for PRICE_QUIET more, so the watcher never opens a compare card for it.
+struct PriceBusy<'a>(&'a OverlayState);
+
+impl<'a> PriceBusy<'a> {
+    fn start(state: &'a OverlayState) -> Self {
+        state.price_busy.store(true, Ordering::Relaxed);
+        Self(state)
+    }
+}
+
+impl Drop for PriceBusy<'_> {
+    fn drop(&mut self) {
+        *self.0.price_quiet.lock().unwrap_or_else(|e| e.into_inner()) = Some(std::time::Instant::now() + PRICE_QUIET);
+        self.0.price_busy.store(false, Ordering::Relaxed);
+    }
+}
+
+impl OverlayState {
+    /// The Ctrl+C now down is the price check's own, not the user's.
+    fn price_copying(&self) -> bool {
+        self.price_busy.load(Ordering::Relaxed)
+            || self.price_quiet.lock().unwrap_or_else(|e| e.into_inner()).is_some_and(|until| std::time::Instant::now() < until)
+    }
 }
 
 fn text_hash(text: &str) -> u64 {
@@ -461,10 +493,9 @@ async fn price_check(app: &AppHandle) -> Result<(), String> {
     // One read per key press (GGG's overlay rule): the counter says when the game has written,
     // then the clipboard is read once.
     let seq = crate::game_window::clipboard_sequence();
-    state.price_busy.store(true, Ordering::Relaxed);
+    let busy = PriceBusy::start(&state);
     let sent = crate::game_window::send_copy();
     let changed = sent && wait_for_copy(seq).await;
-    state.price_busy.store(false, Ordering::Relaxed);
     if !sent {
         return Err("Windows refused the Ctrl+C for the price check.".into());
     }
@@ -477,6 +508,7 @@ async fn price_check(app: &AppHandle) -> Result<(), String> {
         return Err("Hover over an item in the game, then press the price check shortcut.".into());
     };
     state.suppress.store(text_hash(&text), Ordering::Relaxed);
+    drop(busy);
     open_window(app).await?;
     let anchor = place_near_cursor(app);
     follow(app).trade = true;
@@ -620,7 +652,7 @@ fn spawn_clipboard_watch(app: AppHandle) {
                 };
                 let pressed = down && !was_down;
                 was_down = down;
-                if !pressed || !showing || app.state::<OverlayState>().price_busy.load(Ordering::Relaxed) {
+                if !pressed || !showing || app.state::<OverlayState>().price_copying() {
                     if !down {
                         seq_before = crate::game_window::clipboard_sequence();
                     }

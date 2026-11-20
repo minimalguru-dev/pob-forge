@@ -450,16 +450,16 @@
     color: var(--focus);
   }
   .bn {
-    font-size: var(--fs-md, 14px);
-    font-weight: 600;
+    font-family: var(--font-display);
+    font-size: 17px;
     color: var(--fg-0);
-    letter-spacing: 0.01em;
+    letter-spacing: 0.02em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .unsaved {
-    color: var(--warn);
+    color: var(--brand);
     font-size: 10px;
     flex: 0 0 auto;
   }
@@ -469,9 +469,9 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 8px 8px 16px;
-    background: var(--bg-0);
+    gap: 0;
+    padding: 2px 4px 16px;
+    background: var(--bg-1);
     scrollbar-width: none;
     transition: opacity 120ms;
   }
@@ -480,10 +480,14 @@
   }
   .scard {
     flex: none;
-    background: var(--bg-1);
-    border: 1px solid var(--line-1);
-    border-radius: var(--r-2);
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--line-0);
+    border-radius: 0;
     overflow: clip;
+  }
+  .scard:first-child {
+    border-top: 0;
   }
   .scard.dragging {
     position: relative;
@@ -523,7 +527,7 @@
     color: var(--warn);
   }
   .cardbody {
-    padding: 5px 10px 6px;
+    padding: 4px 8px 10px;
   }
   .stats.busy {
     opacity: 0.6;
@@ -551,11 +555,12 @@
     gap: 10px;
     padding: 1px 0;
     font-size: var(--fs-sm);
-    line-height: 17px;
+    line-height: 18px;
+    font-variant-numeric: tabular-nums;
     border-radius: 2px;
   }
   .srow .k {
-    color: var(--fg-1);
+    color: var(--fg-2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

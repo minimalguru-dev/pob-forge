@@ -6,7 +6,7 @@
   import { m } from "$lib/paraglide/messages";
   import {
     age, applyFilters, defaultChoices, formatListing, formatValue, matchNinja, ninjaSources, parseCopied, poedbUrl,
-    pseudoTotals, sparkPoints, wikiUrl, PSEUDO, modTags, templeRooms, roomFilter, isTemple, isMap, simpleQuery, VALUABLE_ROOMS,
+    pseudoTotals, sparkPoints, wikiUrl, PSEUDO, defaultQuality, weaponChoices, type DpsChoice, modTags, templeRooms, roomFilter, isTemple, isMap, simpleQuery, VALUABLE_ROOMS,
     type Choice, type NinjaLine, type NinjaTable, type PseudoTotal,
   } from "./price";
 
@@ -26,6 +26,7 @@
   let info = $state<BuySimilarInfo | null>(null);
   let mods = $state<Choice[]>([]);
   let defences = $state<Choice[]>([]);
+  let dps = $state<DpsChoice[]>([]);
   let pseudo = $state<(PseudoTotal & Choice)[]>([]);
   let baseType = $state(false);
   let listed = $state(1);
@@ -120,6 +121,8 @@
     if (item.rarity === "Gem") {
       gemLevel = item.gemLevel !== null ? String(item.gemLevel) : "";
       quality = item.gemQuality ? String(item.gemQuality) : "";
+    } else {
+      quality = defaultQuality(item);
     }
     if (isMap(item) && item.mapTier !== null) mapTier = String(item.mapTier);
   }
@@ -148,6 +151,8 @@
           ...(num(emptyPrefix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_prefix_mods", min: num(emptyPrefix) }] : []),
           ...(num(emptySuffix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_suffix_mods", min: num(emptySuffix) }] : []),
         ],
+        dps: dps.filter((d) => d.checked).map((d) => ({ key: d.key, min: num(d.min) })),
+        game: game.current,
         itemLevel: useItemLevel ? num(itemLevel) : null,
         quality: num(quality),
         links: game.isPoe1 ? num(links) : null,
@@ -166,6 +171,7 @@
   function baseOnly() {
     mods = mods.map((c) => ({ ...c, checked: false }));
     defences = defences.map((c) => ({ ...c, checked: false }));
+    dps = dps.map((c) => ({ ...c, checked: false }));
     pseudo = pseudo.map((p) => ({ ...p, checked: false }));
     baseType = true;
     void search();
@@ -219,6 +225,8 @@
         try {
           info = await engine.buySimilarInfo({ raw });
           ({ mods, defences } = defaultChoices(info));
+          dps = weaponChoices(info);
+          quality = defaultQuality(item);
           // Awakened's default: totals for resistances and life, at 90% of the item's.
           pseudo = info.unique ? [] : pseudoTotals(info).map((p) => ({ ...p, checked: true, min: String(Math.floor(p.total * 0.9)), max: "" }));
           baseType = false;
@@ -243,9 +251,10 @@
     <div class="title">
       <strong class="rarity {item?.rarity.toLowerCase()}">{item?.name ?? m.price_title()}</strong>
       {#if item?.baseType}<span class="dim">{item.baseType}</span>{/if}
-      {#if info?.itemLevel || item?.corrupted}
+      {#if info?.itemLevel || item?.corrupted || item?.quality}
         <span class="dim small">
           {#if info?.itemLevel}{m.price_item_level({ level: info.itemLevel })}{/if}
+          {#if item?.quality}{#if info?.itemLevel} · {/if}{m.price_item_quality({ quality: item.quality })}{/if}
           {#if item?.corrupted} · <span class="bad">{m.price_corrupted()}</span>{/if}
         </span>
       {/if}
@@ -328,10 +337,17 @@
             <input class="input sm mono" bind:value={pseudo[i].min} aria-label={m.price_min()} />
           </label>
         {/each}
+        {#each dps as d, i (d.key)}
+          <label class="mod" class:off={!d.checked}>
+            <input type="checkbox" bind:checked={dps[i].checked} />
+            <span class="small">{d.key === "pdps" ? m.price_pdps() : m.price_edps()} {d.value}{#if info.tradeQuality}<span class="tags"><span class="tag q20" title={m.price_q20_title()}>Q20</span></span>{/if}</span>
+            <input class="input sm mono" bind:value={dps[i].min} aria-label={m.price_min()} />
+          </label>
+        {/each}
         {#each info.defences as d, i (`d${i}`)}
           <label class="mod" class:off={!defences[i].checked}>
             <input type="checkbox" bind:checked={defences[i].checked} />
-            <span class="small">{d.label} {d.value}</span>
+            <span class="small">{d.label} {d.value}{#if info.tradeQuality}<span class="tags"><span class="tag q20" title={m.price_q20_title()}>Q20</span></span>{/if}</span>
             <input class="input sm mono" bind:value={defences[i].min} aria-label={m.price_min()} />
           </label>
         {/each}
@@ -495,6 +511,7 @@
   .tags { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-left: 6px; vertical-align: 1px; }
   .tag { font-size: 10px; line-height: 1; padding: 2px 4px; border-radius: 3px; color: var(--fg-2);
     background: color-mix(in oklch, var(--fg-3) 18%, transparent); text-transform: lowercase; }
+  .tag.q20 { color: var(--fg-1); background: var(--bg-3); }
   .tag.pseudo { color: var(--brand); background: color-mix(in oklch, var(--brand) 16%, transparent); }
   .tag.eldritch { color: oklch(72% 0.14 300); background: color-mix(in oklch, oklch(60% 0.15 300) 20%, transparent); }
   .tag.crafted { color: oklch(78% 0.08 230); } .tag.fractured { color: oklch(80% 0.12 85); }

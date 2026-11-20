@@ -141,6 +141,8 @@ test("draws a sparkline across gaps", () => {
 });
 
 import { isMap, isTemple, modTags, roomFilter, simpleQuery, templeRooms } from "../src/lib/overlay/price";
+import { defaultQuality, weaponChoices } from "../src/lib/overlay/price";
+import type { BuySimilarInfo } from "../src/lib/engine.svelte";
 
 const CHRONICLE = `Item Class: Misc Map Items
 Rarity: Normal
@@ -187,4 +189,27 @@ test("builds gem and map searches", () => {
   expect(q.query.type).toBeUndefined();
   expect(q.query.filters.type_filters.filters.category).toEqual({ option: "map" });
   expect(q.query.filters.map_filters.filters.map_tier).toEqual({ min: 16, max: 16 });
+});
+
+test("searches quality the way the trade site compares it", () => {
+  const flask = parseCopied("Item Class: Life Flasks\nRarity: Magic\nSeething Divine Life Flask\n--------\nQuality: +14% (augmented)\n--------\nItem Level: 80")!;
+  const armour = parseCopied("Item Class: Body Armours\nRarity: Rare\nHate Shell\nAstral Plate\n--------\nQuality: +12% (augmented)\nArmour: 800 (augmented)\n--------\nItem Level: 84")!;
+  const hillock = parseCopied("Item Class: Body Armours\nRarity: Rare\nHate Shell\nAstral Plate\n--------\nQuality: +28% (augmented)\n--------\nItem Level: 84")!;
+  expect(armour.quality).toBe(12);
+  expect(defaultQuality(flask)).toBe("14");
+  // Below 20% the site already counts armour at 20%: no quality filter.
+  expect(defaultQuality(armour)).toBe("");
+  expect(defaultQuality(hillock)).toBe("28");
+  expect(defaultQuality(parseCopied(GEM)!)).toBe("");
+});
+
+test("offers weapon DPS rows and puts them in the right filter group", () => {
+  const info = { unique: false, weapon: { pdps: 420.5, edps: 120, dps: 540.5 } } as unknown as BuySimilarInfo;
+  const rows = weaponChoices(info);
+  expect(rows.map((r) => [r.key, r.checked, r.min])).toEqual([["pdps", true, "378"], ["edps", false, "108"]]);
+  expect(weaponChoices({ unique: true, weapon: { pdps: 10, edps: 0, dps: 10 } } as unknown as BuySimilarInfo).map((r) => r.checked)).toEqual([false]);
+  const base = JSON.stringify({ query: { filters: {} }, sort: {} });
+  const f = { pseudo: [], itemLevel: null, quality: null, links: null, corrupted: "any" as const, priceIn: "any", dps: [{ key: "pdps" as const, min: 378 }] };
+  expect(JSON.parse(applyFilters(base, { ...f, game: "poe1" })).query.filters.weapon_filters.filters.pdps).toEqual({ min: 378 });
+  expect(JSON.parse(applyFilters(base, { ...f, game: "poe2" })).query.filters.equipment_filters.filters.pdps).toEqual({ min: 378 });
 });

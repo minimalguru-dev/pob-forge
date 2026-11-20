@@ -132,11 +132,12 @@
 </div>
 
 <style>
-  .equipment { padding: 16px 12px 10px; border-bottom: 1px solid var(--line-0); background: radial-gradient(ellipse at 50% 35%, var(--bg-2), transparent 75%); }
+  /* The character sheet's gear: flat, square frames in the item's rarity, as in the game's inventory. */
+  .equipment { padding: 16px 12px 10px; border-bottom: 1px solid var(--line-0); background: var(--bg-1); }
   .paperdoll { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-template-rows: repeat(6, minmax(0, 1fr)); gap: 5px; aspect-ratio: 8 / 6; max-width: 400px; margin: 0 auto; }
-  .cell { position: relative; container-type: size; min-width: 0; min-height: 0; border: 1px solid var(--line-1); border-radius: 3px; background: var(--bg-0); }
-  .cell.occupied { border-color: color-mix(in srgb, var(--rarity) 40%, var(--line-0)); background: color-mix(in srgb, var(--rarity) 7%, var(--bg-0)); }
-  .cell.occupied:hover, .cell:focus-within, .cell.selected { border-color: var(--rarity); box-shadow: 0 0 0 1px var(--rarity); }
+  .cell { position: relative; container-type: size; min-width: 0; min-height: 0; border: 1px solid var(--line-1); border-radius: var(--r-1); background: var(--bg-0); box-shadow: inset 0 0 0 1px oklch(0% 0 0 / 0.45); }
+  .cell.occupied { border-color: color-mix(in srgb, var(--rarity) 55%, var(--line-0)); background: linear-gradient(color-mix(in srgb, var(--rarity) 4%, var(--bg-0)), color-mix(in srgb, var(--rarity) 9%, var(--bg-0))); }
+  .cell.occupied:hover, .cell:focus-within, .cell.selected { border-color: var(--rarity); box-shadow: inset 0 0 14px color-mix(in srgb, var(--rarity) 22%, transparent); }
   .gear { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 3px; background: none; border: 0; color: var(--fg-2); cursor: var(--cursor-pointer, pointer); }
   .gear:disabled { cursor: var(--cursor-arrow, default); }
   .gear:focus-visible, .gem:focus-visible { outline: 2px solid var(--fg-0); outline-offset: 2px; }

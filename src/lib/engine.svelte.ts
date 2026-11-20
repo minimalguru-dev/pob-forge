@@ -1651,6 +1651,12 @@ export interface BuySimilarInfo {
   realms: string[];
   listed: string[];
   defences: { label: string; value: number }[];
+  /** The quality the item was copied with. */
+  quality?: number | null;
+  /** 20 when defences and DPS were worked out at 20% quality, as the trade site compares them. */
+  tradeQuality?: number | null;
+  /** Weapon damage per second at trade quality. */
+  weapon?: { pdps: number; edps: number; dps: number } | null;
   /** `searchable` is false when the trade site has no filter for the mod; `ranged` rows take min/max. */
   mods: { lines: string[]; type: string; searchable: boolean; value: number | string | null; ranged: boolean }[];
 }

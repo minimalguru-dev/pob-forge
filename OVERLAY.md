@@ -55,6 +55,10 @@ game copies the item, then opens a price card just left of the inventory panel. 
   Mods counted in a ticked total are not searched on their own. Item level, quality, links (PoE1), corruption, the
   listing kind, the currency the price is in, and a minimum of empty prefixes or suffixes are filters too. Same base
   type and item level are toggles, both off at first; item level starts at the copied item's own.
+  **Quality** works as on the trade site, which counts armour, evasion, energy shield and weapon DPS as if the item
+  had 20% quality: an item below 20% is priced at 20% (rows marked **Q20**), and weapons get physical and elemental
+  DPS rows, the larger one ticked on a rare. The quality filter starts at the item's own quality on flasks,
+  tinctures and charms, and on anything past 20%; gems search their own quality.
   **Base only** turns every mod filter off and searches the base type alone. Untick mods or change the minimums and search again. The ten cheapest listings show with their age; **Open on the trade site** opens
   the full search on pathofexile.com in your browser. Under each mod are its tags, as in Awakened PoE Trade: pseudo,
   implicit, enchant, crafted, fractured, eldritch (Searing Exarch and Eater of Worlds) and what else the game marks.

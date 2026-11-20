@@ -9796,6 +9796,7 @@ function itemUtil.buySimilarTarget(p)
 		-- Text the game copied: priced on its own, so no build is needed.
 		local item = new("Item"):Item(p.raw)
 		if not item.base then error("unrecognised item text", 0) end
+		itemUtil.atTradeQuality(item)
 		local itemType = item.type or item.base.type or ""
 		return item, itemUtil.BUY_SIMILAR_TYPE_SLOT[itemType] or (itemType:find("Jewel") and "Jewel") or "Weapon 1"
 	end
@@ -9815,6 +9816,25 @@ function itemUtil.buySimilarTarget(p)
 	end
 	local itemType = item.type or (item.base and item.base.type) or ""
 	return item, itemUtil.BUY_SIMILAR_TYPE_SLOT[itemType] or (itemType:find("Jewel") and "Jewel") or "Weapon 1"
+end
+
+--- The trade site's armour, evasion, energy shield and weapon DPS filters count every item as if
+--- it had 20% quality. A copied item below that is priced at 20%, the way the site compares it; the
+--- quality it was copied with is kept in copiedQuality. Only for items made from copied text: the
+--- build's own items are never changed.
+function itemUtil.atTradeQuality(item)
+	item.copiedQuality = item.quality or 0
+	if not (item.base.armour or item.base.weapon) or (item.quality or 0) >= 20 then return end
+	item.quality = 20
+	item.tradeQuality = 20
+	item:BuildModList()
+end
+
+--- A weapon's damage per second at trade quality, for the pdps and edps filters.
+function itemUtil.buySimilarWeapon(item)
+	local w = item.base and item.base.weapon and item.weaponData and item.weaponData[1]
+	if not w then return null end
+	return { pdps = round(w.PhysicalDPS or 0, 1), edps = round(w.ElementalDPS or 0, 1), dps = round(w.TotalDPS or 0, 1) }
 end
 
 function itemUtil.buySimilarRows(item)
@@ -9883,6 +9903,9 @@ M.buy_similar_info = function(p)
 		listed = listed,
 		defences = outDefences,
 		mods = outMods,
+		quality = opt(item.copiedQuality or item.quality),
+		tradeQuality = opt(item.tradeQuality),
+		weapon = itemUtil.buySimilarWeapon(item),
 	}
 end
 
