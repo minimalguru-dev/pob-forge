@@ -166,7 +166,7 @@
           ({ mods, defences } = defaultChoices(info));
           // Awakened's default: totals for resistances and life, at 90% of the item's.
           pseudo = info.unique ? [] : pseudoTotals(info).map((p) => ({ ...p, checked: true, min: String(Math.floor(p.total * 0.9)), max: "" }));
-          baseType = !info.unique && info.rarity === "RARE";
+          baseType = false;
           itemLevel = info.itemLevel ? String(info.itemLevel) : "";
           listed = Math.max(1, info.listed.indexOf("Instant Buyout & In Person") + 1);
           corrupted = item.corrupted ? "yes" : "any";

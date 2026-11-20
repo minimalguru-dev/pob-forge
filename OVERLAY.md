@@ -49,11 +49,11 @@ game copies the item, then opens a price card just left of the inventory panel. 
 - **Currency exchange.** Currency and divination cards also show the cheapest online offers on the trade site's bulk
   exchange, per unit, in chaos (PoE1) or exalted orbs (PoE2).
 - **Trade site.** For equipment, PoB's own Buy Similar search (the same one as the Items tab) is built from the item:
-  a unique by name, a rare by its base type, its resistances and life as the trade site's pseudo totals ("+#% total
+  a unique by name, a rare by its item class, its resistances and life as the trade site's pseudo totals ("+#% total
   Elemental Resistance", "+# total maximum Life") and its other searchable mods, all at 90% of the item's values.
   Mods counted in a ticked total are not searched on their own. Item level, quality, links (PoE1), corruption, the
   listing kind, the currency the price is in, and a minimum of empty prefixes or suffixes are filters too. Same base
-  type and item level are toggles; item level starts at the copied item's own and is off until ticked.
+  type and item level are toggles, both off at first; item level starts at the copied item's own.
   **Base only** turns every mod filter off and searches the base type alone. Untick mods or change the minimums and search again. The ten cheapest listings show with their age; **Open on the trade site** opens
   the full search in the trade window.
 - Searches are anonymous: no sign-in and no cookies. pathofexile.com allows about five searches every ten seconds;
