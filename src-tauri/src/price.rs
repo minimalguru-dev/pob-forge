@@ -298,6 +298,10 @@ pub struct NinjaLine {
     corrupted: bool,
     links: Option<u64>,
     map_tier: Option<u64>,
+    /// Base types: the item level the line is for (82-86, 86 meaning 86 and over).
+    level_required: Option<u64>,
+    /// Base types: the rarity the line is for, as poe.ninja's `itemClass` (0 normal, 1 magic, 2 rare).
+    frame: Option<u64>,
     /// A Foulborn unique's mutated mods: poe.ninja prices each set of them on its own line.
     mutated: Vec<String>,
     /// In the table's primary currency.
@@ -366,6 +370,8 @@ fn parse_ninja(v: &Value) -> NinjaTable {
             corrupted: line.get("corrupted").and_then(Value::as_bool).unwrap_or(false),
             links: line.get("links").and_then(Value::as_u64),
             map_tier: line.get("mapTier").and_then(Value::as_u64),
+            level_required: line.get("levelRequired").and_then(Value::as_u64),
+            frame: line.get("itemClass").and_then(Value::as_u64),
             mutated: line
                 .get("mutatedModifiers")
                 .and_then(Value::as_array)

@@ -41,6 +41,9 @@ export interface NinjaLine {
   corrupted: boolean;
   links: number | null;
   mapTier: number | null;
+  /** Base types: the item level (82-86, 86 for 86 and over) and rarity (0 normal, 1 magic, 2 rare). */
+  levelRequired?: number | null;
+  frame?: number | null;
   /** A Foulborn line's mutated mods. */
   mutated?: string[];
   value: number;
@@ -524,6 +527,30 @@ export function templeRooms(raw: string): { open: string[]; obstructed: string[]
 }
 
 /** The temple rooms worth searching for first, as players price them. */
+const GEAR_CLASS = /Armours|Helmets|Gloves|Boots|Shields|Quivers|Rings|Amulets|Belts|Bows|Claws|Daggers|Wands|Sceptres|Staves|Axes|Maces|Swords|Foils|Warstaves/;
+const INFLUENCES = ["Shaper", "Elder", "Crusader", "Redeemer", "Warlord", "Hunter"];
+
+/** Gear whose base alone has a market (PoE1): as Awakened PoE Trade, normal, magic and rare equipment. */
+export function isPricedBase(item: CopiedItem): boolean {
+  return ["Normal", "Magic", "Rare"].includes(item.rarity) && GEAR_CLASS.test(item.itemClass) && !item.unidentified;
+}
+
+/**
+ * The base's line in poe.ninja's BaseType table, as Awakened PoE Trade looks it up: the base, its
+ * item level (lines start at 82; 86 stands for 86 and over) and its influences. The line for the
+ * item's own rarity wins; otherwise the one with the most listings.
+ */
+export function matchBase(table: NinjaTable, item: CopiedItem, base: string, itemLevel: number | null): NinjaLine | null {
+  if (!itemLevel || itemLevel < 82) return null;
+  const level = Math.min(itemLevel, 86);
+  const influences = INFLUENCES.filter((name) => item.marks.includes(`${name} Item`));
+  const variant = influences.length ? influences.join("/") : null;
+  const lines = table.lines.filter((l) => l.name === base && l.levelRequired === level && (l.variant || null) === variant);
+  if (!lines.length) return null;
+  const frame = { Normal: 0, Magic: 1, Rare: 2 }[item.rarity];
+  return lines.find((l) => l.frame === frame) ?? lines.reduce((a, b) => ((b.listings ?? 0) > (a.listings ?? 0) ? b : a));
+}
+
 /** Expedition logbook factions and their pseudo filters (PoE1 trade site, checked on /data/stats). */
 export const LOGBOOK_FACTIONS: Record<string, string> = {
   "Druids of the Broken Circle": "pseudo.pseudo_logbook_faction_druids",

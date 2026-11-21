@@ -136,3 +136,18 @@ test("maximums go into the query beside minimums", () => {
   expect(q.stats[0].filters[0]).toEqual({ id: "pseudo.pseudo_total_life", value: { min: 60, max: 80 } });
   expect(q.filters.weapon_filters.filters.pdps).toEqual({ max: 500 });
 });
+
+test("a base is priced by its item level, influences and rarity, as Awakened's", async () => {
+  const { matchBase } = await import("../src/lib/overlay/price");
+  const line = (variant: string | null, levelRequired: number, frame: number, value: number, listings = 5) => ({
+    name: "Stygian Vise", baseType: null, variant, gemLevel: null, gemQuality: null, corrupted: false, links: null, mapTier: null,
+    levelRequired, frame, value, listings, change: null, trend: [],
+  });
+  const table = { primary: "chaos", rates: {}, lines: [line(null, 84, 2, 40), line(null, 84, 0, 30, 9), line("Shaper/Hunter", 86, 2, 900), line(null, 86, 2, 120)] };
+  const rare = parseCopied("Item Class: Belts\nRarity: Rare\nDoom Cord\nStygian Vise\n--------\nItem Level: 84\n")!;
+  expect(matchBase(table, rare, "Stygian Vise", 84)?.value).toBe(40); // its own rarity first
+  expect(matchBase(table, { ...rare, rarity: "Magic" }, "Stygian Vise", 84)?.value).toBe(30); // else most listed
+  expect(matchBase(table, rare, "Stygian Vise", 88)?.value).toBe(120); // 86 stands for 86 and over
+  expect(matchBase(table, { ...rare, marks: ["Hunter Item", "Shaper Item"] }, "Stygian Vise", 86)?.value).toBe(900);
+  expect(matchBase(table, rare, "Stygian Vise", 75)).toBeNull(); // poe.ninja starts at 82
+});

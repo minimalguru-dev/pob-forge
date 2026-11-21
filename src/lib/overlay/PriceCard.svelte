@@ -7,9 +7,10 @@
   import {
     age, applyFilters, defaultChoices, formatListing, formatValue, matchNinja, ninjaSources, parseCopied, poedbUrl,
     pseudoTotals, sparkPoints, wikiUrl, PSEUDO, defaultQuality, weaponChoices, itemMarks, mapStats, blight, type DpsChoice, type Mark, type MapStat, modTags, templeRooms, roomFilter, isTemple, isMap, simpleQuery, VALUABLE_ROOMS,
-    isLogbook, logbookFactions, LOGBOOK_FACTIONS,
+    isLogbook, logbookFactions, LOGBOOK_FACTIONS, isPricedBase, matchBase,
     type Choice, type NinjaLine, type NinjaTable, type PseudoTotal,
   } from "./price";
+  import FilterChip from "./FilterChip.svelte";
   import { advancedMods, clock, findAdvanced, groupListings, inPrimary, rateWait, rollMin, stripAdvanced, wheelStep, type Listing } from "./advanced";
   import { overlay } from "$lib/state/overlay.svelte";
 
@@ -45,14 +46,27 @@
   let baseType = $state(false);
   let listed = $state(1);
   let itemLevel = $state("");
-  /** Item level is a toggle: off by default, its minimum the copied item's own. */
+  /**
+   * Number filters are words to switch on and off, as in Awakened PoE Trade: item level starts
+   * off at the copied item's own, quality and links on where they matter.
+   */
   let useItemLevel = $state(false);
   let quality = $state("");
+  let useQuality = $state(false);
   let links = $state("");
-  let corrupted = $state<"any" | "yes" | "no">("any");
+  let useLinks = $state(false);
+  /** As in Awakened: "Corrupted" or "Not Corrupted", always part of the search. */
+  let corrupted = $state<"any" | "yes" | "no">("no");
   let priceIn = $state("any");
-  let emptyPrefix = $state("");
-  let emptySuffix = $state("");
+  let emptyPrefix = $state("1");
+  let useEmptyPrefix = $state(false);
+  let emptySuffix = $state("1");
+  let useEmptySuffix = $state(false);
+  let useGemLevel = $state(false);
+  let useMapTier = $state(false);
+  let useAreaLevel = $state(false);
+  /** The base's own price on poe.ninja (PoE1 normal, magic and rare gear), as Awakened shows it at the top. */
+  let baseTrend = $state<{ line: NinjaLine; table: NinjaTable } | null>(null);
   /** Temples, gems, maps and anything Buy Similar cannot read get a search built here. */
   let simple = $state(false);
   let rooms = $state<{ name: string; id: string | null; checked: boolean }[]>([]);
@@ -114,9 +128,12 @@
   const whole = () => JSON.stringify([simple, baseOnly, baseType, listed, priceIn]);
   const choices = () =>
     JSON.stringify([
-      whole(), useItemLevel, itemLevel, quality, links, corrupted, emptyPrefix, emptySuffix,
-      mods, defences, dps, pseudo, marks, rooms, gemLevel, mapTier, areaLevel, maps, blighted, factions,
+      whole(), useItemLevel, itemLevel, useQuality, quality, useLinks, links, corrupted, useEmptyPrefix, emptyPrefix,
+      useEmptySuffix, emptySuffix, mods, defences, dps, pseudo, marks, rooms, useGemLevel, gemLevel, useMapTier, mapTier,
+      useAreaLevel, areaLevel, maps, blighted, factions,
     ]);
+  /** A number filter's value when its word is on. */
+  const when = (on: boolean, value: string) => (on ? num(value) : null);
   let searchedWith = $state("");
   let searchedWhole = "";
   let again = false;
@@ -180,13 +197,13 @@
     try {
       const query = simpleQuery(item, {
         rooms: rooms.filter((r) => r.checked && r.id).map((r) => r.id!),
-        gemLevel: num(gemLevel),
-        quality: num(quality),
-        mapTier: num(mapTier),
+        gemLevel: when(useGemLevel, gemLevel),
+        quality: when(useQuality, quality),
+        mapTier: when(useMapTier, mapTier),
         corrupted,
         mapStats: maps.filter((s) => s.checked).map((s) => ({ filter: s.filter, min: num(s.min) })),
         blight: blighted && item ? blight(item) : null,
-        areaLevel: num(areaLevel),
+        areaLevel: when(useAreaLevel, areaLevel),
         factions: factions.filter((f) => f.checked).map((f) => f.id),
         game: game.current,
       });
@@ -215,16 +232,20 @@
   function startSimple() {
     if (!item) return;
     simple = true;
-    corrupted = item.corrupted ? "yes" : "any";
+    corrupted = item.corrupted ? "yes" : "no";
     areaLevel = item.areaLevel !== null && !isMap(item) ? String(item.areaLevel) : "";
+    useAreaLevel = areaLevel !== "";
     if (item.rarity === "Gem") {
       gemLevel = item.gemLevel !== null ? String(item.gemLevel) : "";
+      useGemLevel = gemLevel !== "";
       quality = item.gemQuality ? String(item.gemQuality) : "";
     } else {
       quality = defaultQuality(item);
     }
+    useQuality = quality !== "";
     if (isMap(item)) {
       if (item.mapTier !== null) mapTier = String(item.mapTier);
+      useMapTier = mapTier !== "";
       maps = mapStats(game.current, text);
       blighted = game.isPoe1 && blight(item) !== null;
     }
@@ -260,16 +281,16 @@
         pseudo: modsOn
           ? [
               ...pseudo.filter((p) => p.checked).map((p) => ({ id: PSEUDO[p.key].id, min: num(p.min), max: num(p.max) })),
-              ...(num(emptyPrefix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_prefix_mods", min: num(emptyPrefix) }] : []),
-              ...(num(emptySuffix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_suffix_mods", min: num(emptySuffix) }] : []),
+              ...(when(useEmptyPrefix, emptyPrefix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_prefix_mods", min: num(emptyPrefix) }] : []),
+              ...(when(useEmptySuffix, emptySuffix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_suffix_mods", min: num(emptySuffix) }] : []),
             ]
           : [],
         dps: modsOn ? dps.filter((d) => d.checked).map((d) => ({ key: d.key, min: num(d.min), max: num(d.max) })) : [],
         marks: modsOn ? marks.filter((mk) => mk.checked) : [],
         game: game.current,
-        itemLevel: useItemLevel ? num(itemLevel) : null,
-        quality: num(quality),
-        links: game.isPoe1 ? num(links) : null,
+        itemLevel: when(useItemLevel, itemLevel),
+        quality: when(useQuality, quality),
+        links: game.isPoe1 ? when(useLinks, links) : null,
         corrupted,
         priceIn,
       });
@@ -279,6 +300,21 @@
     } finally {
       searching = false;
       searchAgain();
+    }
+  }
+
+  /** The base's own line in poe.ninja's BaseType table, once Buy Similar has named the base and item level. */
+  async function lookBase() {
+    const it = item;
+    baseTrend = null;
+    const base = info?.baseName ?? it?.baseType;
+    if (!it || !league || !game.isPoe1 || !base || !isPricedBase(it)) return;
+    try {
+      const table = await invoke<NinjaTable>("price_ninja", { game: game.current, league, kind: "stash", category: "BaseType" });
+      const line = matchBase(table, it, base, info?.itemLevel ?? null);
+      baseTrend = line ? { line, table } : null;
+    } catch {
+      baseTrend = null;
     }
   }
 
@@ -320,6 +356,7 @@
     void lookBulk();
     void lookRates();
     void lookPrediction();
+    if (info) void lookBase();
     if (info || simple) void search();
   }
 
@@ -382,7 +419,9 @@
           ({ mods, defences } = defaultChoices(info, range, rolls));
           dps = weaponChoices(info, range);
           quality = defaultQuality(item);
+          useQuality = quality !== "";
           marks = itemMarks(game.current, item);
+          void lookBase();
           mutatedLines = info.mods.filter((mod) => mod.kinds?.includes("mutated")).flatMap((mod) => mod.lines.map(plain));
           if (mutatedLines.length) void lookNinja();
           // Crafted mods cost little to put back, so they are not searched at first. A Foulborn
@@ -402,8 +441,11 @@
           if (cluster) useItemLevel = true;
           itemLevel = info.itemLevel ? String(info.itemLevel) : "";
           listed = Math.max(1, info.listed.indexOf("Instant Buyout & In Person") + 1);
-          corrupted = item.corrupted ? "yes" : "any";
-          if (game.isPoe1 && (item.links ?? 0) >= 5) links = String(item.links);
+          corrupted = item.corrupted ? "yes" : "no";
+          if (game.isPoe1 && item.links) {
+            links = String(item.links);
+            useLinks = item.links >= 5;
+          }
           void search();
         } catch {
           // Buy Similar cannot read it: search by its name and base instead.
@@ -451,6 +493,29 @@
       {#each leagues as l (l.id)}<option value={l.id}>{l.text}</option>{/each}
     </select>
   </label>
+
+  {#if baseTrend}
+    <!-- As in Awakened PoE Trade: the base's own market at the top, for normal, magic and rare gear. -->
+    {@const line = baseTrend.line}
+    {@const points = sparkPoints(line.trend, 84, 22)}
+    <div class="ninja">
+      <span class="label small">{m.price_base_item()} · {line.name} · {line.levelRequired === 86 ? "86+" : line.levelRequired}{line.variant ? ` · ${line.variant}` : ""}</span>
+      <div class="ninja-row">
+        <strong class="value">{formatValue(line.value, baseTrend.table)}</strong>
+        {#if points}
+          <svg class="spark" class:up={(line.change ?? 0) >= 0} viewBox="0 0 84 22" width="84" height="22" aria-hidden="true">
+            <polyline points={points} fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+          </svg>
+        {/if}
+        {#if line.change !== null && points}
+          <span class="small" class:good={line.change >= 0} class:bad={line.change < 0} title={m.price_change_title()}>
+            {line.change >= 0 ? "+" : ""}{Math.round(line.change)}%
+          </span>
+        {/if}
+      </div>
+      {#if line.listings}<div class="ninja-meta dim small"><span>{m.price_ninja_listed({ count: line.listings })}</span></div>{/if}
+    </div>
+  {/if}
 
   {#if ninja === "loading"}
     <p class="dim small">{m.price_ninja_loading()}</p>
@@ -519,13 +584,22 @@
   {#if info}
     <div class="trade">
       <span class="label small">{m.price_trade()}</span>
-      <div class="mods" class:muted={baseOnly} inert={baseOnly}>
+      <!-- As in Awakened PoE Trade: the item's own filters are words, not checkboxes. -->
+      <div class="chips">
+        {#if game.isPoe1 && item?.links}<FilterChip numeric label={m.price_chip_links()} bind:on={useLinks} bind:value={links} />{/if}
+        <FilterChip numeric label={m.price_chip_item_level()} bind:on={useItemLevel} bind:value={itemLevel} />
+        <FilterChip numeric label={m.price_chip_quality()} bind:on={useQuality} bind:value={quality} />
+        {#if !info.unique}
+          <FilterChip numeric label={m.price_chip_empty_prefixes()} bind:on={useEmptyPrefix} bind:value={emptyPrefix} disabled={baseOnly} />
+          <FilterChip numeric label={m.price_chip_empty_suffixes()} bind:on={useEmptySuffix} bind:value={emptySuffix} disabled={baseOnly} />
+        {/if}
         {#each marks as mk, i (mk.line)}
-          <label class="mod" class:off={!mk.checked}>
-            <input type="checkbox" bind:checked={marks[i].checked} />
-            <span class="small">{mk.line}</span>
-          </label>
+          <FilterChip label={mk.line.replace(/ Item$/, "")} bind:on={marks[i].checked} disabled={baseOnly} />
         {/each}
+        {@render corruptChip()}
+        {#if !info.unique}<FilterChip label={m.price_base_only()} title={m.price_base_only_title()} bind:on={baseOnly} />{/if}
+      </div>
+      <div class="mods" class:muted={baseOnly} inert={baseOnly}>
         {#each pseudo as p, i (p.key)}
           <label class="mod pseudo" class:off={!p.checked}>
             <input type="checkbox" bind:checked={pseudo[i].checked} />
@@ -564,22 +638,6 @@
       </div>
 
       <div class="filters small">
-        <label><span class="dim">{m.price_quality()}</span><input class="input sm mono" bind:value={quality} placeholder="—" /></label>
-        {#if game.isPoe1}
-          <label><span class="dim">{m.price_links()}</span><input class="input sm mono" bind:value={links} placeholder="—" /></label>
-        {/if}
-        {#if !info.unique}
-          <label><span class="dim">{m.price_empty_prefix()}</span><input class="input sm mono" bind:value={emptyPrefix} placeholder="—" /></label>
-          <label><span class="dim">{m.price_empty_suffix()}</span><input class="input sm mono" bind:value={emptySuffix} placeholder="—" /></label>
-        {/if}
-        <label>
-          <span class="dim">{m.price_corrupted_filter()}</span>
-          <select class="select sm" bind:value={corrupted}>
-            <option value="any">{m.price_any()}</option>
-            <option value="yes">{m.price_yes()}</option>
-            <option value="no">{m.price_no()}</option>
-          </select>
-        </label>
         <label>
           <span class="dim">{m.price_listed()}</span>
           <select class="select sm" onchange={(e) => (listed = Number((e.target as HTMLSelectElement).value))}>
@@ -594,15 +652,6 @@
         </label>
       </div>
 
-      <div class="toggles small">
-        {#if !info.unique}
-          <label class="toggle" title={m.price_base_only_title()}><input type="checkbox" bind:checked={baseOnly} /> {m.price_base_only()}</label>
-        {/if}
-        <label class="toggle">
-          <input type="checkbox" bind:checked={useItemLevel} /> {m.price_ilvl()} ≥
-          <input class="input sm mono ilvl" bind:value={itemLevel} placeholder="—" disabled={!useItemLevel} />
-        </label>
-      </div>
       <div class="row">
         <span class="small" class:dim={!outdated && !waiting} class:warn={outdated || waiting} title={waiting ? m.price_wait_title() : ""}>{searching ? m.price_searching() : waiting ? m.price_wait({ time: clock((waitUntil - now) / 1000) }) : outdated ? m.price_outdated() : ""}</span>
         {#if outdated}
@@ -655,14 +704,16 @@
           {/each}
         </div>
       {/if}
-      {#if maps.length || (blighted && blight(item))}
+      <div class="chips">
+        {#if item.rarity === "Gem"}<FilterChip numeric label={m.price_chip_gem_level()} bind:on={useGemLevel} bind:value={gemLevel} />{/if}
+        {#if isMap(item)}<FilterChip numeric label={m.price_chip_map_tier()} bind:on={useMapTier} bind:value={mapTier} />{/if}
+        {#if item.areaLevel !== null && !isMap(item)}<FilterChip numeric label={m.price_chip_area_level()} bind:on={useAreaLevel} bind:value={areaLevel} />{/if}
+        {#if !isTemple(item) && !item.unidentified}<FilterChip numeric label={m.price_chip_quality()} bind:on={useQuality} bind:value={quality} />{/if}
+        {#if blight(item) && game.isPoe1}<FilterChip label={blight(item) === "map_uberblighted" ? "Blight-ravaged" : "Blighted"} bind:on={blighted} />{/if}
+        {@render corruptChip()}
+      </div>
+      {#if maps.length}
         <div class="mods">
-          {#if blight(item) && game.isPoe1}
-            <label class="mod" class:off={!blighted}>
-              <input type="checkbox" bind:checked={blighted} />
-              <span class="small">{blight(item) === "map_uberblighted" ? "Blight-ravaged" : "Blighted"}</span>
-            </label>
-          {/if}
           {#each maps as s, i (s.filter)}
             <label class="mod" class:off={!s.checked}>
               <input type="checkbox" bind:checked={maps[i].checked} />
@@ -672,28 +723,6 @@
           {/each}
         </div>
       {/if}
-      <div class="filters small">
-        {#if item.rarity === "Gem"}
-          <label><span class="dim">{m.price_gem_level()}</span><input class="input sm mono" bind:value={gemLevel} placeholder="—" /></label>
-        {/if}
-        {#if isMap(item)}
-          <label><span class="dim">{m.price_map_tier()}</span><input class="input sm mono" bind:value={mapTier} placeholder="—" /></label>
-        {/if}
-        {#if item.areaLevel !== null && !isMap(item)}
-          <label><span class="dim">{m.price_area_level()}</span><input class="input sm mono" bind:value={areaLevel} placeholder="—" /></label>
-        {/if}
-        {#if !isTemple(item)}
-          <label><span class="dim">{m.price_quality()}</span><input class="input sm mono" bind:value={quality} placeholder="—" /></label>
-        {/if}
-        <label>
-          <span class="dim">{m.price_corrupted_filter()}</span>
-          <select class="select sm" bind:value={corrupted}>
-            <option value="any">{m.price_any()}</option>
-            <option value="yes">{m.price_yes()}</option>
-            <option value="no">{m.price_no()}</option>
-          </select>
-        </label>
-      </div>
       <div class="row">
         <span class="small" class:dim={!outdated && !waiting} class:warn={outdated || waiting} title={waiting ? m.price_wait_title() : ""}>{searching ? m.price_searching() : waiting ? m.price_wait({ time: clock((waitUntil - now) / 1000) }) : outdated ? m.price_outdated() : ""}</span>
         {#if outdated}
@@ -724,6 +753,15 @@
       {/if}
     </div>
   {/if}
+  {#snippet corruptChip()}
+    <!-- As in Awakened PoE Trade: Corrupted or Not Corrupted, always searched; a click flips it. -->
+    <FilterChip
+      label={corrupted === "yes" ? m.price_chip_corrupted() : m.price_chip_not_corrupted()}
+      on={corrupted === "yes"}
+      tone="bad"
+      onclick={() => (corrupted = corrupted === "yes" ? "no" : "yes")}
+    />
+  {/snippet}
 </div>
 
 <style>
@@ -760,9 +798,9 @@
   .tier.t1 { background: oklch(83% 0.16 90); color: #111; }
   .tier.t2 { background: transparent; color: oklch(83% 0.16 90); box-shadow: inset 0 0 0 1px oklch(83% 0.16 90); }
   .conv { margin-left: 6px; }
-  .filters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 8px; }
+  .filters { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 8px; }
   .filters label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .filters .input, .filters .select { width: 100%; box-sizing: border-box; }
+  .filters .select { width: 100%; box-sizing: border-box; }
   .tags { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-left: 6px; vertical-align: 1px; }
   .tag { font-size: 10px; line-height: 1; padding: 2px 4px; border-radius: 3px; color: var(--fg-2);
     background: color-mix(in oklch, var(--fg-3) 18%, transparent); text-transform: lowercase; }
@@ -773,15 +811,12 @@
   .results.stale { display: block; opacity: 0.4; }
   .warn { color: var(--warn); }
   .searchbtn { min-width: 112px; height: 30px; padding: 0 18px; font-size: var(--fs-md, 14px); font-weight: 600; }
-  .toggle.off { opacity: 0.55; }
   .tag.q20 { color: var(--fg-1); background: var(--bg-3); }
   .tag.pseudo { color: var(--brand); background: color-mix(in oklch, var(--brand) 16%, transparent); }
   .tag.eldritch { color: oklch(72% 0.14 300); background: color-mix(in oklch, oklch(60% 0.15 300) 20%, transparent); }
   .tag.crafted { color: oklch(78% 0.08 230); } .tag.fractured { color: oklch(80% 0.12 85); }
   .tag.implicit, .tag.enchant { color: oklch(80% 0.06 250); }
-  .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
-  .toggle { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
-  .toggle .ilvl { width: 44px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
   .listings { display: grid; grid-template-columns: 1fr auto auto; gap: 2px 10px; font-variant-numeric: tabular-nums; }
   .dim { color: var(--fg-3); } .small { font-size: 12px; } .bad { color: var(--bad); } .good { color: var(--ok); }
   p { margin: 2px 0; }

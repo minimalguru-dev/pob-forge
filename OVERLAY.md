@@ -48,6 +48,9 @@ inventory panel. Click the card to change its filters
 - **poe.ninja** prices currency, fragments, scarabs, essences, divination cards, gems (by level, quality and
   corruption) and uniques (six-links separately on PoE1), for the league you pick, with its seven-day trend. A stack
   shows its total.
+- **Base item.** Normal, magic and rare gear on PoE1 also shows its base's own price from poe.ninja at the top,
+  as in Awakened PoE Trade, with the seven-day graph: the same base at the same item level (poe.ninja lists 82 to
+  86, 86 standing for 86 and over) and the same influences, for the item's rarity.
 - **Currency exchange.** Currency and divination cards also show the cheapest online offers on the trade site's bulk
   exchange, per unit, in chaos (PoE1) or exalted orbs (PoE2).
 - **Trade site.** For equipment, PoB's own Buy Similar search (the same one as the Items tab) is built from the item:
@@ -57,12 +60,17 @@ inventory panel. Click the card to change its filters
   range; on a unique the step is a share of that range. Each value has a minimum and a maximum field; the mouse wheel
   moves a field by one step (a tenth or hundredth on decimals), ten with Shift. Explicit mods show their tier from the
   advanced copy: **T1** filled, **T2** outlined, lower tiers grey.
-  Mods counted in a ticked total are not searched on their own. Item level, quality, links (PoE1), corruption, the
-  listing kind, the currency the price is in, and a minimum of empty prefixes or suffixes are filters too. As in
+  Mods counted in a ticked total are not searched on their own. Above the mods, as in Awakened PoE Trade, the item's
+  own filters are words rather than checkboxes: **Links: 6** (PoE1), **Item Level: 84**, **Quality: 20**, **Empty
+  prefixes** and **suffixes**, each influence and mark (Shaper, Fractured, Mirrored…), **Corrupted** or **Not
+  Corrupted**, and **Base only**. Click the word to turn a filter on or off (a lit border is on); typing in its
+  number turns it on, emptying it turns it off. Corrupted and Not Corrupted are always searched, and a click flips
+  between them. Gems, maps and the rest get the same words for level, map tier, area level and quality. The listing
+  kind and the currency the price is in are menus. As in
   Awakened PoE Trade the base under the item's name is a button: a rare is searched across its category ("Ring")
   until you click it to search its exact base ("Two-Stone Ring"), and back. Cluster jewels start on their exact base
   with item level on, and their passive count and jewel sockets are searched at exactly the item's number. Item level
-  is a toggle, off at first, starting at the copied item's own. Anoints and other enchants are searched as PoB reads
+  starts off, at the copied item's own; quality starts on where it matters (below), links on from five. Anoints and other enchants are searched as PoB reads
   them.
   **Quality** works as on the trade site, which counts armour, evasion, energy shield and weapon DPS as if the item
   had 20% quality: an item below 20% is priced at 20% (rows marked **Q20**), and weapons get physical and elemental

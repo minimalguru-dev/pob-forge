@@ -27,7 +27,14 @@ const listing = (account: string, amount: number, currency: string) => ({ amount
       return { result, elapsed_ms: 1 };
     }
     if (cmd === "overlay_settings_get") return { statRange: 10, pricePrediction: true };
-    if (cmd === "price_ninja") return { primary: "chaos", rates: { divine: 0.005 }, lines: [] };
+    if (cmd === "price_ninja") {
+      const base = (args as { category?: string }).category === "BaseType";
+      const lines = base
+        ? [{ name: "Two-Stone Ring", baseType: null, variant: null, gemLevel: null, gemQuality: null, corrupted: false, links: null, mapTier: null,
+            levelRequired: 84, frame: 2, value: 12, listings: 31, change: 18, trend: [0, 4, 3, 9, 12, 15, 18] }]
+        : [];
+      return { primary: "chaos", rates: { divine: 0.005 }, lines };
+    }
     if (cmd === "price_predict") return { min: 18, max: 30, currency: "chaos", confidence: 71 };
     if (cmd === "price_trade") {
       searches++;
