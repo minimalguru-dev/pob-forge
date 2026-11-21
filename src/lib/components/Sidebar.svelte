@@ -269,11 +269,13 @@
 
 <aside class="sidebar">
   {#if info}
-    <section class="headline" aria-live="polite">
+    <section class="headline fg-plate" aria-live="polite">
       {#if headRow}
+        <div class="hwell fg-well">
         <span class="hlabel">{stripPobText(statLabelText(headRow.lhs)).replace(/:\s*$/, "")}</span>
-        <span class="hvalue"><PobText text={headRow.rhs} defaultColor="var(--fg-0)" /></span>
+        <span class="hvalue fg-hot"><PobText text={headRow.rhs} defaultColor="var(--hot)" /></span>
         {#if headDelta}<span class="hdelta" class:gain={headDelta.startsWith("+")} class:loss={headDelta.startsWith("−")}>{m.sheet_since_save({ delta: headDelta })}</span>{/if}
+        </div>
       {/if}
       <!-- The name is in the header; renaming and loadouts stay in this menu. -->
       <span class="hmenu"><MoreMenu label={m.sidebar_build_menu()} align="end" items={buildMenu} /></span>
@@ -332,10 +334,10 @@
     <div class="stats" class:busy={build.busy > 0} class:sorting={sorting !== null} bind:this={statsEl}>
       {#if side}
         {#each infoSections as sec (sec.key)}
-          <section class="scard"><div class="cardbody">{@render statRows(sec)}</div></section>
+          <section class="scard fg-plate"><div class="cardbody">{@render statRows(sec)}</div></section>
         {/each}
         {#each cards as card (card.key)}
-          <section class="scard" class:warncard={card.kind === "warnings"} class:dragging={sorting === card.key} data-sort={card.key} animate:flip={{ duration: sorting === card.key ? 0 : 200 }}>
+          <section class="scard fg-plate" class:warncard={card.kind === "warnings"} class:dragging={sorting === card.key} data-sort={card.key} animate:flip={{ duration: sorting === card.key ? 0 : 200 }}>
             {@render cardHead(card.label, card.open, card.toggle, cardSum(card), card.key, card.title)}
             {#if card.open}
               {#if card.sec}
@@ -437,29 +439,32 @@
     width: var(--sidebar-w);
     display: flex;
     flex-direction: column;
-    background: var(--bg-1);
+    background: transparent;
     font-variant-numeric: tabular-nums;
     border-right: 1px solid var(--line-0);
     min-height: 0;
   }
   .headline {
-    position: relative;
+    flex: none;
+    margin: 10px 10px 0;
+    padding: 14px 14px 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .hwell {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    min-height: 44px;
-    padding: 16px 16px 12px;
-    border-bottom: 1px solid var(--line-0);
-    font-variant-numeric: tabular-nums;
+    padding: 9px 12px 10px;
+    margin-right: 26px;
   }
   .hmenu {
     position: absolute;
-    top: 10px;
+    top: 12px;
     right: 8px;
   }
   .hlabel {
     font-size: var(--fs-2xs);
-    font-weight: 500;
+    font-weight: 700;
     letter-spacing: var(--label-track);
     text-transform: uppercase;
     color: var(--fg-3);
@@ -467,9 +472,8 @@
   .hvalue {
     font-family: var(--font-mono);
     font-size: 26px;
-    font-weight: 500;
+    font-weight: 600;
     line-height: 1.2;
-    color: var(--fg-0);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -489,24 +493,35 @@
     font-family: var(--font-mono);
     font-size: var(--fs-xs);
   }
-  /* Group heads read as labels on a sheet, not as cards. */
+  /* Each group is a riveted plate; its name is the stamped tag on it. */
   .stats :global(.cardhead) {
-    min-height: 28px;
+    min-height: 38px;
+    padding: 0 10px 0 16px;
     background: transparent;
     border-bottom-color: transparent;
-    color: var(--fg-3);
+    color: var(--fg-2);
   }
   .stats :global(.cardhead:hover) {
     background: transparent;
     color: var(--fg-0);
   }
   .stats :global(.cardname) {
+    flex: 0 0 auto;
+    padding: 3px 9px 2px;
+    background: var(--well-bg);
+    border: 1px solid var(--line-0);
+    box-shadow: var(--well-shadow);
     font-size: var(--fs-2xs);
-    font-weight: 500;
+    font-weight: 700;
     letter-spacing: var(--label-track);
   }
   .stats :global(.cardsum) {
+    flex: 1;
+    text-align: right;
     font-family: var(--font-mono);
+  }
+  .stats :global(.caret) {
+    margin-left: auto;
   }
   .head {
     padding: 8px 12px 8px;
@@ -528,8 +543,7 @@
     color: var(--fg-0);
   }
   .charwrap {
-    padding: 8px 6px;
-    border-bottom: 1px solid var(--line-0);
+    padding: 10px 10px 0;
   }
   .stats {
     position: relative;
@@ -537,9 +551,8 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 0;
-    padding: 2px 4px 16px;
-    background: var(--bg-1);
+    gap: 10px;
+    padding: 10px 10px 16px;
     scrollbar-width: none;
     transition: opacity 120ms;
   }
@@ -548,14 +561,7 @@
   }
   .scard {
     flex: none;
-    background: transparent;
-    border: 0;
-    border-top: 1px solid var(--line-0);
-    border-radius: 0;
     overflow: clip;
-  }
-  .scard:first-child {
-    border-top: 0;
   }
   .scard.dragging {
     position: relative;
@@ -595,7 +601,7 @@
     color: var(--warn);
   }
   .cardbody {
-    padding: 4px 8px 10px;
+    padding: 2px 16px 14px;
   }
   .stats.busy {
     opacity: 0.6;
@@ -621,7 +627,8 @@
     justify-content: space-between;
     align-items: baseline;
     gap: 10px;
-    padding: 1px 0;
+    padding: 2px 0;
+    border-bottom: 1px dashed var(--line-0);
     font-size: var(--fs-sm);
     line-height: 18px;
     font-variant-numeric: tabular-nums;
@@ -657,7 +664,7 @@
   .srow.hasbd:hover {
     background: var(--bg-2);
     margin: 0 -6px;
-    padding: 1px 6px;
+    padding: 2px 6px;
   }
   .bdpop {
     position: fixed;

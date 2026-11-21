@@ -94,6 +94,7 @@
 
 <div class="app">
   <TitleBar />
+  <div class="fg-heat" aria-hidden="true"></div>
   <UpdateBanner />
   <div class="body">
     {#if !ui.sidebarCollapsed && (build.view !== "tree" || treeSheet || appOptions.open) && (build.view !== "regex" || appOptions.open)}<Sidebar />{/if}
@@ -185,7 +186,7 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: var(--bg-0);
+    background: var(--page);
   }
   .body {
     flex: 1;

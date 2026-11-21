@@ -22,33 +22,32 @@
 .scope-dark {
   color-scheme: dark;
 
-  /* Instrument: cool graphite, hairlines, figures in white. Orange marks a gain
-     and the one primary action, blue a loss. */
-  --bg-0: #0b0c0d;
-  --bg-1: #0e1012;
-  --bg-2: #121416;
-  --bg-3: #171a1d;
-  --bg-hover: #1c2024;
-  --bg-active: #23282c;
+  /* Forge: warm iron and soot, gold for the name, ember for what is hot. */
+  --bg-0: #0d0c0b;
+  --bg-1: #12100e;
+  --bg-2: #171410;
+  --bg-3: #1c1914;
+  --bg-hover: #221e18;
+  --bg-active: #2a251e;
 
-  --line-0: #1f2326;
-  --line-1: #2a2f33;
-  --line-2: #3a4146;
+  --line-0: #2b2620;
+  --line-1: #3a3227;
+  --line-2: #4a4136;
 
-  --fg-0: #eef1f4;
+  --fg-0: #f1e8da;
   /* The contrast control lifts fg-1..4 from the ramp toward fg-0, so the ramp
      holds the unlifted end and fg-1..4 are whatever the control resolved to. */
-  --ramp-1: #c4ccd3;
-  --ramp-2: #a3acb4;
-  --ramp-3: #8a939b;
-  --ramp-4: #5f676e;
+  --ramp-1: #d9d2c7;
+  --ramp-2: #a89c8b;
+  --ramp-3: #8c847a;
+  --ramp-4: #625a50;
   --fg-1: var(--ramp-1);
   --fg-2: var(--ramp-2);
   --fg-3: var(--ramp-3);
   --fg-4: var(--ramp-4);
 
-  --focus: #f0a24a;
-  --brand: #f0a24a;
+  --focus: #c8a96a;
+  --brand: #c8a96a;
   --ok: oklch(78.4% 0.145 152);
   --warn: oklch(79.0% 0.130 79);
   --bad: oklch(68.8% 0.166 22);
@@ -72,10 +71,10 @@
   --c-author: oklch(79.0% 0.110 350);
   --c-class: oklch(78.0% 0.100 250);
 
-  --accent: var(--fg-0);
-  --accent-fg: var(--bg-0);
+  --accent: #c8a96a;
+  --accent-fg: #1a1208;
   --glow: transparent;
-  --primary-hover: #ffffff;
+  --primary-hover: #e0c48a;
   --fade-off: 0.55;
   --sel-mix: 38%;
   --pob-mix: 100%;
@@ -85,22 +84,61 @@
   --shadow-tooltip: 0 20px 70px rgba(0, 0, 0, 0.9), 0 6px 24px rgba(0, 0, 0, 0.75);
 }
 
-/* A gain, a loss and the Save button. Every theme takes its own good, bad and
-   accent; the Instrument (dark) theme sets its orange and blue below. */
+/* The forge's iron: plates, recessed wells, hot figures and the primary
+   (hot metal) button. Every theme gets them from its own grounds and accent;
+   the Forge (dark) theme sets the riveted iron below. */
 :where(:root) {
   --gain: var(--ok);
   --loss: var(--bad);
-  --save-bg: var(--accent);
-  --save-fg: var(--accent-fg);
-  --save-hover: var(--primary-hover);
+  --hot: var(--brand);
+  --hot-glow: none;
+  --heat: var(--brand);
+  --page: var(--bg-0);
+  --plate-bg: var(--bg-1);
+  --plate-edge: var(--line-0);
+  --plate-shadow: none;
+  --rivet: transparent;
+  --rivet-hole: transparent;
+  --well-bg: var(--bg-0);
+  --well-edge: var(--line-0);
+  --well-shadow: none;
+  --btn-bg: var(--bg-2);
+  --btn-edge: var(--line-1);
+  --btn-shadow: none;
+  --primary-bg: var(--accent);
+  --primary-fg: var(--accent-fg);
+  --primary-edge: var(--accent);
+  --primary-hover-bg: var(--primary-hover);
+  --primary-shadow: none;
+  --bar-bg: var(--bg-1);
+  --bar-shadow: none;
 }
 :root[data-theme="dark"],
 .scope-dark {
-  --gain: #f0a24a;
-  --loss: #5fa8e8;
-  --save-bg: #f0a24a;
-  --save-fg: #1a1005;
-  --save-hover: #ffb867;
+  --gain: #f3b25a;
+  --loss: #9fb8d9;
+  --hot: #f3b25a;
+  --hot-glow: 0 0 10px rgb(232 131 74 / 0.35);
+  --heat: #e8834a;
+  --page: repeating-linear-gradient(90deg, rgb(255 240 220 / 0.014) 0 1px, transparent 1px 4px), #0d0c0b;
+  --plate-bg: linear-gradient(180deg, #1c1914, #14120f);
+  --plate-edge: #050404;
+  --plate-shadow: inset 0 1px 0 #3d352a, inset 0 -1px 0 #0a0908, 0 2px 0 #050404, 0 8px 22px rgb(0 0 0 / 0.45);
+  --rivet: #6b5d49;
+  --rivet-hole: #14110d;
+  --well-bg: #090807;
+  --well-edge: #000000;
+  --well-shadow: inset 0 2px 7px rgb(0 0 0 / 0.85), 0 1px 0 #2e2820;
+  --btn-bg: linear-gradient(180deg, #26211a, #1a1713);
+  --btn-edge: #050404;
+  --btn-shadow: inset 0 1px 0 #43392c, 0 1px 0 #050404;
+  --primary-bg: linear-gradient(180deg, #f2a64e, #c25f26);
+  --primary-fg: #1d0c03;
+  --primary-edge: #4a1f08;
+  --primary-hover-bg: linear-gradient(180deg, #ffb860, #d46a2c);
+  --primary-shadow: inset 0 1px 0 #ffd29a, 0 0 14px rgb(232 131 74 / 0.35);
+  --bar-bg: linear-gradient(180deg, #221e18, #15130f);
+  --bar-shadow: inset 0 1px 0 #3d352a;
 }
 
 /* Light: warm paper, warm ink. Chrome sits a step darker than the work area.
@@ -404,10 +442,10 @@
   --font-cjk: "Yu Gothic UI", "Meiryo", "Malgun Gothic", "Leelawadee UI", "Noto Sans CJK JP", "Noto Sans Thai", "Hiragino Sans", "Apple SD Gothic Neo", "Thonburi";
   --font-ui: "Inter Variable", ui-sans-serif, system-ui, "Segoe UI", var(--font-cjk), sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", Consolas, var(--font-cjk), monospace;
-  /* The wordmark and section heads. */
-  --font-head: "Space Grotesk Variable", var(--font-ui);
-  /* Section labels on the stat sheet and panels. */
-  --label-track: 0.12em;
+  /* The name plate and stamped heads: a forged small-caps serif. */
+  --font-head: "Cormorant SC", "Fontin SmallCaps", Georgia, serif;
+  /* Stamped labels on plates. */
+  --label-track: 0.2em;
 
   --fs-2xs: 10px;
   --fs-xs: 11px;
@@ -539,9 +577,10 @@ label:has(input:disabled) {
   gap: 6px;
   height: 26px;
   padding: 0 10px;
-  border: 1px solid var(--line-1);
+  border: 1px solid var(--btn-edge);
   border-radius: var(--r-1);
-  background: var(--bg-2);
+  background: var(--btn-bg);
+  box-shadow: var(--btn-shadow);
   color: var(--fg-1);
   font-size: var(--fs-sm);
   letter-spacing: 0.01em;
@@ -561,13 +600,14 @@ label:has(input:disabled) {
   cursor: var(--cursor-arrow, default);
 }
 .btn.primary {
-  background: var(--accent);
-  color: var(--accent-fg);
-  border-color: var(--accent);
-  font-weight: 500;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  border-color: var(--primary-edge);
+  box-shadow: var(--primary-shadow);
+  font-weight: 600;
 }
 .btn.primary:hover {
-  background: var(--primary-hover);
+  background: var(--primary-hover-bg);
 }
 .btn.ghost {
   background: transparent;
@@ -596,10 +636,16 @@ label:has(input:disabled) {
   border: 1px solid var(--line-1);
   border-radius: var(--r-1);
   background: var(--bg-1);
+  box-shadow: var(--well-shadow);
   color: var(--fg-0);
   font-size: var(--fs-sm);
   outline: none;
   min-width: 0;
+}
+:root[data-theme="dark"] :is(.input, .textarea),
+.scope-dark :is(.input, .textarea) {
+  background: var(--well-bg);
+  border-color: var(--well-edge);
 }
 .input:focus,
 .select:focus,
@@ -745,9 +791,59 @@ kbd {
 }
 
 .panel {
-  background: var(--bg-1);
-  border: 1px solid var(--line-0);
+  background: var(--plate-bg);
+  border: 1px solid var(--plate-edge);
   border-radius: var(--r-2);
+  box-shadow: var(--plate-shadow);
+}
+
+/* Forge pieces. A plate is riveted iron; a well is a window sunk into it; a tag
+   is the stamped label on a plate; hot is the figure that matters most. */
+.fg-plate {
+  position: relative;
+  background:
+    radial-gradient(circle at 9px 9px, var(--rivet) 0 1.6px, var(--rivet-hole) 2.6px, transparent 3.2px),
+    radial-gradient(circle at calc(100% - 9px) 9px, var(--rivet) 0 1.6px, var(--rivet-hole) 2.6px, transparent 3.2px),
+    radial-gradient(circle at 9px calc(100% - 9px), var(--rivet) 0 1.6px, var(--rivet-hole) 2.6px, transparent 3.2px),
+    radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), var(--rivet) 0 1.6px, var(--rivet-hole) 2.6px, transparent 3.2px),
+    var(--plate-bg);
+  border: 1px solid var(--plate-edge);
+  box-shadow: var(--plate-shadow);
+}
+.fg-well {
+  background: var(--well-bg);
+  border: 1px solid var(--well-edge);
+  box-shadow: var(--well-shadow);
+}
+.fg-tag {
+  display: inline-block;
+  padding: 3px 9px 2px;
+  background: var(--well-bg);
+  border: 1px solid var(--line-0);
+  box-shadow: var(--well-shadow);
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: var(--label-track);
+  text-transform: uppercase;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+.fg-stamp {
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: var(--label-track);
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.fg-hot {
+  color: var(--hot);
+  text-shadow: var(--hot-glow);
+}
+.fg-heat {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--heat) 45%, black) 15%, var(--heat) 50%, color-mix(in oklab, var(--heat) 45%, black) 85%, transparent);
 }
 /* Dialogs scroll instead of spilling out at high interface scales. */
 .panel.dialog {

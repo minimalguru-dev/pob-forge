@@ -6,6 +6,7 @@
 
 <div class="app">
   <TitleBar />
+  <div class="fg-heat" aria-hidden="true"></div>
   <div class="body">
     <Sidebar />
     <main class="view"></main>
@@ -18,7 +19,7 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: var(--bg-0);
+    background: var(--page);
   }
   .body {
     flex: 1;

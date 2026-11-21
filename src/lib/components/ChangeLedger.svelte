@@ -15,7 +15,7 @@
 </script>
 
 <footer class="ledger" aria-label={m.ledger_title()}>
-  <span class="title">{m.ledger_title()}</span>
+  <span class="fg-tag">{m.ledger_title()}</span>
   <div class="list">
     {#if shown.length === 0}
       <span class="none">{m.ledger_none()}</span>
@@ -40,7 +40,7 @@
     </span>
   {/if}
   {#if build.view === "tree"}
-    <button class="undo" disabled={!canUndo} title={m.ledger_undo_title()} onclick={() => void build.undo()}>{m.ledger_undo()}</button>
+    <button class="btn sm" disabled={!canUndo} title={m.ledger_undo_title()} onclick={() => void build.undo()}>{m.ledger_undo()}</button>
   {/if}
 </footer>
 
@@ -50,24 +50,15 @@
     display: flex;
     align-items: center;
     gap: 16px;
-    min-height: 34px;
-    padding: 4px 16px;
-    border-top: 1px solid var(--line-0);
-    background: var(--bg-1);
+    min-height: 38px;
+    padding: 5px 16px;
+    border-top: 1px solid var(--plate-edge);
+    background: var(--bar-bg);
+    box-shadow: var(--bar-shadow);
     font-family: var(--font-mono);
     font-size: var(--fs-sm);
     color: var(--fg-2);
     font-variant-numeric: tabular-nums;
-  }
-  .title {
-    flex: none;
-    font-family: var(--font-ui);
-    font-size: var(--fs-2xs);
-    font-weight: 500;
-    letter-spacing: var(--label-track);
-    text-transform: uppercase;
-    color: var(--fg-3);
-    white-space: nowrap;
   }
   .list {
     flex: 1;
@@ -95,24 +86,5 @@
   }
   .loss {
     color: var(--loss);
-  }
-  .undo {
-    flex: none;
-    height: 24px;
-    padding: 0 10px;
-    border: 1px solid var(--line-1);
-    border-radius: 6px;
-    background: transparent;
-    color: var(--fg-1);
-    font-family: var(--font-ui);
-    font-size: var(--fs-sm);
-    font-weight: 500;
-  }
-  .undo:hover:not(:disabled) {
-    background: var(--bg-hover);
-    color: var(--fg-0);
-  }
-  .undo:disabled {
-    color: var(--fg-4);
   }
 </style>

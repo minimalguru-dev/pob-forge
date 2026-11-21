@@ -53,12 +53,8 @@
     { id: "regex", label: m.view_regex(), key: "", icon: "magnifying-glass" },
   ]);
 
-  /** The four views a build is made in sit in one switch; the rest are plain words beside it. */
-  const PRIMARY: ViewId[] = ["items", "tree", "skills", "config"];
-  const primary = $derived(PRIMARY.map((id) => tabs.find((t) => t.id === id)!));
-  const secondary = $derived(tabs.filter((t) => !PRIMARY.includes(t.id) && t.id !== "compare"));
   const levelLine = $derived(
-    build.info ? [`lvl ${build.info.level}`, build.info.ascendClassName ?? build.info.className].filter(Boolean).join(" · ") : "",
+    build.info ? [build.info.ascendClassName ?? build.info.className, build.info.level].filter(Boolean).join(" ") : "",
   );
 
   function tabTitle(t: { label: string; key: string }) {
@@ -153,7 +149,10 @@
 
 <header class="titlebar" data-tauri-drag-region>
   <div class="brand" data-tauri-drag-region>
-    <span class="wordmark" title="PoB Forge" data-tauri-drag-region>forge<span class="slash">/</span></span>
+    <svg class="hammer" width="24" height="20" viewBox="0 0 26 22" aria-hidden="true"
+      ><path d="M2 6h15l5-3h2v6h-2l-4 2v2h-4v5h5v3H6v-3h5v-5H8C5 13 2 10 2 6z" fill="currentColor" /></svg
+    >
+    <span class="wordmark" data-tauri-drag-region>PoB Forge</span>
     <button
       class="sb"
       class:on={!ui.sidebarCollapsed}
@@ -185,28 +184,15 @@
 
   <div class="lead" data-tauri-drag-region>
     {#if build.info}
-      <span class="bname" title={build.info.file ?? m.sidebar_not_saved()}>{build.info.name}</span>
-      <span class="blevel">{levelLine}</span>
+      <span class="buildplate fg-well" title={build.info.file ?? m.sidebar_not_saved()}>
+        <span class="bname">{build.info.name}</span>
+        <span class="blevel">{levelLine}</span>
+      </span>
     {/if}
-    <div class="views" role="tablist" aria-label={m.titlebar_views()}>
-      {#each primary as t (t.id)}
-        <button
-          role="tab"
-          class="seg"
-          class:active={build.view === t.id && !appOptions.open}
-          aria-selected={build.view === t.id && !appOptions.open}
-          disabled={!build.loaded}
-          onclick={() => openView(t.id)}
-          title={t.key ? `Ctrl+${t.key}` : undefined}
-        >
-          {t.label}{#if t.key}<span class="segkey">{t.key}</span>{/if}
-        </button>
-      {/each}
-    </div>
   </div>
 
-  <div class="tabs" class:compact role="tablist" bind:this={tabsEl}>
-    {#each secondary as t (t.id)}
+  <div class="tabs" class:compact role="tablist" aria-label={m.titlebar_views()} bind:this={tabsEl}>
+    {#each tabs as t (t.id)}
       <button
         role="tab"
         class="tab"
@@ -225,24 +211,16 @@
   <div class="spacer" data-tauri-drag-region bind:this={spacerEl}></div>
   <div class="measure" aria-hidden="true">
     <div class="tabs" bind:this={measureEl}>
-      {#each secondary as t (t.id)}<span class="tab">{t.label}</span>{/each}
+      {#each tabs as t (t.id)}<span class="tab">{t.label}</span>{/each}
     </div>
   </div>
 
   <div class="findcell">
     {#if build.loaded}
-      <button class="find" title={m.palette_title()} onclick={() => (ui.paletteOpen = true)}>
+      <button class="find fg-well" title={m.palette_title()} onclick={() => (ui.paletteOpen = true)}>
         <Icon name="magnifying-glass" size={13} />
         <span class="findlabel">{m.palette_button()}</span>
         <Kbd keys="Mod+K" />
-      </button>
-      <button
-        class="ghost"
-        class:on={build.view === "compare" && !appOptions.open}
-        aria-pressed={build.view === "compare" && !appOptions.open}
-        onclick={() => openView("compare")}
-      >
-        {m.titlebar_compare_with()}
       </button>
       <button class="save" class:dirty={build.info?.unsaved} title={m.palette_save()} onclick={() => void build.save()}>
         {m.import_save()}{#if build.info?.unsaved}<span class="dot" aria-label={m.sidebar_unsaved()}></span>{/if}
@@ -280,28 +258,42 @@
 </header>
 
 <style>
+  /* A forged bar: plate iron with a bevel, a gold name plate, tabs pressed into it. */
   .titlebar {
     height: var(--titlebar-h);
     display: grid;
     grid-template-columns: auto auto minmax(0, auto) minmax(0, 1fr) auto auto;
     align-items: stretch;
-    background: linear-gradient(90deg, var(--glow), transparent 55%), var(--bg-1);
-    border-bottom: 1px solid var(--line-0);
+    background: var(--bar-bg);
+    box-shadow: var(--bar-shadow);
+    border-bottom: 1px solid var(--plate-edge);
     -webkit-app-region: drag;
   }
   .brand {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 9px;
     padding: 0 10px 0 14px;
-    border-right: 1px solid var(--line-0);
+  }
+  .hammer {
+    flex: none;
+    color: var(--brand);
+    pointer-events: none;
+  }
+  .wordmark {
+    font-family: var(--font-head);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--brand);
+    white-space: nowrap;
+    user-select: none;
   }
   .sb {
     appearance: none;
     border: 0;
     background: transparent;
     color: var(--fg-3);
-    margin-left: auto;
     padding: 4px;
     border-radius: var(--r-1);
     display: grid;
@@ -315,101 +307,6 @@
   }
   .sb.on {
     color: var(--fg-2);
-  }
-  .wordmark {
-    font-family: var(--font-head);
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    color: var(--fg-0);
-    white-space: nowrap;
-    user-select: none;
-  }
-  .slash {
-    color: var(--brand);
-  }
-  .lead {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-    padding: 0 14px 0 16px;
-  }
-  .lead .bname {
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: 180px;
-    font-weight: 600;
-    color: var(--fg-0);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .blevel {
-    flex: none;
-    font-family: var(--font-mono);
-    font-size: var(--fs-xs);
-    color: var(--fg-3);
-    white-space: nowrap;
-  }
-  .views {
-    flex: none;
-    display: flex;
-    margin-left: 4px;
-    border: 1px solid var(--line-1);
-    border-radius: 6px;
-    overflow: hidden;
-    -webkit-app-region: no-drag;
-  }
-  .seg {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    height: 26px;
-    padding: 0 13px;
-    border: 0;
-    background: transparent;
-    color: var(--fg-2);
-    font-size: var(--fs-sm);
-    font-weight: 500;
-    white-space: nowrap;
-    line-height: 26px;
-  }
-  .seg + .seg {
-    border-left: 1px solid var(--line-1);
-  }
-  .seg:hover:not(:disabled) {
-    color: var(--fg-0);
-  }
-  .seg.active {
-    background: var(--bg-hover);
-    color: var(--fg-0);
-  }
-  .seg:disabled {
-    color: var(--fg-4);
-    cursor: var(--cursor-arrow, default);
-  }
-  .segkey {
-    font-family: var(--font-mono);
-    font-size: var(--fs-2xs);
-    color: var(--fg-4);
-  }
-  .ghost {
-    height: 26px;
-    margin-right: 6px;
-    padding: 0 11px;
-    border: 1px solid var(--line-1);
-    border-radius: 6px;
-    background: transparent;
-    color: var(--fg-1);
-    font-size: var(--fs-sm);
-    font-weight: 500;
-    white-space: nowrap;
-  }
-  .ghost:hover,
-  .ghost.on {
-    background: var(--bg-hover);
-    color: var(--fg-0);
   }
   .game {
     display: flex;
@@ -425,6 +322,7 @@
     background-color: transparent;
     background-position: right 6px center;
     border-color: transparent;
+    box-shadow: none;
     color: var(--fg-0);
     font-family: var(--font-mono);
     font-size: var(--fs-xs);
@@ -441,9 +339,41 @@
     background: var(--bg-1);
     color: var(--fg-0);
   }
+  .lead {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    padding: 0 10px 0 4px;
+  }
+  .buildplate {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+    max-width: 300px;
+    padding: 4px 11px;
+  }
+  .bname {
+    min-width: 0;
+    font-weight: 600;
+    color: var(--fg-0);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .blevel {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    white-space: nowrap;
+  }
   .tabs {
     display: flex;
-    align-items: stretch;
+    align-items: center;
+    gap: 2px;
     min-width: 0;
     overflow-x: auto;
     scrollbar-width: none;
@@ -452,24 +382,26 @@
   .tabs::-webkit-scrollbar {
     display: none;
   }
-  /* Tabs are words: the open one is lit and underlined, nothing is boxed. */
+  /* Tabs are stamped words; the open one is pressed into the bar and glows at its foot. */
   .tab {
     flex: none;
+    height: 28px;
     white-space: nowrap;
     appearance: none;
-    border: 0;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--fg-3);
-    font-size: var(--fs-sm);
-    padding: 0 10px;
+    font-size: var(--fs-2xs);
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0 11px;
     cursor: var(--cursor-pointer, pointer);
-    position: relative;
-    letter-spacing: 0.01em;
   }
   .tabs.compact .tab {
     display: grid;
     place-items: center;
-    padding: 0 12px;
+    padding: 0 10px;
   }
   .measure {
     position: absolute;
@@ -487,29 +419,15 @@
   }
   .tab.active {
     color: var(--fg-0);
-  }
-  .tab.active::after {
-    content: "";
-    position: absolute;
-    left: 10px;
-    right: 10px;
-    bottom: 8px;
-    height: 1px;
-    background: var(--brand);
-  }
-  .tabs.compact .tab.active::after {
-    left: 8px;
-    right: 8px;
-    bottom: 5px;
+    background: var(--well-bg);
+    border-color: var(--well-edge);
+    box-shadow: var(--well-shadow), inset 0 -2px 0 var(--heat);
   }
   .tab:disabled {
     color: var(--fg-4);
     cursor: var(--cursor-arrow, default);
   }
   .spacer {
-    display: flex;
-    align-items: center;
-    justify-content: center;
     min-width: 0;
   }
   .controls {
@@ -519,52 +437,55 @@
   .findcell {
     display: flex;
     align-items: center;
-    padding-right: 6px;
+    gap: 8px;
+    padding-right: 8px;
     -webkit-app-region: no-drag;
+  }
+  .find {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 26px;
+    min-width: 180px;
+    padding: 0 6px 0 10px;
+    color: var(--fg-3);
+    font: inherit;
+    font-size: var(--fs-xs);
+    white-space: nowrap;
+  }
+  .findlabel {
+    flex: 1;
+    text-align: left;
+  }
+  .find:hover {
+    color: var(--fg-1);
   }
   .save {
     display: flex;
     align-items: center;
     gap: 6px;
     height: 26px;
-    margin-right: 8px;
-    padding: 0 14px;
-    border: 0;
-    border-radius: 6px;
-    background: var(--save-bg);
-    color: var(--save-fg);
+    padding: 0 16px;
+    border: 1px solid var(--primary-edge);
+    border-radius: var(--r-1);
+    background: var(--primary-bg);
+    box-shadow: var(--primary-shadow);
+    color: var(--primary-fg);
     font: inherit;
-    font-size: var(--fs-sm);
-    font-weight: 600;
+    font-size: var(--fs-2xs);
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
     white-space: nowrap;
   }
   .save:hover {
-    background: var(--save-hover);
+    background: var(--primary-hover-bg);
   }
   .save .dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
     background: currentColor;
-  }
-  .find {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 26px;
-    margin-right: 6px;
-    padding: 0 6px 0 10px;
-    border: 1px solid var(--line-1);
-    border-radius: 6px;
-    background: transparent;
-    color: var(--fg-3);
-    font: inherit;
-    font-size: var(--fs-xs);
-    white-space: nowrap;
-  }
-  .find:hover {
-    background: var(--bg-hover);
-    color: var(--fg-1);
   }
   .wc {
     appearance: none;
@@ -598,13 +519,14 @@
     .findlabel {
       display: none;
     }
+    .find {
+      min-width: 0;
+    }
   }
   @media (max-width: 1360px) {
+    .wordmark,
     .blevel {
       display: none;
-    }
-    .tab {
-      padding: 0 11px;
     }
   }
 </style>
