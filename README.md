@@ -14,10 +14,14 @@ Every installer is on the [Releases](../../releases/latest) page.
 
 | System | File | Install |
 |---|---|---|
-| Windows 10 or 11 | `PoB.Forge_<version>_x64-setup.exe` | Run it. It installs for your user only and fetches WebView2 if Windows lacks it. |
-| macOS, Apple Silicon | `PoB.Forge_<version>_aarch64.dmg` | Drag the app to Applications. See [macOS says the app cannot be opened](#macos-says-the-app-cannot-be-opened). |
+| Windows 10 or 11 | `PoE.Forge_<version>_x64-setup.exe` | Run it. It installs for your user only and fetches WebView2 if Windows lacks it. |
+| macOS, Apple Silicon | `PoE.Forge_<version>_aarch64.dmg` | Drag the app to Applications. See [macOS says the app cannot be opened](#macos-says-the-app-cannot-be-opened). |
 
 There is no build for Linux or Intel Macs.
+
+Windows releases are signed through SignPath Foundation's free programme for open source, once the project is
+approved; until then they are unsigned. See the [code signing policy](CODE_SIGNING_POLICY.md). Free code signing
+provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
 ## Getting started
 

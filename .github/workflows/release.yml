@@ -4,6 +4,9 @@ name: release
 # the updater artifacts, and creates a draft GitHub Release containing
 # latest.json. Publish the draft to make the update available: the in-app
 # updater reads the latest release's latest.json from the public repo.
+# With the SIGNPATH_* variables and the SIGNPATH_API_TOKEN secret set, the
+# Windows program and installer are also Authenticode-signed by SignPath
+# (CODE_SIGNING_POLICY.md); without them Windows builds stay unsigned.
 on:
   push:
     tags: ["v*"]
@@ -15,6 +18,8 @@ on:
 
 permissions:
   contents: write
+  # SignPath fetches the unsigned build from this run's artifacts.
+  actions: read
 
 # The CDN (infra/cdn) and the pathofexile.com OAuth client are repository variables;
 # a build without them leaves downloads and account sign-in off.
@@ -156,7 +161,9 @@ jobs:
           '
 
       # Builds, signs the updater artifacts with the minisign key and uploads them with latest.json to the draft.
+      # Windows takes the SignPath steps below instead once the SignPath variables are set.
       - uses: tauri-apps/tauri-action@v1
+        if: runner.os != 'Windows' || vars.SIGNPATH_ORGANIZATION_ID == ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -166,6 +173,118 @@ jobs:
           releaseId: ${{ needs.draft.outputs.id }}
           uploadUpdaterJson: true
           args: --bundles ${{ matrix.bundles }}
+
+      # Windows, signed by SignPath (CODE_SIGNING_POLICY.md): the program is built and signed first,
+      # then bundled into the installer, which is signed too. Each signing request waits for a
+      # team member to approve it in SignPath. The updater signature is made last, over the signed
+      # installer, since Authenticode signing changes the file.
+      - name: Read the version
+        id: version
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        shell: bash
+        run: echo "version=$(bun -e 'console.log((await Bun.file("src-tauri/tauri.conf.json").json()).version)')" >> "$GITHUB_OUTPUT"
+
+      # Bundling writes the bundle type into the program, which would break a signature made
+      # before it; a second bundle leaves an already-written program as it is. So: build, bundle
+      # once, sign that program, bundle again around the signed one.
+      - name: Build the program
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        shell: bash
+        env:
+          VITE_UPDATER: "true"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          bun tauri build --no-bundle
+          bun tauri bundle --bundles nsis
+
+      - name: Upload the unsigned program
+        id: unsigned-app
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-program
+          path: target/release/pob-forge.exe
+          if-no-files-found: error
+
+      - name: Sign the program (SignPath)
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned-app.outputs.artifact-id }}
+          wait-for-completion: true
+          # Room for the approver to open SignPath and approve.
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed/program
+          parameters: |
+            version: ${{ toJSON(steps.version.outputs.version) }}
+
+      - name: Bundle the installer around the signed program
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          cp signed/program/pob-forge.exe target/release/pob-forge.exe
+          bun tauri bundle --bundles nsis
+
+      - name: Upload the unsigned installer
+        id: unsigned-installer
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-installer
+          path: target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+
+      - name: Sign the installer (SignPath)
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed/installer
+          parameters: |
+            version: ${{ toJSON(steps.version.outputs.version) }}
+
+      # target/release/pob-forge.exe is the program the second bundle packed into the installer.
+      - name: Check both signatures
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        shell: pwsh
+        run: |
+          $files = @("target/release/pob-forge.exe") + (Get-ChildItem signed/installer/*-setup.exe | ForEach-Object FullName)
+          foreach ($f in $files) {
+            $s = Get-AuthenticodeSignature $f
+            Write-Host "$f : $($s.Status) $($s.SignerCertificate.Subject)"
+            if ($s.Status -ne 'Valid') { throw "$f is not validly signed" }
+          }
+
+      # GitHub turns spaces in asset names into dots; naming the files so keeps the installer and
+      # its .sig matched for scripts/updater-manifest.mjs.
+      - name: Sign the installer for the updater and upload it to the draft
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          src=$(ls signed/installer/*-setup.exe | head -n 1)
+          name=$(basename "$src" | tr ' ' '.')
+          cp "$src" "$name"
+          bun tauri signer sign "$name"
+          gh release upload "$TAG" "$name" "$name.sig" -R "$GITHUB_REPOSITORY" --clobber
 
       # A bundle whose resources are not sealed opens as "damaged" once downloaded.
       - name: Verify the macOS signature

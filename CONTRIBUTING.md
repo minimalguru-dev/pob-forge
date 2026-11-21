@@ -62,11 +62,26 @@ talking to a server it does not own. CI reads them from repository variables of 
    (the key file's contents) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the variable
    `TAURI_UPDATER_PUBKEY` (the `.pub` file's contents).
 2. Once: deploy the CDN and set `POB_FORGE_CDN_URL`; see [infra/cdn/README.md](infra/cdn/README.md).
-3. `bun run release:tag patch` (or `minor`, `major`, `x.y.z`) bumps the version, commits, tags and
+3. Once, for Windows code signing (SignPath Foundation, free for open source; see
+   [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md)):
+   - Turn on multi-factor authentication on GitHub, and later on SignPath.
+   - Apply at [signpath.org/apply](https://signpath.org/apply) with this repository. They check that it is open
+     source, maintained and released, and that the code signing policy is linked from the README.
+   - Once approved, in SignPath: add the predefined **GitHub.com** trusted build system and link it to the
+     project; create an artifact configuration from [signpath/artifact-configuration.xml](signpath/artifact-configuration.xml)
+     and make it the project's default; note the signing policy's slug (the release one, with manual approval).
+   - Create a SignPath API token for a user who may submit to that signing policy.
+   - In the GitHub repository add the secret `SIGNPATH_API_TOKEN` and the variables `SIGNPATH_ORGANIZATION_ID`,
+     `SIGNPATH_PROJECT_SLUG` and `SIGNPATH_SIGNING_POLICY_SLUG`.
+
+   From then on the release workflow signs the Windows program and installer. Each release makes two signing
+   requests (the program, then the installer); approve each in SignPath within an hour or the job stops. Without
+   the variables Windows builds stay unsigned, as before.
+4. `bun run release:tag patch` (or `minor`, `major`, `x.y.z`) bumps the version, commits, tags and
    pushes. Publish the draft release the workflow creates. Installed copies find it through `update/latest.json` on the CDN, or the
    release's own `latest.json`.
 
-Builds made without the release workflow do not update themselves.
+Builds made without the release workflow do not update themselves and are not code-signed.
 
 ## Layout
 
