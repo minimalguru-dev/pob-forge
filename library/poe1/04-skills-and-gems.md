@@ -195,7 +195,7 @@ Mastery "12% increased Mana Reservation Efficiency of Skills".
   `Classes/SkillsTab.lua` (quality cap 23, gem level options), `Classes/GemTooltip.lua` (cost and reservation
   multiplier), `changelog.txt` (2.67.0).
 - PathOfBuilding git: commit `08bbeb2bd` (legacy gem tags).
-- PoB Forge: `crates/pob-engine/lua/bridge.lua` (`list_gems`, `list_valid_supports`, `build_summary`,
+- PoE Forge: `crates/pob-engine/lua/bridge.lua` (`list_gems`, `list_valid_supports`, `build_summary`,
   `sanity_check`), `src-tauri/src/tools.rs`.
 - Our PoE1 corpus: `corpus/poe1/stages.jsonl`, `index.json` and `xml/*.xml` (main-skill links, gem levels and
   quality, gem families, auras on 327 ladder characters).

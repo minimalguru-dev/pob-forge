@@ -177,7 +177,7 @@ act the character has reached before judging its resistances. The other resistan
   `Modules/ConfigOptions.lua` (`bandit`, `resistancePenalty`), `Classes/ImportTab.lua` (Eramir mapped to kill
   all), `Classes/PassiveSpec.lua` (`CountAllocNodes`), `TreeData/3_29/tree.lua` (`points`, classes, ascendancy
   nodes that grant passive points).
-- PoB Forge: `crates/pob-engine/lua/bridge.lua` (`POE1_ACTS`, `build_summary`, `get_tree_state`,
+- PoE Forge: `crates/pob-engine/lua/bridge.lua` (`POE1_ACTS`, `build_summary`, `get_tree_state`,
   `sanity_check`, `list_classes`); budget table produced with `pobctl eval` on a fresh PoE1 build.
 - Our PoE1 corpus: `corpus/poe1/index.json`, `stages.jsonl` and `xml/*.xml` (levels, bandit choices,
   ascendancy points on 327 ladder characters).

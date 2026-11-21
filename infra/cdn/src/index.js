@@ -1,4 +1,4 @@
-// PoB Forge CDN: serves tree art, item art and game data from an R2 bucket,
+// PoE Forge CDN: serves tree art, item art and game data from an R2 bucket,
 // and the updater manifest from the latest GitHub release.
 //
 // Paths the app asks for:

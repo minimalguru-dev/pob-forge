@@ -497,10 +497,10 @@ async fn price_check(app: &AppHandle) -> Result<(), String> {
     let sent = crate::game_window::send_copy();
     let changed = sent && wait_for_copy(seq).await;
     if !sent {
-        return Err("Windows refused the Ctrl+C for the price check.".into());
+        return Err("Windows refused the Ctrl+Alt+C for the price check.".into());
     }
     if !changed {
-        log::info!("overlay: the game did not copy within {} ms of the Ctrl+C", COPY_WAIT.as_millis());
+        log::info!("overlay: the game did not copy within {} ms of the Ctrl+Alt+C", COPY_WAIT.as_millis());
         return Err("Hover over an item in the game, then press the price check shortcut.".into());
     }
     let text = app.clipboard().read_text().ok().filter(|t| t.len() <= MAX_ITEM_TEXT && classify(t).is_some());
@@ -536,7 +536,7 @@ async fn open_window(app: &AppHandle) -> Result<(), String> {
     }
     let s = settings(app);
     let builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::default())
-        .title("PoB Forge Overlay")
+        .title("PoE Forge Overlay")
         .decorations(false)
         .always_on_top(true)
         .skip_taskbar(true)

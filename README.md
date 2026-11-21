@@ -1,4 +1,4 @@
-# PoB Forge
+# PoE Forge
 
 [![Latest release](https://img.shields.io/github/v/release/minimalguru-dev/pob-forge?style=flat-square&label=release)](../../releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/minimalguru-dev/pob-forge/total?style=flat-square&label=downloads)](../../releases)
@@ -35,13 +35,13 @@ Import takes:
 
 A build from the other game switches the app to that game first.
 
-Builds are saved in PoB Forge's own folder, and the Builds tab also lists Path of Building's folder under
+Builds are saved in PoE Forge's own folder, and the Builds tab also lists Path of Building's folder under
 "Path of Building", so builds saved there stay where you can open them:
 
-- Path of Exile 1: `Documents/PoB Forge/Builds/PoE1` (and `Documents/Path of Building/Builds`)
-- Path of Exile 2: `Documents/PoB Forge/Builds/PoE2` (and `Documents/Path of Building (PoE2)/Builds`)
+- Path of Exile 1: `Documents/PoE Forge/Builds/PoE1` (and `Documents/Path of Building/Builds`)
+- Path of Exile 2: `Documents/PoE Forge/Builds/PoE2` (and `Documents/Path of Building (PoE2)/Builds`)
 
-**Browse** on the Builds tab picks another folder; **Reset** goes back to PoB Forge's.
+**Browse** on the Builds tab picks another folder; **Reset** goes back to PoE Forge's.
 
 ## Updating
 
@@ -97,7 +97,7 @@ An optional panel over the game, off until you turn it on in Settings > Overlay.
 to the open build in every slot it fits; Ctrl+C on a map shows which of its mods are dangerous for the build.
 Ctrl+D prices the item under the cursor from poe.ninja and the trade site, with mod filters you can change. It reads
 only what you copy and the game's log file; the only keys it presses are your chat macros and the price check's
-Ctrl+C. See [OVERLAY.md](OVERLAY.md).
+Ctrl+Alt+C. See [OVERLAY.md](OVERLAY.md).
 
 ### Search regexes
 
@@ -150,7 +150,7 @@ Lua; do not reimplement them in Rust or TypeScript.
 
 ## Credits
 
-Every number PoB Forge shows comes from
+Every number PoE Forge shows comes from
 [Path of Building Community](https://github.com/PathOfBuildingCommunity). This app runs and bundles
 the Lua code and game data of their
 [Path of Exile 1](https://github.com/PathOfBuildingCommunity/PathOfBuilding) and

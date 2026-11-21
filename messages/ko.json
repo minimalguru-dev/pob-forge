@@ -205,7 +205,7 @@
 
   "app_safe_mode": "안전 모드: 마지막 빌드를 다시 열지 않았습니다",
   "app_recover_title": "마지막 빌드를 다시 열까요?",
-  "app_recover_message": "{build}이(가) 열려 있는 동안 PoB Forge가 예기치 않게 종료되었습니다. 다시 열었을 때 또 종료된다면 '빈 상태로 시작'을 선택하세요. 그러면 해당 빌드가 복구본으로 빌드 폴더에 저장됩니다.",
+  "app_recover_message": "{build}이(가) 열려 있는 동안 PoE Forge가 예기치 않게 종료되었습니다. 다시 열었을 때 또 종료된다면 '빈 상태로 시작'을 선택하세요. 그러면 해당 빌드가 복구본으로 빌드 폴더에 저장됩니다.",
   "app_recover_build_fallback": "빌드",
   "app_recover_ok": "다시 열기",
   "app_recover_cancel": "빈 상태로 시작",

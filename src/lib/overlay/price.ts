@@ -3,6 +3,7 @@
  * price it, find its line, and write prices the way players say them.
  */
 import type { BuySimilarInfo } from "$lib/engine.svelte";
+import { rollMin, type Roll } from "./advanced";
 
 export type Game = "poe1" | "poe2";
 
@@ -26,6 +27,8 @@ export interface CopiedItem {
   mutated: string[];
   /** The marks the game writes on their own line: influences, Fractured Item, Mirrored… */
   marks: string[];
+  /** Not identified yet: a unique's name is unknown, only its base. */
+  unidentified: boolean;
 }
 
 /** Mirrors `NinjaLine` / `NinjaTable` in src-tauri/src/price.rs. */
@@ -74,7 +77,8 @@ export function parseCopied(text: string): CopiedItem | null {
   if (!names.length) return null;
   const all = sections.flat();
   const after = (prefix: string) => all.find((l) => l.startsWith(prefix))?.slice(prefix.length).trim();
-  const twoNames = rarity === "Unique" || rarity === "Rare";
+  const unidentified = all.includes("Unidentified");
+  const twoNames = (rarity === "Unique" || rarity === "Rare") && names.length > 1;
   const sockets = after("Sockets:");
   const links = sockets ? Math.max(...sockets.split(/\s+/).map((g) => g.split("-").length)) : null;
   const isGem = rarity === "Gem";
@@ -93,6 +97,7 @@ export function parseCopied(text: string): CopiedItem | null {
     areaLevel: num(after("Area Level:")),
     mutated: all.filter((l) => /\(mutated\)$/i.test(l)).map((l) => l.replace(/\s*\(mutated\)$/i, "")),
     marks: all.filter((l) => MARKS.has(l)),
+    unidentified,
   };
 }
 
@@ -273,17 +278,23 @@ export interface Choice {
   max: string;
 }
 
+/** Cluster jewel enchants whose number is the jewel itself: searched at exactly that number. */
+const EXACT_NUMBER = /^Adds \d+ Passive Skills$|Added Passive Skills? (are|is a) Jewel Sockets?$/;
+
 /**
  * Starting filters, as a price check usually wants them: a unique is found by name alone; a rare
- * by its searchable mods at 90% of their rolls, so close rolls still match.
+ * by its searchable mods, each `range` percent under its roll (Awakened PoE Trade's setting, 10
+ * by default) so close rolls still match. `rolls` are the ranges the advanced copy gave, if any.
  */
-export function defaultChoices(info: BuySimilarInfo): { mods: Choice[]; defences: Choice[] } {
-  const mods = info.mods.map((m) => {
+export function defaultChoices(info: BuySimilarInfo, range = 10, rolls: (Roll | null)[] = []): { mods: Choice[]; defences: Choice[] } {
+  const mods = info.mods.map((m, i) => {
     const wanted = !info.unique && m.searchable && (m.type === "explicit" || m.type === "implicit" || m.type === "enchant");
-    const min = m.ranged && typeof m.value === "number" && m.value !== 0 ? String(m.value > 0 ? Math.floor(m.value * 0.9) : m.value) : "";
+    const text = m.lines.map(plainLine).join(" ");
+    if (m.ranged && typeof m.value === "number" && EXACT_NUMBER.test(text)) return { checked: wanted, min: String(m.value), max: String(m.value) };
+    const min = m.ranged && typeof m.value === "number" && m.value !== 0 ? String(m.value > 0 ? rollMin(m.value, range, rolls[i], info.unique) : m.value) : "";
     return { checked: wanted, min, max: "" };
   });
-  const defences = info.defences.map((d) => ({ checked: false, min: String(Math.floor(d.value * 0.9)), max: "" }));
+  const defences = info.defences.map((d) => ({ checked: false, min: String(rollMin(d.value, range)), max: "" }));
   return { mods, defences };
 }
 
@@ -308,13 +319,13 @@ export interface DpsChoice extends Choice {
   value: number;
 }
 
-/** A weapon's physical and elemental DPS rows; on a rare the larger one is ticked, at 90%. */
-export function weaponChoices(info: BuySimilarInfo): DpsChoice[] {
+/** A weapon's physical and elemental DPS rows; on a rare the larger one is ticked, `range` percent under. */
+export function weaponChoices(info: BuySimilarInfo, range = 10): DpsChoice[] {
   const w = info.weapon;
   if (!w) return [];
   const rows = ([["pdps", w.pdps], ["edps", w.edps]] as const).filter(([, v]) => v > 0);
   const best: DpsKey = w.pdps >= w.edps ? "pdps" : "edps";
-  return rows.map(([key, value]) => ({ key, value, checked: !info.unique && key === best, min: String(Math.floor(value * 0.9)), max: "" }));
+  return rows.map(([key, value]) => ({ key, value, checked: !info.unique && key === best, min: String(rollMin(value, range)), max: "" }));
 }
 
 /** The trade site's pseudo stats: one filter for a total that several mods add to. */
@@ -405,9 +416,9 @@ export function itemMarks(game: Game, item: CopiedItem): Mark[] {
 }
 
 export interface Filters {
-  pseudo: { id: string; min: number | null }[];
+  pseudo: { id: string; min: number | null; max?: number | null }[];
   /** Weapon DPS minimums (counted by the trade site at 20% quality). */
-  dps?: { key: DpsKey; min: number | null }[];
+  dps?: { key: DpsKey; min: number | null; max?: number | null }[];
   game?: Game;
   /** Ticked item marks. */
   marks?: Mark[];
@@ -433,10 +444,11 @@ export function applyFilters(queryJson: string, f: Filters): string {
   if (f.priceIn !== "any") group("trade_filters").price = { option: f.priceIn };
   // PoE2's site keeps weapon figures with the armour ones.
   const weapons = f.game === "poe2" ? "equipment_filters" : "weapon_filters";
-  for (const d of f.dps ?? []) if (d.min !== null) group(weapons)[d.key] = { min: d.min };
+  const range = (min: number | null, max?: number | null) => ({ ...(min !== null ? { min } : {}), ...(max != null ? { max } : {}) });
+  for (const d of f.dps ?? []) if (d.min !== null || d.max != null) group(weapons)[d.key] = range(d.min, d.max);
   for (const mk of f.marks ?? []) if (mk.misc) group("misc_filters")[mk.misc] = { option: "true" };
   const pseudo = [
-    ...f.pseudo.map((p) => (p.min === null ? { id: p.id } : { id: p.id, value: { min: p.min } })),
+    ...f.pseudo.map((p) => (p.min === null && p.max == null ? { id: p.id } : { id: p.id, value: range(p.min, p.max) })),
     ...(f.marks ?? []).filter((mk) => mk.pseudo).map((mk) => ({ id: mk.pseudo! })),
   ];
   if (pseudo.length) {
@@ -512,6 +524,27 @@ export function templeRooms(raw: string): { open: string[]; obstructed: string[]
 }
 
 /** The temple rooms worth searching for first, as players price them. */
+/** Expedition logbook factions and their pseudo filters (PoE1 trade site, checked on /data/stats). */
+export const LOGBOOK_FACTIONS: Record<string, string> = {
+  "Druids of the Broken Circle": "pseudo.pseudo_logbook_faction_druids",
+  "Black Scythe Mercenaries": "pseudo.pseudo_logbook_faction_mercenaries",
+  "Order of the Chalice": "pseudo.pseudo_logbook_faction_order",
+  "Knights of the Sun": "pseudo.pseudo_logbook_faction_knights",
+};
+
+export function isLogbook(item: CopiedItem): boolean {
+  return /Expedition Logbook/i.test(`${item.itemClass} ${item.name} ${item.baseType ?? ""}`);
+}
+
+/** The factions a logbook's copied text names, once each, in order. */
+export function logbookFactions(raw: string): string[] {
+  const found: string[] = [];
+  for (const line of raw.replace(/\r/g, "").split("\n").map((l) => l.trim())) {
+    if (LOGBOOK_FACTIONS[line] && !found.includes(line)) found.push(line);
+  }
+  return found;
+}
+
 export const VALUABLE_ROOMS = [/Locus of Corruption/, /Doryani's Institute/, /Apex of Atzoatl/];
 
 /** A room line ("Locus of Corruption (Tier 3)") to its trade filter, by the filter's text. */
@@ -569,6 +602,8 @@ export interface SimpleChoices {
   blight?: string | null;
   /** Minimum area level (Forbidden Tomes, logbooks, contracts). */
   areaLevel?: number | null;
+  /** Logbook factions to require, as trade filter ids. */
+  factions?: string[];
   game?: Game;
 }
 
@@ -595,10 +630,16 @@ export function simpleQuery(item: CopiedItem, c: SimpleChoices): string {
     for (const s of c.mapStats ?? []) if (s.min !== null) mapf[s.filter] = { min: s.min };
     if (c.blight) mapf[c.blight] = { option: "true" };
     if (Object.keys(mapf).length) query.filters.map_filters = { filters: mapf };
+  } else if (item.unidentified && item.rarity === "Unique") {
+    // An unidentified unique is sold by its base: the name is not known until it is identified.
+    query.type = item.baseType ?? item.name;
+    query.filters = { type_filters: { filters: { rarity: { option: "unique" } } } };
+    misc.identified = { option: "false" };
   } else {
     if (item.rarity === "Unique") query.name = item.name;
     query.type = item.baseType ?? item.name;
     if (c.quality !== null) misc.quality = { min: c.quality };
+    if (c.factions?.length) query.stats = [{ type: "and", filters: c.factions.map((id) => ({ id })) }];
   }
   if (c.corrupted !== "any") misc.corrupted = { option: c.corrupted === "yes" ? "true" : "false" };
   if (c.areaLevel != null && !isMap(item)) {

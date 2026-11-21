@@ -205,7 +205,7 @@
 
   "app_safe_mode": "Mode sans échec : le dernier build n'a pas été rouvert",
   "app_recover_title": "Rouvrir le dernier build ?",
-  "app_recover_message": "PoB Forge s'est fermé de façon inattendue alors que {build} était ouvert. Si l'application se referme à la réouverture, choisissez Démarrer à vide ; le build sera alors enregistré dans votre dossier de builds sous forme de copie récupérée.",
+  "app_recover_message": "PoE Forge s'est fermé de façon inattendue alors que {build} était ouvert. Si l'application se referme à la réouverture, choisissez Démarrer à vide ; le build sera alors enregistré dans votre dossier de builds sous forme de copie récupérée.",
   "app_recover_build_fallback": "un build",
   "app_recover_ok": "Rouvrir",
   "app_recover_cancel": "Démarrer à vide",

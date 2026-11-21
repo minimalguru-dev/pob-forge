@@ -19,6 +19,10 @@ export interface OverlaySettings {
   cardSeconds: number;
   priceCheck: boolean;
   priceKey: string;
+  /** Percent under a mod's roll its starting minimum sits. */
+  statRange: number;
+  /** poeprices.info estimates on rares; sends the item's text there. */
+  pricePrediction: boolean;
   macros: { key: string; command: string }[];
 }
 

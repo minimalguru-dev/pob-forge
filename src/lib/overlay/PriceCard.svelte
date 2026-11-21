@@ -7,16 +7,23 @@
   import {
     age, applyFilters, defaultChoices, formatListing, formatValue, matchNinja, ninjaSources, parseCopied, poedbUrl,
     pseudoTotals, sparkPoints, wikiUrl, PSEUDO, defaultQuality, weaponChoices, itemMarks, mapStats, blight, type DpsChoice, type Mark, type MapStat, modTags, templeRooms, roomFilter, isTemple, isMap, simpleQuery, VALUABLE_ROOMS,
+    isLogbook, logbookFactions, LOGBOOK_FACTIONS,
     type Choice, type NinjaLine, type NinjaTable, type PseudoTotal,
   } from "./price";
+  import { advancedMods, clock, findAdvanced, groupListings, inPrimary, rateWait, rollMin, stripAdvanced, wheelStep, type Listing } from "./advanced";
+  import { overlay } from "$lib/state/overlay.svelte";
 
   let { raw, onclose }: { raw: string; onclose: () => void } = $props();
 
-  interface Listing { amount: number | null; currency: string | null; indexed: string | null; account: string | null; online: boolean; stack: number | null }
   interface TradeResult { total: number; url: string; listings: Listing[] }
   interface BulkResult { total: number; have: string; want: string; url: string; offers: { each: number; stock: number | null; indexed: string | null }[] }
+  interface Prediction { min: number; max: number; currency: string; confidence: number }
 
-  const item = $derived(parseCopied(raw));
+  /** The price check copies with Ctrl+Alt+C: the same item with its mod tiers and roll ranges. */
+  const text = $derived(stripAdvanced(raw));
+  const adv = $derived(advancedMods(raw));
+  const item = $derived(parseCopied(text));
+  const range = $derived(overlay.settings?.statRange ?? 10);
   const leagueKey = () => `pob-forge:price-league:${game.current}`;
 
   let leagues = $state<{ id: string; text: string }[]>([]);
@@ -54,7 +61,51 @@
   let areaLevel = $state("");
   /** The base alone, as for crafting: mod filters are left out (not lost) while it is on. */
   let baseOnly = $state(false);
+  let factions = $state<{ name: string; id: string; checked: boolean }[]>([]);
   let result = $state<TradeResult | null>(null);
+  const rows = $derived(result ? groupListings(result.listings) : []);
+  /** The league's currency rates, to read every listing in one currency. */
+  let rates = $state<{ primary: string; rates: Record<string, number> } | null>(null);
+  const spread = $derived.by(() => {
+    const prices = rows.map((r) => inPrimary(r.amount, r.currency, rates)).filter((p): p is number => p !== null).sort((a, b) => a - b);
+    if (prices.length < 3 || !rates) return null;
+    return { low: formatListing(prices[0], rates.primary), mid: formatListing(prices[Math.floor(prices.length / 2)], rates.primary) };
+  });
+  let prediction = $state<Prediction | null | "loading">(null);
+  /** The trade site's wait, counted down; a search asked for meanwhile runs when it is over. */
+  let waitUntil = $state(0);
+  let now = $state(Date.now());
+  let pendingSearch = false;
+  const waiting = $derived(waitUntil > now);
+  $effect(() => {
+    if (!waitUntil) return;
+    const tick = window.setInterval(() => {
+      now = Date.now();
+      if (now >= waitUntil) {
+        waitUntil = 0;
+        clearInterval(tick);
+        if (pendingSearch) {
+          pendingSearch = false;
+          void search();
+        }
+      }
+    }, 250);
+    return () => clearInterval(tick);
+  });
+  /** A search error, or the wait it asks for. */
+  function failed(e: unknown) {
+    const wait = rateWait(String(e));
+    if (wait !== null) {
+      waitUntil = Date.now() + wait * 1000;
+      now = Date.now();
+      pendingSearch = true;
+      error = null;
+    } else {
+      error = friendly(e);
+    }
+  }
+  /** Each PoB mod row's advanced-copy mod, for its tier and roll range. */
+  const advFor = $derived(info ? info.mods.map((mod) => findAdvanced(adv, mod.lines)) : []);
   /**
    * As in Awakened PoE Trade: changing a mod, a minimum or a filter does not search; the results
    * go stale and Search (or Enter) asks again. Choices that make it a different search altogether
@@ -64,7 +115,7 @@
   const choices = () =>
     JSON.stringify([
       whole(), useItemLevel, itemLevel, quality, links, corrupted, emptyPrefix, emptySuffix,
-      mods, defences, dps, pseudo, marks, rooms, gemLevel, mapTier, areaLevel, maps, blighted,
+      mods, defences, dps, pseudo, marks, rooms, gemLevel, mapTier, areaLevel, maps, blighted, factions,
     ]);
   let searchedWith = $state("");
   let searchedWhole = "";
@@ -120,6 +171,7 @@
 
   async function searchSimple() {
     if (!item || !league) return;
+    if (waiting) { pendingSearch = true; return; }
     if (searching) { again = true; return; }
     searching = true;
     searchedWith = choices();
@@ -135,11 +187,12 @@
         mapStats: maps.filter((s) => s.checked).map((s) => ({ filter: s.filter, min: num(s.min) })),
         blight: blighted && item ? blight(item) : null,
         areaLevel: num(areaLevel),
+        factions: factions.filter((f) => f.checked).map((f) => f.id),
         game: game.current,
       });
       result = await invoke<TradeResult>("price_trade", { game: game.current, league, query });
     } catch (e) {
-      error = friendly(e);
+      failed(e);
     } finally {
       searching = false;
       searchAgain();
@@ -156,7 +209,7 @@
   async function loadRooms() {
     if (!item) return;
     const stats = await invoke<{ id: string; text: string }[]>("price_stats", { game: game.current, group: "pseudo" }).catch(() => []);
-    rooms = templeRooms(raw).open.map((name) => ({ name, id: roomFilter(name, stats), checked: VALUABLE_ROOMS.some((re) => re.test(name)) }));
+    rooms = templeRooms(text).open.map((name) => ({ name, id: roomFilter(name, stats), checked: VALUABLE_ROOMS.some((re) => re.test(name)) }));
   }
 
   function startSimple() {
@@ -172,14 +225,18 @@
     }
     if (isMap(item)) {
       if (item.mapTier !== null) mapTier = String(item.mapTier);
-      maps = mapStats(game.current, raw);
+      maps = mapStats(game.current, text);
       blighted = game.isPoe1 && blight(item) !== null;
+    }
+    if (isLogbook(item) && game.isPoe1) {
+      factions = logbookFactions(text).map((name) => ({ name, id: LOGBOOK_FACTIONS[name], checked: true }));
     }
   }
 
   async function search() {
     if (simple) return searchSimple();
     if (!info || !league) return;
+    if (waiting) { pendingSearch = true; return; }
     if (searching) { again = true; return; }
     searching = true;
     searchedWith = choices();
@@ -202,12 +259,12 @@
       const filtered = applyFilters(query, {
         pseudo: modsOn
           ? [
-              ...pseudo.filter((p) => p.checked).map((p) => ({ id: PSEUDO[p.key].id, min: num(p.min) })),
+              ...pseudo.filter((p) => p.checked).map((p) => ({ id: PSEUDO[p.key].id, min: num(p.min), max: num(p.max) })),
               ...(num(emptyPrefix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_prefix_mods", min: num(emptyPrefix) }] : []),
               ...(num(emptySuffix) !== null ? [{ id: "pseudo.pseudo_number_of_empty_suffix_mods", min: num(emptySuffix) }] : []),
             ]
           : [],
-        dps: modsOn ? dps.filter((d) => d.checked).map((d) => ({ key: d.key, min: num(d.min) })) : [],
+        dps: modsOn ? dps.filter((d) => d.checked).map((d) => ({ key: d.key, min: num(d.min), max: num(d.max) })) : [],
         marks: modsOn ? marks.filter((mk) => mk.checked) : [],
         game: game.current,
         itemLevel: useItemLevel ? num(itemLevel) : null,
@@ -218,10 +275,40 @@
       });
       result = await invoke<TradeResult>("price_trade", { game: game.current, league, query: filtered });
     } catch (e) {
-      error = friendly(e);
+      failed(e);
     } finally {
       searching = false;
       searchAgain();
+    }
+  }
+
+  /** The league's currency table from poe.ninja: its rates turn any listing into one currency. */
+  async function lookRates() {
+    if (!league) return;
+    try {
+      const table = await invoke<NinjaTable>("price_ninja", { game: game.current, league, kind: "exchange", category: "Currency" });
+      rates = { primary: table.primary, rates: table.rates };
+    } catch {
+      rates = null;
+    }
+  }
+
+  /** poeprices.info's estimate, for rares only, and only when the user turned it on. */
+  let predictedFor = "";
+  // Settings can arrive after the card opened.
+  $effect(() => {
+    if (overlay.settings?.pricePrediction && league && predictedFor !== league) void lookPrediction();
+  });
+  async function lookPrediction() {
+    const it = item;
+    predictedFor = league;
+    prediction = null;
+    if (!overlay.settings?.pricePrediction || !it || !league || it.rarity !== "Rare" || it.unidentified || isMap(it) || isLogbook(it)) return;
+    prediction = "loading";
+    try {
+      prediction = await invoke<Prediction>("price_predict", { league, text });
+    } catch {
+      prediction = null;
     }
   }
 
@@ -231,7 +318,18 @@
     result = null;
     void lookNinja();
     void lookBulk();
+    void lookRates();
+    void lookPrediction();
     if (info || simple) void search();
+  }
+
+  /** The mouse wheel nudges a number field: one step a notch, ten with Shift. */
+  function onWheel(e: WheelEvent) {
+    const input = e.target;
+    if (!(input instanceof HTMLInputElement) || !input.classList.contains("mono") || input.disabled) return;
+    e.preventDefault();
+    input.value = wheelStep(input.value, e.deltaY < 0, e.shiftKey);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   function close() {
@@ -256,7 +354,15 @@
       league = leagues.some((l) => l.id === saved) ? saved : (leagues[0]?.id ?? "Standard");
       void lookNinja();
       void lookBulk();
+      void lookRates();
+      void lookPrediction();
       if (!item) return;
+      // Unidentified uniques, logbooks and the like are searched by their base here.
+      if (item.unidentified || isLogbook(item)) {
+        startSimple();
+        void search();
+        return;
+      }
       if (isTemple(item)) {
         startSimple();
         await loadRooms();
@@ -272,23 +378,28 @@
       if (!["Currency", "Divination Card"].includes(item.rarity)) {
         try {
           info = await engine.buySimilarInfo({ raw });
-          ({ mods, defences } = defaultChoices(info));
-          dps = weaponChoices(info);
+          const rolls = info.mods.map((mod) => findAdvanced(adv, mod.lines)?.lines[0]?.rolls[0] ?? null);
+          ({ mods, defences } = defaultChoices(info, range, rolls));
+          dps = weaponChoices(info, range);
           quality = defaultQuality(item);
           marks = itemMarks(game.current, item);
           mutatedLines = info.mods.filter((mod) => mod.kinds?.includes("mutated")).flatMap((mod) => mod.lines.map(plain));
           if (mutatedLines.length) void lookNinja();
           // Crafted mods cost little to put back, so they are not searched at first. A Foulborn
           // unique's mutated mods are what it is priced by, so those are.
-          const tagged = info.mods.map((mod) => modTags(raw, mod));
+          const tagged = info.mods.map((mod) => modTags(text, mod));
           mods = mods.map((c, i) => {
             if (tagged[i].includes("crafted")) return { ...c, checked: false };
             if (tagged[i].includes("mutated") && info!.mods[i].searchable) return { ...c, checked: true };
             return c;
           });
-          // Awakened's default: totals for resistances and life, at 90% of the item's.
-          pseudo = info.unique ? [] : pseudoTotals(info).map((p) => ({ ...p, checked: true, min: String(Math.floor(p.total * 0.9)), max: "" }));
-          baseType = false;
+          // Awakened's default: totals for resistances and life, the roll range under the item's.
+          pseudo = info.unique ? [] : pseudoTotals(info).map((p) => ({ ...p, checked: true, min: String(rollMin(p.total, range)), max: "" }));
+          // As in Awakened PoE Trade: a rare is searched across its category until the base is
+          // clicked; a cluster jewel is its base (and item level) from the start.
+          const cluster = /Cluster Jewel$/.test(info.baseName ?? "");
+          baseType = cluster;
+          if (cluster) useItemLevel = true;
           itemLevel = info.itemLevel ? String(info.itemLevel) : "";
           listed = Math.max(1, info.listed.indexOf("Instant Buyout & In Person") + 1);
           corrupted = item.corrupted ? "yes" : "any";
@@ -305,11 +416,17 @@
   });
 </script>
 
-<div class="price">
+<div class="price" onwheel={onWheel}>
   <div class="head">
     <div class="title">
       <strong class="rarity {item?.rarity.toLowerCase()}">{item?.name ?? m.price_title()}</strong>
-      {#if item?.baseType}<span class="dim">{item.baseType}</span>{/if}
+      {#if info && !info.unique && info.baseName && info.category}
+        <!-- As in Awakened PoE Trade: one button that is the search's base, the category until clicked. -->
+        <button class="basebtn" class:exact={baseType || baseOnly} disabled={baseOnly} title={m.price_base_toggle_title()} onclick={() => (baseType = !baseType)}>
+          {baseType || baseOnly ? info.baseName : info.category}
+        </button>
+      {:else if item?.baseType}<span class="dim">{item.baseType}</span>{/if}
+      {#if item?.unidentified}<span class="dim small">{m.price_unidentified()}</span>{/if}
       {#if info?.itemLevel || item?.corrupted || item?.quality || foulborn}
         <span class="dim small">
           {#if info?.itemLevel}{m.price_item_level({ level: info.itemLevel })}{/if}
@@ -365,6 +482,19 @@
     <p class="dim small">{m.price_ninja_none()}</p>
   {/if}
 
+  {#if prediction === "loading"}
+    <p class="dim small">{m.price_predicted_loading()}</p>
+  {:else if prediction}
+    {@const p = prediction}
+    <div class="ninja">
+      <span class="label small">{m.price_predicted()}</span>
+      <div class="ninja-row">
+        <strong class="value">{formatListing(p.min, p.currency)}{p.max > p.min ? ` – ${formatListing(p.max, p.currency)}` : ""}</strong>
+        <span class="small" class:warn={p.confidence < 78} title={p.confidence < 78 ? m.price_confidence_low() : ""}>{m.price_confidence({ value: Math.round(p.confidence) })}</span>
+      </div>
+    </div>
+  {/if}
+
   {#if bulk === "loading"}
     <p class="dim small">{m.price_bulk_loading()}</p>
   {:else if bulk}
@@ -400,21 +530,21 @@
           <label class="mod pseudo" class:off={!p.checked}>
             <input type="checkbox" bind:checked={pseudo[i].checked} />
             <span class="small">{PSEUDO[p.key].label.replace("#", String(p.total))}<span class="tags"><span class="tag pseudo">pseudo</span></span></span>
-            <input class="input sm mono" bind:value={pseudo[i].min} aria-label={m.price_min()} />
+            <span class="minmax"><input class="input sm mono" bind:value={pseudo[i].min} aria-label={m.price_min()} /><input class="input sm mono" bind:value={pseudo[i].max} aria-label={m.price_max()} placeholder="max" /></span>
           </label>
         {/each}
         {#each dps as d, i (d.key)}
           <label class="mod" class:off={!d.checked}>
             <input type="checkbox" bind:checked={dps[i].checked} />
             <span class="small">{d.key === "pdps" ? m.price_pdps() : m.price_edps()} {d.value}{#if info.tradeQuality}<span class="tags"><span class="tag q20" title={m.price_q20_title()}>Q20</span></span>{/if}</span>
-            <input class="input sm mono" bind:value={dps[i].min} aria-label={m.price_min()} />
+            <span class="minmax"><input class="input sm mono" bind:value={dps[i].min} aria-label={m.price_min()} /><input class="input sm mono" bind:value={dps[i].max} aria-label={m.price_max()} placeholder="max" /></span>
           </label>
         {/each}
         {#each info.defences as d, i (`d${i}`)}
           <label class="mod" class:off={!defences[i].checked}>
             <input type="checkbox" bind:checked={defences[i].checked} />
             <span class="small">{d.label} {d.value}{#if info.tradeQuality}<span class="tags"><span class="tag q20" title={m.price_q20_title()}>Q20</span></span>{/if}</span>
-            <input class="input sm mono" bind:value={defences[i].min} aria-label={m.price_min()} />
+            <span class="minmax"><input class="input sm mono" bind:value={defences[i].min} aria-label={m.price_min()} /><input class="input sm mono" bind:value={defences[i].max} aria-label={m.price_max()} placeholder="max" /></span>
           </label>
         {/each}
         {#each info.mods as mod, i (`m${i}`)}
@@ -423,9 +553,12 @@
             <input type="checkbox" bind:checked={mods[i].checked} disabled={!mod.searchable || counted} />
             <span class="small">
               {mod.lines.map(plain).join(" / ")}{#if counted}<span class="dim">&nbsp;· {m.price_in_total()}</span>{/if}
-              {#if modTags(raw, mod).length}<span class="tags">{#each modTags(raw, mod) as tag (tag)}<span class="tag {tag}">{tag}</span>{/each}</span>{/if}
+              {#if modTags(text, mod).length || advFor[i]?.tier}<span class="tags">
+                {#if advFor[i]?.tier}{@const tier = advFor[i]!.tier!}<span class="tier" class:t1={tier === 1} class:t2={tier === 2} title={m.price_tier_title({ tier })}>T{tier}</span>{/if}
+                {#each modTags(text, mod) as tag (tag)}<span class="tag {tag}">{tag}</span>{/each}
+              </span>{/if}
             </span>
-            {#if mod.ranged && !counted}<input class="input sm mono" bind:value={mods[i].min} aria-label={m.price_min()} />{/if}
+            {#if mod.ranged && !counted}<span class="minmax"><input class="input sm mono" bind:value={mods[i].min} aria-label={m.price_min()} /><input class="input sm mono" bind:value={mods[i].max} aria-label={m.price_max()} placeholder="max" /></span>{/if}
           </label>
         {/each}
       </div>
@@ -464,7 +597,6 @@
       <div class="toggles small">
         {#if !info.unique}
           <label class="toggle" title={m.price_base_only_title()}><input type="checkbox" bind:checked={baseOnly} /> {m.price_base_only()}</label>
-          <label class="toggle" class:off={baseOnly}><input type="checkbox" checked={baseType || baseOnly} disabled={baseOnly} onchange={(e) => (baseType = (e.target as HTMLInputElement).checked)} /> {m.price_base_type()}</label>
         {/if}
         <label class="toggle">
           <input type="checkbox" bind:checked={useItemLevel} /> {m.price_ilvl()} ≥
@@ -472,7 +604,7 @@
         </label>
       </div>
       <div class="row">
-        <span class="small" class:dim={!outdated} class:warn={outdated}>{searching ? m.price_searching() : outdated ? m.price_outdated() : ""}</span>
+        <span class="small" class:dim={!outdated && !waiting} class:warn={outdated || waiting} title={waiting ? m.price_wait_title() : ""}>{searching ? m.price_searching() : waiting ? m.price_wait({ time: clock((waitUntil - now) / 1000) }) : outdated ? m.price_outdated() : ""}</span>
         {#if outdated}
           <!-- As in Awakened PoE Trade: moving onto Search is enough, no click needed. -->
           <button class="btn primary searchbtn" onclick={() => void search()} onmouseenter={() => void search()}>{m.price_search()}</button>
@@ -484,11 +616,12 @@
       {#if result}
         <div class="results" class:stale={outdated}>
         {#if result.listings.length}
-          <p class="dim small">{m.price_total({ count: result.total })}</p>
+          <p class="dim small">{spread ? m.price_spread({ count: result.total, ...spread }) : m.price_total({ count: result.total })}</p>
           <div class="listings">
-            {#each result.listings as l, i (i)}
-              <span class="mono">{formatListing(l.amount, l.currency)}</span>
-              <span class="dim small">{l.stack && l.stack > 1 ? `×${l.stack}` : ""}</span>
+            {#each rows as l, i (i)}
+              {@const conv = rates && l.currency !== rates.primary ? inPrimary(l.amount, l.currency, rates) : null}
+              <span class="mono">{formatListing(l.amount, l.currency)}{#if conv !== null && rates}<span class="dim small conv">{m.price_in_primary({ price: formatListing(conv, rates.primary) })}</span>{/if}</span>
+              <span class="dim small">{l.stack && l.stack > 1 ? `×${l.stack}` : l.times > 1 ? m.price_times({ count: l.times }) : ""}</span>
               <span class="dim small">{age(l.indexed)}</span>
             {/each}
           </div>
@@ -502,6 +635,16 @@
   {:else if simple && item}
     <div class="trade">
       <span class="label small">{m.price_trade()}</span>
+      {#if factions.length}
+        <div class="mods">
+          {#each factions as f, i (f.name)}
+            <label class="mod" class:off={!f.checked}>
+              <input type="checkbox" bind:checked={factions[i].checked} />
+              <span class="small">{f.name}<span class="tags"><span class="tag pseudo">{m.price_faction()}</span></span></span>
+            </label>
+          {/each}
+        </div>
+      {/if}
       {#if rooms.length}
         <div class="mods">
           {#each rooms as r, i (r.name)}
@@ -552,7 +695,7 @@
         </label>
       </div>
       <div class="row">
-        <span class="small" class:dim={!outdated} class:warn={outdated}>{searching ? m.price_searching() : outdated ? m.price_outdated() : ""}</span>
+        <span class="small" class:dim={!outdated && !waiting} class:warn={outdated || waiting} title={waiting ? m.price_wait_title() : ""}>{searching ? m.price_searching() : waiting ? m.price_wait({ time: clock((waitUntil - now) / 1000) }) : outdated ? m.price_outdated() : ""}</span>
         {#if outdated}
           <!-- As in Awakened PoE Trade: moving onto Search is enough, no click needed. -->
           <button class="btn primary searchbtn" onclick={() => void search()} onmouseenter={() => void search()}>{m.price_search()}</button>
@@ -564,11 +707,12 @@
       {#if result}
         <div class="results" class:stale={outdated}>
         {#if result.listings.length}
-          <p class="dim small">{m.price_total({ count: result.total })}</p>
+          <p class="dim small">{spread ? m.price_spread({ count: result.total, ...spread }) : m.price_total({ count: result.total })}</p>
           <div class="listings">
-            {#each result.listings as l, i (i)}
-              <span class="mono">{formatListing(l.amount, l.currency)}</span>
-              <span class="dim small">{l.stack && l.stack > 1 ? `×${l.stack}` : ""}</span>
+            {#each rows as l, i (i)}
+              {@const conv = rates && l.currency !== rates.primary ? inPrimary(l.amount, l.currency, rates) : null}
+              <span class="mono">{formatListing(l.amount, l.currency)}{#if conv !== null && rates}<span class="dim small conv">{m.price_in_primary({ price: formatListing(conv, rates.primary) })}</span>{/if}</span>
+              <span class="dim small">{l.stack && l.stack > 1 ? `×${l.stack}` : l.times > 1 ? m.price_times({ count: l.times }) : ""}</span>
               <span class="dim small">{age(l.indexed)}</span>
             {/each}
           </div>
@@ -604,6 +748,18 @@
   .mod.off span { color: var(--fg-3); }
   .mod.dead { opacity: 0.55; cursor: default; }
   .mod .input { width: 52px; }
+  .minmax { display: inline-flex; gap: 3px; }
+  .minmax .input { width: 46px; }
+  .basebtn { align-self: flex-start; margin-top: 1px; padding: 1px 7px; border: 1px dashed var(--line-2); border-radius: 4px;
+    background: transparent; color: var(--fg-2); font: inherit; font-size: 12px; cursor: pointer; }
+  .basebtn:hover:not(:disabled) { color: var(--fg-0); border-color: var(--fg-3); }
+  .basebtn.exact { border-style: solid; color: var(--fg-0); border-color: var(--brand); }
+  .basebtn:disabled { cursor: default; }
+  /* Awakened PoE Trade's tier marks: T1 filled, T2 outlined, the rest grey. */
+  .tier { font-size: 10px; line-height: 1; padding: 2px 4px; border-radius: 3px; font-weight: 600; color: #111; background: oklch(55% 0.01 80); }
+  .tier.t1 { background: oklch(83% 0.16 90); color: #111; }
+  .tier.t2 { background: transparent; color: oklch(83% 0.16 90); box-shadow: inset 0 0 0 1px oklch(83% 0.16 90); }
+  .conv { margin-left: 6px; }
   .filters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 8px; }
   .filters label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .filters .input, .filters .select { width: 100%; box-sizing: border-box; }

@@ -84,9 +84,9 @@
   --shadow-tooltip: 0 20px 70px rgba(0, 0, 0, 0.9), 0 6px 24px rgba(0, 0, 0, 0.75);
 }
 
-/* The forge's iron: plates, recessed wells, hot figures and the primary
-   (hot metal) button. Every theme gets them from its own grounds and accent;
-   the Forge (dark) theme sets the riveted iron below. */
+/* The forge's pieces: panels, sunk windows, hot figures and the primary
+   button. Every theme gets them from its own grounds and accent; the Forge
+   (dark) theme sets its iron and ember below. All flat: hairlines, no bevels. */
 :where(:root) {
   --gain: var(--ok);
   --loss: var(--bad);
@@ -118,27 +118,27 @@
   --gain: #f3b25a;
   --loss: #9fb8d9;
   --hot: #f3b25a;
-  --hot-glow: 0 0 10px rgb(232 131 74 / 0.35);
+  --hot-glow: none;
   --heat: #e8834a;
-  --page: repeating-linear-gradient(90deg, rgb(255 240 220 / 0.014) 0 1px, transparent 1px 4px), #0d0c0b;
-  --plate-bg: linear-gradient(180deg, #1c1914, #14120f);
-  --plate-edge: #050404;
-  --plate-shadow: inset 0 1px 0 #3d352a, inset 0 -1px 0 #0a0908, 0 2px 0 #050404, 0 8px 22px rgb(0 0 0 / 0.45);
-  --rivet: #6b5d49;
-  --rivet-hole: #14110d;
-  --well-bg: #090807;
-  --well-edge: #000000;
-  --well-shadow: inset 0 2px 7px rgb(0 0 0 / 0.85), 0 1px 0 #2e2820;
-  --btn-bg: linear-gradient(180deg, #26211a, #1a1713);
-  --btn-edge: #050404;
-  --btn-shadow: inset 0 1px 0 #43392c, 0 1px 0 #050404;
-  --primary-bg: linear-gradient(180deg, #f2a64e, #c25f26);
+  --page: #0d0c0b;
+  --plate-bg: #14120f;
+  --plate-edge: #2b2620;
+  --plate-shadow: none;
+  --rivet: transparent;
+  --rivet-hole: transparent;
+  --well-bg: #0a0908;
+  --well-edge: #2b2620;
+  --well-shadow: none;
+  --btn-bg: #1c1914;
+  --btn-edge: #3a3227;
+  --btn-shadow: none;
+  --primary-bg: #e8893f;
   --primary-fg: #1d0c03;
-  --primary-edge: #4a1f08;
-  --primary-hover-bg: linear-gradient(180deg, #ffb860, #d46a2c);
-  --primary-shadow: inset 0 1px 0 #ffd29a, 0 0 14px rgb(232 131 74 / 0.35);
-  --bar-bg: linear-gradient(180deg, #221e18, #15130f);
-  --bar-shadow: inset 0 1px 0 #3d352a;
+  --primary-edge: #e8893f;
+  --primary-hover-bg: #f29a52;
+  --primary-shadow: none;
+  --bar-bg: #15130f;
+  --bar-shadow: none;
 }
 
 /* Light: warm paper, warm ink. Chrome sits a step darker than the work area.
@@ -797,15 +797,16 @@ kbd {
   box-shadow: var(--plate-shadow);
 }
 
-/* Forge pieces. A plate is riveted iron; a well is a window sunk into it; a tag
-   is the stamped label on a plate; hot is the figure that matters most. */
+/* Forge pieces. A plate is a flat panel; a well is a darker window in it; a tag
+   is the stamped label on a plate; hot is the figure that matters most. The
+   rivet layers stay transparent unless a theme sets --rivet. */
 .fg-plate {
   position: relative;
   background:
-    radial-gradient(circle at 9px 9px, var(--rivet) 0 1.6px, var(--rivet-hole) 2.6px, transparent 3.2px),
-    radial-gradient(circle at calc(100% - 9px) 9px, var(--rivet) 0 1.6px, var(--rivet-hole) 2.6px, transparent 3.2px),
-    radial-gradient(circle at 9px calc(100% - 9px), var(--rivet) 0 1.6px, var(--rivet-hole) 2.6px, transparent 3.2px),
-    radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), var(--rivet) 0 1.6px, var(--rivet-hole) 2.6px, transparent 3.2px),
+    radial-gradient(circle at 6px 6px, var(--rivet) 0 1.2px, var(--rivet-hole) 2px, transparent 2.6px),
+    radial-gradient(circle at calc(100% - 6px) 6px, var(--rivet) 0 1.2px, var(--rivet-hole) 2px, transparent 2.6px),
+    radial-gradient(circle at 6px calc(100% - 6px), var(--rivet) 0 1.2px, var(--rivet-hole) 2px, transparent 2.6px),
+    radial-gradient(circle at calc(100% - 6px) calc(100% - 6px), var(--rivet) 0 1.2px, var(--rivet-hole) 2px, transparent 2.6px),
     var(--plate-bg);
   border: 1px solid var(--plate-edge);
   box-shadow: var(--plate-shadow);
@@ -817,7 +818,7 @@ kbd {
 }
 .fg-tag {
   display: inline-block;
-  padding: 3px 9px 2px;
+  padding: 2px 7px 1px;
   background: var(--well-bg);
   border: 1px solid var(--line-0);
   box-shadow: var(--well-shadow);

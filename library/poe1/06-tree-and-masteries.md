@@ -181,7 +181,7 @@ points and 2 bloodline points** (62 characters). Farrul's Huntleader (18) is the
   (timeless jewel types and seed ranges), `Classes/ItemsTab.lua` and `Classes/NotableDBControl.lua`
   (anointing), `Modules/CalcSetup.lua` (granted passives), `Modules/Build.lua` (ascendancy point warnings),
   `changelog.txt` (Abyss timeless jewels).
-- PoB Forge: `crates/pob-engine/lua/bridge.lua` (`select_class`, `list_classes`, `node_info` mastery effects,
+- PoE Forge: `crates/pob-engine/lua/bridge.lua` (`select_class`, `list_classes`, `node_info` mastery effects,
   `path_plan`, `suggest_unique_jewels`, timeless search), `src-tauri/src/tools.rs`,
   `src/lib/views/TreeView.svelte` (Timeless button).
 - Our PoE1 corpus: `corpus/poe1/stages.jsonl`, `tree-nodes.json`, `index.json` and `xml/*.xml` (keystones,

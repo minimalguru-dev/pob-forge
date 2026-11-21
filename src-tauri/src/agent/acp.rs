@@ -251,7 +251,7 @@ pub(crate) async fn sign_in(spec: &Spec, launch: &Launch, cwd: &std::path::Path,
                     "terminal": false,
                     "session": { "configOptions": { "boolean": {} } },
                 },
-                "clientInfo": { "name": "pob-forge", "title": "PoB Forge", "version": env!("CARGO_PKG_VERSION") },
+                "clientInfo": { "name": "pob-forge", "title": "PoE Forge", "version": env!("CARGO_PKG_VERSION") },
             }),
             Some(Duration::from_secs(180)),
         )
@@ -307,7 +307,7 @@ async fn open(spec: &Spec, launch: &Launch, cwd: &std::path::Path, mcp: Value, a
                     "terminal": false,
                     "session": { "configOptions": { "boolean": {} } },
                 },
-                "clientInfo": { "name": "pob-forge", "title": "PoB Forge", "version": env!("CARGO_PKG_VERSION") },
+                "clientInfo": { "name": "pob-forge", "title": "PoE Forge", "version": env!("CARGO_PKG_VERSION") },
             }),
             Some(Duration::from_secs(180)),
         )

@@ -1,13 +1,13 @@
 # In-game overlay (preview)
 
 A small panel that sits over Path of Exile while you play. It shows what an item or a map you copy does to the
-build open in PoB Forge. Every number comes from Path of Building's own calculation.
+build open in PoE Forge. Every number comes from Path of Building's own calculation.
 
 ## Turn it on
 
 1. Open Settings (Ctrl+,) → **Overlay** and turn on **Turn on the overlay**.
 2. Play in **Windowed Fullscreen**. A window cannot sit over the game in exclusive fullscreen.
-3. Open your build in PoB Forge. The overlay compares everything against the open build.
+3. Open your build in PoE Forge. The overlay compares everything against the open build.
 
 | Shortcut | Default | What it does |
 |---|---|---|
@@ -40,8 +40,9 @@ speed, with the best slot first. It also warns when the item needs a higher leve
 has. This is PoB's own "Equipping this item" calculation (`item_evaluate`); the build does not change. Jewels that
 rebuild the passive tree (Timeless, Impossible Escape and similar) are not scored; compare them in the Items tab.
 
-**Price check (Windows).** Hover an item in the game and press **Ctrl+D**. The app presses Ctrl+C once so the
-game copies the item, then opens a price card just left of the inventory panel. Click the card to change its filters
+**Price check (Windows).** Hover an item in the game and press **Ctrl+D**. The app presses Ctrl+Alt+C once, the
+game's advanced copy, which also gives each mod's tier and roll range, then opens a price card just left of the
+inventory panel. Click the card to change its filters
 (no Ctrl needed); Enter searches again, Esc or ✕ closes it and gives focus back to the game.
 
 - **poe.ninja** prices currency, fragments, scarabs, essences, divination cards, gems (by level, quality and
@@ -51,10 +52,18 @@ game copies the item, then opens a price card just left of the inventory panel. 
   exchange, per unit, in chaos (PoE1) or exalted orbs (PoE2).
 - **Trade site.** For equipment, PoB's own Buy Similar search (the same one as the Items tab) is built from the item:
   a unique by name, a rare by its item class, its resistances and life as the trade site's pseudo totals ("+#% total
-  Elemental Resistance", "+# total maximum Life") and its other searchable mods, all at 90% of the item's values.
+  Elemental Resistance", "+# total maximum Life") and its other searchable mods. Each starts **Roll range** percent
+  under the item's value (Settings → Overlay, 10 by default, as in Awakened PoE Trade), never under the roll's own
+  range; on a unique the step is a share of that range. Each value has a minimum and a maximum field; the mouse wheel
+  moves a field by one step (a tenth or hundredth on decimals), ten with Shift. Explicit mods show their tier from the
+  advanced copy: **T1** filled, **T2** outlined, lower tiers grey.
   Mods counted in a ticked total are not searched on their own. Item level, quality, links (PoE1), corruption, the
-  listing kind, the currency the price is in, and a minimum of empty prefixes or suffixes are filters too. Same base
-  type and item level are toggles, both off at first; item level starts at the copied item's own.
+  listing kind, the currency the price is in, and a minimum of empty prefixes or suffixes are filters too. As in
+  Awakened PoE Trade the base under the item's name is a button: a rare is searched across its category ("Ring")
+  until you click it to search its exact base ("Two-Stone Ring"), and back. Cluster jewels start on their exact base
+  with item level on, and their passive count and jewel sockets are searched at exactly the item's number. Item level
+  is a toggle, off at first, starting at the copied item's own. Anoints and other enchants are searched as PoB reads
+  them.
   **Quality** works as on the trade site, which counts armour, evasion, energy shield and weapon DPS as if the item
   had 20% quality: an item below 20% is priced at 20% (rows marked **Q20**), and weapons get physical and elemental
   DPS rows, the larger one ticked on a rare. The quality filter starts at the item's own quality on flasks,
@@ -65,15 +74,25 @@ game copies the item, then opens a price card just left of the inventory panel. 
   items, Fractured, Synthesised, Mirrored and Split (PoE2: Fractured, Mirrored, Sanctified) are ticked filters.
   Maps and waystones also offer their quantity, rarity and pack figures (unticked), and blighted or blight-ravaged maps
   search their own market.
-  Every change to a filter searches again by itself, half a second after the last one. **Base only** is a switch:
-  while it is on the mod filters are left out (and kept for when it goes off) and the base type alone is searched. The ten cheapest listings show with their age; **Open on the trade site** opens
+  As in Awakened PoE Trade, changing a mod or a value does not search: the results dim and **Search** appears,
+  which searches as soon as the mouse moves onto it. Choices that make it another search altogether (Base only, the
+  base button, the listing kind, the currency, the league) search at once. **Base only** is a switch: while it is on
+  the mod filters are left out (and kept for when it goes off) and the base type alone is searched. The twenty
+  cheapest listings show with their age; a seller's listings at one price, or the same seller again within two rows,
+  fold into one row with a count (×3). Listings in another currency also show their value in the league's main
+  currency from poe.ninja's rates (≈ 20 c), and the count line gives the cheapest and the median. **Open on the trade site** opens
   the full search on pathofexile.com in your browser. Under each mod are its tags, as in Awakened PoE Trade: pseudo,
   implicit, enchant, crafted, fractured, eldritch (Searing Exarch and Eater of Worlds) and what else the game marks.
 - **Temples, gems, maps and the rest.** A Chronicle of Atzoatl is searched by its open rooms, with Locus of
   Corruption, Doryani's Institute and the Apex ticked; gems by level, quality and corruption; maps and waystones by
-  tier. Anything else Buy Similar cannot read is searched by its name and base.
+  tier. Unidentified uniques are searched by their base, as unique and unidentified. Expedition logbooks (PoE1)
+  are searched by their factions, all ticked, and area level. Anything else Buy Similar cannot read is searched by
+  its name and base.
+- **poeprices.info** (off by default, Settings → Overlay): rares get poeprices.info's estimate, a range with how sure
+  it is (marked when under 78%). Turning it on sends the item's text to poeprices.info.
 - Searches are anonymous: no sign-in and no cookies. pathofexile.com allows about five searches every ten seconds;
-  when a limit is reached the card says how long to wait instead of sending more.
+  when a limit is reached the card counts down ("Wait 0:24") instead of sending more, and a search asked for in the
+  meantime runs once the wait is over.
 - **Wiki** and **poedb** open the item's pages in your browser.
 - Ctrl+D is taken only while the game window has focus, so it keeps working in other programs. Change it or turn the
   price check off in Settings → Overlay.
@@ -110,7 +129,7 @@ ring I just copied better?" works without pasting anything.
   landed (usually a few tens of milliseconds). Between presses it is not read at all, so nothing else you copy is
   seen. It acts only on item text: text that starts with `Item Class:`, or a `Rarity:` line followed by the game's
   `--------` section breaks. Other text is ignored and never logged or stored. A trade site's Copy button is a click,
-  not a key press, so use Ctrl+C there instead. Ctrl+D reads the clipboard once, after its own Ctrl+C.
+  not a key press, so use Ctrl+C there instead. Ctrl+D reads the clipboard once, after its own Ctrl+Alt+C.
 - The last five items it acted on are kept in memory for the assistant and forgotten when the app closes.
 - It reads the game's own log file, which the game writes for players.
 - It never reads the game's memory or injects anything into the game, and it never clicks.
@@ -119,8 +138,8 @@ ring I just copied better?" works without pasting anything.
     Enter, the command, Enter. Commands must start with `/` and be one line. A macro waits for Ctrl, Shift and Alt to
     be released so the typing cannot turn into shortcuts. If the chat box is already open with text in it, the first
     Enter sends that text, as it would in Awakened PoE Trade.
-  - **Price check** (Ctrl+D): one Ctrl+C, so the game copies the item under the cursor. If you are still holding
-    Ctrl, only C is sent.
+  - **Price check** (Ctrl+D): one Ctrl+Alt+C, so the game copies the item under the cursor with its mod tiers and
+    roll ranges. Keys you are still holding (Ctrl from Ctrl+D) are not sent again.
   These keys are taken only while the game is in front, so they keep their usual meaning in every other program.
 - A price check sends the item's search to pathofexile.com's trade site and asks poe.ninja for its price tables.
   Nothing else leaves your computer.
@@ -135,7 +154,7 @@ isn't affiliated with or endorsed by Grinding Gear Games in any way.
 - The price check needs Windows: other systems have no way here to have the game copy an item.
 - The trade search reads equipment, jewels and flasks through PoB's item parser. Currency, gems and cards are priced
   by poe.ninja only.
-- The item and map cards use the build open in PoB Forge, not your live character. Keep it in step.
+- The item and map cards use the build open in PoE Forge, not your live character. Keep it in step.
 
 ## Development
 

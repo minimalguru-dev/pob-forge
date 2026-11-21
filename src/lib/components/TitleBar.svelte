@@ -66,7 +66,7 @@
   // the build name lives in the sidebar; the OS title carries it for the taskbar
   $effect(() => {
     const name = build.info?.name;
-    win.setTitle(name ? `${name}${build.info?.unsaved ? " •" : ""} — PoB Forge` : "PoB Forge").catch(() => {});
+    win.setTitle(name ? `${name}${build.info?.unsaved ? " •" : ""} — PoE Forge` : "PoE Forge").catch(() => {});
   });
 
   onMount(() => {
@@ -149,10 +149,10 @@
 
 <header class="titlebar" data-tauri-drag-region>
   <div class="brand" data-tauri-drag-region>
-    <svg class="hammer" width="24" height="20" viewBox="0 0 26 22" aria-hidden="true"
+    <svg class="hammer" width="20" height="17" viewBox="0 0 26 22" aria-hidden="true"
       ><path d="M2 6h15l5-3h2v6h-2l-4 2v2h-4v5h5v3H6v-3h5v-5H8C5 13 2 10 2 6z" fill="currentColor" /></svg
     >
-    <span class="wordmark" data-tauri-drag-region>PoB Forge</span>
+    <span class="wordmark" data-tauri-drag-region>PoE Forge</span>
     <button
       class="sb"
       class:on={!ui.sidebarCollapsed}
@@ -282,7 +282,7 @@
   }
   .wordmark {
     font-family: var(--font-head);
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
     letter-spacing: 0.1em;
     color: var(--brand);
@@ -351,7 +351,7 @@
     gap: 10px;
     min-width: 0;
     max-width: 300px;
-    padding: 4px 11px;
+    padding: 2px 9px;
   }
   .bname {
     min-width: 0;
@@ -385,7 +385,7 @@
   /* Tabs are stamped words; the open one is pressed into the bar and glows at its foot. */
   .tab {
     flex: none;
-    height: 28px;
+    height: 24px;
     white-space: nowrap;
     appearance: none;
     border: 1px solid transparent;
@@ -395,7 +395,7 @@
     font-weight: 600;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    padding: 0 11px;
+    padding: 0 9px;
     cursor: var(--cursor-pointer, pointer);
   }
   .tabs.compact .tab {
@@ -445,8 +445,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 26px;
-    min-width: 180px;
+    height: 24px;
+    min-width: 170px;
     padding: 0 6px 0 10px;
     color: var(--fg-3);
     font: inherit;
@@ -464,8 +464,8 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 26px;
-    padding: 0 16px;
+    height: 24px;
+    padding: 0 14px;
     border: 1px solid var(--primary-edge);
     border-radius: var(--r-1);
     background: var(--primary-bg);

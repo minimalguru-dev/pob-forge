@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "PoB Forge",
+  "productName": "PoE Forge",
   "version": "0.5.8",
   "identifier": "dev.minimalguru.pobforge",
   "build": {
@@ -22,7 +22,7 @@
   "app": {
     "windows": [
       {
-        "title": "PoB Forge",
+        "title": "PoE Forge",
         "width": 1520,
         "height": 960,
         "minWidth": 1100,

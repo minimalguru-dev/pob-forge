@@ -274,7 +274,7 @@
         <div class="hwell fg-well">
         <span class="hlabel">{stripPobText(statLabelText(headRow.lhs)).replace(/:\s*$/, "")}</span>
         <span class="hvalue fg-hot"><PobText text={headRow.rhs} defaultColor="var(--hot)" /></span>
-        {#if headDelta}<span class="hdelta" class:gain={headDelta.startsWith("+")} class:loss={headDelta.startsWith("−")}>{m.sheet_since_save({ delta: headDelta })}</span>{/if}
+        {#if headDelta}<span class="hdelta" class:gain={headDelta.startsWith("+")} class:loss={headDelta.startsWith("−")} title={m.sheet_since_save_title()}>{headDelta}</span>{/if}
         </div>
       {/if}
       <!-- The name is in the header; renaming and loadouts stay in this menu. -->
@@ -446,21 +446,21 @@
   }
   .headline {
     flex: none;
-    margin: 10px 10px 0;
-    padding: 14px 14px 14px;
+    margin: 6px 6px 0;
+    padding: 7px;
     font-variant-numeric: tabular-nums;
   }
   .hwell {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 9px 12px 10px;
+    padding: 5px 9px 6px;
     margin-right: 26px;
   }
   .hmenu {
     position: absolute;
-    top: 12px;
-    right: 8px;
+    top: 7px;
+    right: 5px;
   }
   .hlabel {
     font-size: var(--fs-2xs);
@@ -471,9 +471,9 @@
   }
   .hvalue {
     font-family: var(--font-mono);
-    font-size: 26px;
+    font-size: 22px;
     font-weight: 600;
-    line-height: 1.2;
+    line-height: 1.15;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -495,8 +495,8 @@
   }
   /* Each group is a riveted plate; its name is the stamped tag on it. */
   .stats :global(.cardhead) {
-    min-height: 38px;
-    padding: 0 10px 0 16px;
+    min-height: 28px;
+    padding: 0 8px 0 10px;
     background: transparent;
     border-bottom-color: transparent;
     color: var(--fg-2);
@@ -507,7 +507,7 @@
   }
   .stats :global(.cardname) {
     flex: 0 0 auto;
-    padding: 3px 9px 2px;
+    padding: 2px 7px 1px;
     background: var(--well-bg);
     border: 1px solid var(--line-0);
     box-shadow: var(--well-shadow);
@@ -543,7 +543,7 @@
     color: var(--fg-0);
   }
   .charwrap {
-    padding: 10px 10px 0;
+    padding: 6px 6px 0;
   }
   .stats {
     position: relative;
@@ -551,8 +551,8 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 10px 10px 16px;
+    gap: 6px;
+    padding: 6px 6px 12px;
     scrollbar-width: none;
     transition: opacity 120ms;
   }
@@ -601,7 +601,7 @@
     color: var(--warn);
   }
   .cardbody {
-    padding: 2px 16px 14px;
+    padding: 0 10px 8px;
   }
   .stats.busy {
     opacity: 0.6;
@@ -627,7 +627,7 @@
     justify-content: space-between;
     align-items: baseline;
     gap: 10px;
-    padding: 2px 0;
+    padding: 1px 0;
     border-bottom: 1px dashed var(--line-0);
     font-size: var(--fs-sm);
     line-height: 18px;
@@ -664,7 +664,7 @@
   .srow.hasbd:hover {
     background: var(--bg-2);
     margin: 0 -6px;
-    padding: 2px 6px;
+    padding: 1px 6px;
   }
   .bdpop {
     position: fixed;

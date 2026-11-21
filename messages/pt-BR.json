@@ -205,7 +205,7 @@
 
   "app_safe_mode": "Modo de segurança: a última build não foi reaberta",
   "app_recover_title": "Reabrir a última build?",
-  "app_recover_message": "O PoB Forge fechou de forma inesperada enquanto {build} estava aberta. Se ao reabrir o aplicativo fechar de novo, escolha Começar vazio; a build será então salva na sua pasta de builds como uma cópia recuperada.",
+  "app_recover_message": "O PoE Forge fechou de forma inesperada enquanto {build} estava aberta. Se ao reabrir o aplicativo fechar de novo, escolha Começar vazio; a build será então salva na sua pasta de builds como uma cópia recuperada.",
   "app_recover_build_fallback": "uma build",
   "app_recover_ok": "Reabrir",
   "app_recover_cancel": "Começar vazio",

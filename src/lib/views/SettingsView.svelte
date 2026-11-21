@@ -704,6 +704,14 @@
                 <span>{m.overlay_price_key()}<span class="hint">{m.overlay_price_key_hint()}</span></span>
                 <input class="input mono" value={o.priceKey} disabled={overlay.saving} onchange={(e) => overlay.update({ priceKey: (e.target as HTMLInputElement).value.trim() })} />
               </label>
+              <label class="opt">
+                <span>{m.overlay_stat_range()}<span class="hint">{m.overlay_stat_range_hint()}</span></span>
+                <input class="input mono" type="number" min="0" max="50" value={o.statRange} disabled={overlay.saving} onchange={(e) => overlay.update({ statRange: Math.max(0, Math.min(50, Math.round(Number((e.target as HTMLInputElement).value) || 0))) })} />
+              </label>
+              <label class="opt">
+                <span>{m.overlay_price_prediction()}<span class="hint">{m.overlay_price_prediction_hint()}</span></span>
+                <input class="switch" type="checkbox" role="switch" checked={o.pricePrediction} disabled={overlay.saving} onchange={(e) => overlay.update({ pricePrediction: (e.target as HTMLInputElement).checked })} />
+              </label>
             </div>
           {/if}
           {#if o.prices}

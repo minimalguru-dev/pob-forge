@@ -12,12 +12,12 @@ the same as every other platform, so a Path of Building install shares the same 
 
 Until the app is signed with a Developer ID and notarized, Gatekeeper blocks it on first launch. On
 macOS 15 Sequoia or later, open System Settings, go to **Privacy & Security**, scroll to the note that
-PoB Forge was blocked and click **Open Anyway**, then confirm. macOS 11 to 14 still let you right-click
+PoE Forge was blocked and click **Open Anyway**, then confirm. macOS 11 to 14 still let you right-click
 the app and choose **Open**, which shows the same warning with an Open button. Clearing the quarantine
 flag works on any version:
 
 ```sh
-xattr -dr com.apple.quarantine "/Applications/PoB Forge.app"
+xattr -dr com.apple.quarantine "/Applications/PoE Forge.app"
 ```
 
 ## Building it
@@ -73,7 +73,7 @@ bundle is sealed, and a downloaded copy fails Gatekeeper as "damaged" instead of
 above. To check a build:
 
 ```sh
-codesign --verify --deep --strict -vv "target/release/bundle/macos/PoB Forge.app"
+codesign --verify --deep --strict -vv "target/release/bundle/macos/PoE Forge.app"
 ```
 
 Hardened runtime is off. An ad-hoc build with it on is killed at launch, before the engine boots, and

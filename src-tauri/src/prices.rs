@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::game::Game;
 
 const HOST: &str = "https://poe.ninja/poe1/api";
-const UA: &str = concat!("PoB Forge/", env!("CARGO_PKG_VERSION"));
+const UA: &str = concat!("PoE Forge/", env!("CARGO_PKG_VERSION"));
 const KEEP: Duration = Duration::from_secs(30 * 60);
 
 /// The category lists one rarity is looked up in, in order: (endpoint, type).

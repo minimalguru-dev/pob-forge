@@ -13,7 +13,7 @@ use crate::tools::{JsonObject, ToolDef, ToolError};
 
 pub(crate) const SITES: [&str; 6] = ["poe2wiki.net", "poe2db.tw", "pathofexile2.com", "poewiki.net", "poedb.tw", "pathofexile.com"];
 
-const UA: &str = "Path of Building (PoB Forge)";
+const UA: &str = "Path of Building (PoE Forge)";
 const MAX_BYTES: usize = 4 << 20;
 const PART: usize = 4500;
 const EXCERPT: usize = 700;

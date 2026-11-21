@@ -8110,7 +8110,7 @@ M.export_game_build = function(p)
 		end
 		return { files = out }
 	end
-	local buildName = build.buildName or "PoB Forge build"
+	local buildName = build.buildName or "PoE Forge build"
 	local names = mode ~= "current" and M.get_loadouts().loadouts or {}
 	if #names < 2 then return result({ file(buildName, snapshot()) }) end
 

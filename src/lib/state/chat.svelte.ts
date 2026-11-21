@@ -1671,7 +1671,7 @@ class ChatStore {
   diagnostics(): string {
     const e = this.entry();
     const lines = [
-      `PoB Forge assistant, ${e.at}`,
+      `PoE Forge assistant, ${e.at}`,
       `provider: ${e.provider}   model: ${e.model}${e.effort ? `   effort: ${e.effort}` : ""}`,
       e.error ? `error: ${e.error}` : "",
       e.errorDetail && e.errorDetail !== e.error ? `detail: ${e.errorDetail}` : "",

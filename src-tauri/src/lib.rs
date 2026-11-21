@@ -404,12 +404,22 @@ fn app_paths(state: State<'_, AppState>) -> AppPaths {
     }
 }
 
-/// PoB Forge's own builds folder: Documents\PoB Forge\Builds\PoE1 or PoE2.
+/// PoE Forge's own builds folder: Documents\PoE Forge\Builds\PoE1 or PoE2. Until that folder
+/// exists, one left by the app under its old name (Documents\PoB Forge) is used as it is,
+/// so builds saved before the rename stay where the user put them.
 pub(crate) fn builds_dir(user_dir: &Path, game: Game) -> PathBuf {
-    user_dir.join("PoB Forge").join("Builds").join(match game {
-        Game::Poe1 => "PoE1",
-        Game::Poe2 => "PoE2",
-    })
+    let named = |app: &str| {
+        user_dir.join(app).join("Builds").join(match game {
+            Game::Poe1 => "PoE1",
+            Game::Poe2 => "PoE2",
+        })
+    };
+    let (current, old) = (named("PoE Forge"), named("PoB Forge"));
+    if !current.exists() && old.is_dir() {
+        old
+    } else {
+        current
+    }
 }
 
 /// Path of Building's own builds folder for the game, listed beside ours so nothing saved there
@@ -1390,6 +1400,7 @@ pub fn run() {
             price::price_trade,
             price::price_ninja,
             price::price_bulk,
+            price::price_predict,
             price::price_stats,
             ninja_characters,
             ninja_character_code,
@@ -1518,9 +1529,24 @@ mod builds_dir_tests {
     #[test]
     fn our_folder_is_separate_from_path_of_buildings() {
         let docs = Path::new("C:/Users/x/Documents");
-        assert_eq!(builds_dir(docs, Game::Poe1), docs.join("PoB Forge").join("Builds").join("PoE1"));
-        assert_eq!(builds_dir(docs, Game::Poe2), docs.join("PoB Forge").join("Builds").join("PoE2"));
+        assert_eq!(builds_dir(docs, Game::Poe1), docs.join("PoE Forge").join("Builds").join("PoE1"));
+        assert_eq!(builds_dir(docs, Game::Poe2), docs.join("PoE Forge").join("Builds").join("PoE2"));
         assert_eq!(pob_builds_dir(docs, Game::Poe2), docs.join("Path of Building (PoE2)").join("Builds"));
+    }
+
+    #[test]
+    fn builds_from_before_the_rename_stay_in_their_folder() {
+        let docs = std::env::temp_dir().join(format!("poe-forge-rename-{}", std::process::id()));
+        let old = docs.join("PoB Forge").join("Builds").join("PoE1");
+        std::fs::create_dir_all(&old).unwrap();
+        assert_eq!(builds_dir(&docs, Game::Poe1), old);
+        // No old folder for PoE2: the new name.
+        assert_eq!(builds_dir(&docs, Game::Poe2), docs.join("PoE Forge").join("Builds").join("PoE2"));
+        // Once the new folder exists it wins.
+        let new = docs.join("PoE Forge").join("Builds").join("PoE1");
+        std::fs::create_dir_all(&new).unwrap();
+        assert_eq!(builds_dir(&docs, Game::Poe1), new);
+        let _ = std::fs::remove_dir_all(&docs);
     }
 
     #[test]

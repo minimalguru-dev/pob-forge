@@ -142,7 +142,7 @@ fn log_files(app: &AppHandle) -> Vec<PathBuf> {
 }
 
 pub fn write_report(app: &AppHandle, path: &str, facts: &[(&str, String)], secrets: &[String]) -> Result<(), String> {
-    let mut out = String::from("PoB Forge diagnostics\n\n");
+    let mut out = String::from("PoE Forge diagnostics\n\n");
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     out.push_str(&format!("{:<24}{}\n", "Written (unix time)", secs));
     for (label, value) in facts {

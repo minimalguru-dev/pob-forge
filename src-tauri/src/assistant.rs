@@ -38,7 +38,7 @@ pub async fn assistant_window_open(app: AppHandle, bounds: Option<Bounds>) -> Re
         return Ok(());
     }
     let builder = WebviewWindowBuilder::new(&app, LABEL, WebviewUrl::default())
-        .title("PoB Forge Assistant")
+        .title("PoE Forge Assistant")
         .decorations(false)
         .min_inner_size(360.0, 420.0)
         .background_color(tauri::window::Color(11, 11, 12, 255));

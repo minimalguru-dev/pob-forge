@@ -91,7 +91,7 @@ bun run i18n          # compile messages into src/lib/paraglide (bun run check a
 
 To translate, copy a key and its English text into your language's file and replace the text. Keep
 every `{placeholder}` exactly as it appears in English; the compiler rejects a message that invents
-one. Leave proper nouns alone: Path of Building, PoB Forge, Discord, Wraeclast and key names such as
+one. Leave proper nouns alone: Path of Building, PoE Forge, Discord, Wraeclast and key names such as
 `Ctrl+B`. Where a string names something from the game, prefer the wording the game itself uses in
 that language.
 
@@ -158,7 +158,7 @@ With the app running and its MCP server on, `bun run mcp` calls the same tools a
 
 ## Where builds are stored
 
-PoB Forge saves to `Documents/PoB Forge/Builds/PoE1` or `PoE2` (or the folder chosen on the Builds tab), and also
+PoE Forge saves to `Documents/PoE Forge/Builds/PoE1` or `PoE2` (or the folder chosen on the Builds tab), and also
 lists Path of Building's `Documents/Path of Building[ (PoE2)]/Builds` under a "Path of Building" group. Moving,
 renaming and deleting work in its own folder only.
 

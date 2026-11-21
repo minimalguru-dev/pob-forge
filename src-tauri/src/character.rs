@@ -1,6 +1,6 @@
 const HOST: &str = "https://www.pathofexile.com/";
 /// pathofexile.com's profile pages only answer user agents starting with "Path of Building".
-const UA: &str = "Path of Building (PoB Forge)";
+const UA: &str = "Path of Building (PoE Forge)";
 
 pub(crate) fn query_value(s: &str) -> String {
     let mut out = String::with_capacity(s.len());

@@ -45,7 +45,8 @@ pub fn clipboard_sequence() -> Option<u32> {
     imp::clipboard_sequence()
 }
 
-/// Taps Ctrl+C. Only called right after the price shortcut, while the game has focus.
+/// Taps Ctrl+Alt+C, the game's advanced copy (mod tiers and roll ranges). Only called right
+/// after the price shortcut, while the game has focus; one copy per key press.
 pub fn send_copy() -> bool {
     imp::send_copy()
 }
@@ -59,7 +60,7 @@ pub(crate) fn is_game(class: &str, title: &str) -> bool {
 #[cfg(windows)]
 mod imp {
     use super::Handle;
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC, VK_CONTROL};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC, VK_CONTROL, VK_MENU};
     use windows_sys::Win32::Foundation::RECT;
     use windows_sys::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow, GetWindowRect, GetWindowTextW, SetForegroundWindow};
 
@@ -129,16 +130,23 @@ mod imp {
     }
 
     /// Down, a short hold, then up: a game that reads keys once a frame still sees the press.
-    /// When the user still holds Ctrl (from Ctrl+D) only C is sent: a sent Ctrl-up would make
+    /// When the user still holds Ctrl (from Ctrl+D) it is not sent: a sent Ctrl-up would make
     /// Windows report Ctrl as released while the finger is still on it, and the card holds on Ctrl.
+    /// Alt is the same when the shortcut itself has Alt in it.
     pub fn send_copy() -> bool {
         let ctrl = !ctrl_held().unwrap_or(false);
-        let mut down = vec![key(VK_C, false)];
+        let alt = !down(VK_MENU as i32);
+        let mut down_keys = vec![key(VK_C, false)];
         let mut up = vec![key(VK_C, true)];
+        if alt {
+            down_keys.insert(0, key(VK_MENU, false));
+            up.push(key(VK_MENU, true));
+        }
         if ctrl {
-            down.insert(0, key(VK_CONTROL, false));
+            down_keys.insert(0, key(VK_CONTROL, false));
             up.push(key(VK_CONTROL, true));
         }
+        let down = down_keys;
         let pressed = send(&down);
         std::thread::sleep(std::time::Duration::from_millis(30));
         pressed && send(&up)

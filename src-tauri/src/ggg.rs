@@ -327,12 +327,12 @@ async fn answer(mut stream: TcpStream, csrf: &str) -> Option<Result<String, Stri
     let target = request.strip_prefix("GET ")?.split(' ').next()?;
     let outcome = callback(target, csrf);
     let (status, text) = match &outcome {
-        Some(Ok(_)) => ("200 OK", "Signed in. You can close this tab and go back to PoB Forge."),
-        Some(Err(_)) => ("200 OK", "The sign-in did not finish. Go back to PoB Forge and try again."),
+        Some(Ok(_)) => ("200 OK", "Signed in. You can close this tab and go back to PoE Forge."),
+        Some(Err(_)) => ("200 OK", "The sign-in did not finish. Go back to PoE Forge and try again."),
         None => ("404 Not Found", "Not found."),
     };
     let body = format!(
-        "<!doctype html><meta charset=\"utf-8\"><title>PoB Forge</title>\
+        "<!doctype html><meta charset=\"utf-8\"><title>PoE Forge</title>\
          <body style=\"margin:0;height:100vh;display:grid;place-items:center;background:#111;color:#ddd;font:15px system-ui,sans-serif\"><p>{text}</p>"
     );
     let reply = format!(

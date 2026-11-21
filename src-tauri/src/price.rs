@@ -16,8 +16,11 @@ const TRADE: &str = "https://www.pathofexile.com/";
 const NINJA: &str = "https://poe.ninja/";
 /// poe.ninja refreshes its tables about every five minutes.
 const NINJA_TTL: Duration = Duration::from_secs(10 * 60);
-/// Listings fetched per search: the cheapest ten, as the trade site shows first.
-const FETCH: usize = 10;
+/// Listings fetched per search: the cheapest twenty, as Awakened PoE Trade shows, in the
+/// trade site's batches of ten.
+const FETCH: usize = 20;
+const FETCH_BATCH: usize = 10;
+const POEPRICES: &str = "https://www.poeprices.info/api";
 
 /// The only pathofexile.com addresses an anonymous price check may call; the first matching
 /// prefix is also the rate-limit bucket.
@@ -74,7 +77,7 @@ fn client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
-            .user_agent(format!("PoB Forge/{} (contact: {})", env!("CARGO_PKG_VERSION"), crate::brand::ggg_contact()))
+            .user_agent(format!("PoE Forge/{} (contact: {})", env!("CARGO_PKG_VERSION"), crate::brand::ggg_contact()))
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(20))
             .build()
@@ -122,6 +125,11 @@ pub struct TradeResult {
     listings: Vec<Listing>,
 }
 
+/// The card counts this down ("wait 0:24") instead of showing a sentence.
+fn limited(seconds: u64) -> String {
+    format!("rate-limited:{seconds}")
+}
+
 fn error_message(body: &str) -> Option<String> {
     let v: Value = serde_json::from_str(body).ok()?;
     Some(v.pointer("/error/message")?.as_str()?.to_string())
@@ -130,7 +138,7 @@ fn error_message(body: &str) -> Option<String> {
 async fn send(state: &PriceState, request: reqwest::RequestBuilder, url: &str) -> Result<String, String> {
     let policy = anon_policy(url)?;
     if let Some(wait) = state.wait(policy) {
-        return Err(crate::ggg::limited(wait));
+        return Err(limited(wait));
     }
     let resp = request.send().await.map_err(|e| format!("pathofexile.com: {e}"))?;
     let wait = crate::ggg::wait_from(resp.headers());
@@ -139,7 +147,7 @@ async fn send(state: &PriceState, request: reqwest::RequestBuilder, url: &str) -
     let body = resp.text().await.map_err(|e| format!("pathofexile.com: {e}"))?;
     match status {
         200..=299 => Ok(body),
-        429 => Err(crate::ggg::limited(wait.max(1))),
+        429 => Err(limited(wait.max(1))),
         _ => Err(error_message(&body).map_or_else(|| format!("pathofexile.com returned HTTP {status}"), |m| format!("pathofexile.com: {m}"))),
     }
 }
@@ -211,10 +219,9 @@ pub async fn price_trade(state: State<'_, PriceState>, game: Game, league: Strin
     site_path.push(&id);
     let url = trade_url(&site_path)?.to_string();
 
-    let listings = if ids.is_empty() {
-        Vec::new()
-    } else {
-        let joined = ids.join(",");
+    let mut listings_out = Vec::new();
+    for batch in ids.chunks(FETCH_BATCH) {
+        let joined = batch.join(",");
         let mut fetch_path: Vec<&str> = api.to_vec();
         fetch_path.push("fetch");
         fetch_path.push(&joined);
@@ -223,9 +230,61 @@ pub async fn price_trade(state: State<'_, PriceState>, game: Game, league: Strin
         if let Some(realm) = realm(game) {
             fetch.query_pairs_mut().append_pair("realm", realm);
         }
-        listings(&send(&state, client().get(fetch.clone()), fetch.as_str()).await?)?
-    };
-    Ok(TradeResult { total, url, listings })
+        match send(&state, client().get(fetch.clone()), fetch.as_str()).await {
+            Ok(body) => listings_out.extend(listings(&body)?),
+            // The first batch is the answer; a later one held back by the limit is left out.
+            Err(e) if listings_out.is_empty() => return Err(e),
+            Err(_) => break,
+        }
+    }
+    Ok(TradeResult { total, url, listings: listings_out })
+}
+
+/// poeprices.info's estimate for a rare: a range, the currency, and how sure it is.
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Prediction {
+    min: f64,
+    max: f64,
+    currency: String,
+    /// 0-100.
+    confidence: f64,
+}
+
+fn prediction(body: &str) -> Result<Prediction, String> {
+    let v: Value = serde_json::from_str(body).map_err(|_| "poeprices.info sent a reply this app could not read".to_string())?;
+    if v["error"].as_i64().unwrap_or(0) != 0 {
+        let why = v["error_msg"].as_str().unwrap_or("no estimate for this item");
+        return Err(format!("poeprices.info: {why}"));
+    }
+    Ok(Prediction {
+        min: v["min"].as_f64().ok_or("poeprices.info sent no price")?,
+        max: v["max"].as_f64().unwrap_or(0.0),
+        currency: v["currency"].as_str().unwrap_or("chaos").to_string(),
+        confidence: v["pred_confidence_score"].as_f64().unwrap_or(0.0),
+    })
+}
+
+/// Sends a rare's copied text to poeprices.info for an estimate. The card only calls this when
+/// the user turned the estimate on in Settings.
+#[tauri::command]
+pub async fn price_predict(league: String, text: String) -> Result<Prediction, String> {
+    use base64::Engine as _;
+    if text.len() > 16 * 1024 || league.trim().is_empty() {
+        return Err("nothing to estimate".into());
+    }
+    let mut url = reqwest::Url::parse(POEPRICES).map_err(|e| e.to_string())?;
+    url.query_pairs_mut()
+        .append_pair("l", league.trim())
+        .append_pair("i", &base64::engine::general_purpose::STANDARD.encode(text.as_bytes()))
+        .append_pair("s", "poe-forge");
+    let resp = client().get(url).send().await.map_err(|e| format!("poeprices.info: {e}"))?;
+    let status = resp.status().as_u16();
+    let body = resp.text().await.map_err(|e| format!("poeprices.info: {e}"))?;
+    if !(200..=299).contains(&status) {
+        return Err(format!("poeprices.info returned HTTP {status}"));
+    }
+    prediction(&body)
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -504,6 +563,18 @@ mod tests {
         assert_eq!((t.primary.as_str(), t.rates.get("divine")), ("chaos", Some(&0.004)));
         assert_eq!(t.lines.len(), 1);
         assert_eq!((t.lines[0].name.as_str(), t.lines[0].value), ("Divine Orb", 250.0));
+    }
+
+    #[test]
+    fn a_held_back_search_says_how_long_to_wait() {
+        assert_eq!(super::limited(24), "rate-limited:24");
+    }
+
+    #[test]
+    fn reads_a_poeprices_estimate() {
+        let p = super::prediction(r#"{"min":12.3,"max":20.1,"currency":"chaos","pred_confidence_score":81.5,"error":0}"#).unwrap();
+        assert_eq!((p.min, p.max, p.currency.as_str(), p.confidence), (12.3, 20.1, "chaos", 81.5));
+        assert!(super::prediction(r#"{"error":1,"error_msg":"unknown item"}"#).unwrap_err().contains("unknown item"));
     }
 
     #[test]

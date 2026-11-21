@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest something PoB Forge should do.
+description: Suggest something PoE Forge should do.
 labels: ["enhancement"]
 body:
   - type: markdown

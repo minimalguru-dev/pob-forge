@@ -33,7 +33,7 @@ fn refusal(method: &str) -> Value {
     } else if method.contains("elicitation") {
         json!({ "result": { "action": "decline", "content": null } })
     } else {
-        json!({ "error": { "code": -32601, "message": "not supported by PoB Forge" } })
+        json!({ "error": { "code": -32601, "message": "not supported by PoE Forge" } })
     }
 }
 
@@ -51,7 +51,7 @@ async fn start(launch: &Launch, overrides: &[String], env: &[(&str, &str)], cwd:
         .request(
             "initialize",
             json!({
-                "clientInfo": { "name": "pob_forge", "title": "PoB Forge", "version": env!("CARGO_PKG_VERSION") },
+                "clientInfo": { "name": "pob_forge", "title": "PoE Forge", "version": env!("CARGO_PKG_VERSION") },
                 "capabilities": { "experimentalApi": true },
             }),
         )

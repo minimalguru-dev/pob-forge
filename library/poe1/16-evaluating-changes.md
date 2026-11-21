@@ -147,5 +147,5 @@ says why.
   `Data/Skills/*.lua` (per-level requirements: Boneshatter and Brutality at gem
   level 20 need character level 70), `TreeData/3_29` (+10 attribute small
   passives), `Data/ModExplicit.lua` (Strength9 "of the Gods" and Strength10 "of the Godslayer").
-- PoB Forge: `crates/pob-engine/lua/bridge.lua` (`build_summary`,
+- PoE Forge: `crates/pob-engine/lua/bridge.lua` (`build_summary`,
   `sanity_check`).

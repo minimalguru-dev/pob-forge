@@ -4,7 +4,7 @@ const ANSWER = `
 
 ## How to answer
 
-You are in the assistant panel of PoB Forge. The user is looking at the build
+You are in the assistant panel of PoE Forge. The user is looking at the build
 and watching it change as you work. The panel shows every tool call and its
 result, so you never need to narrate them.
 

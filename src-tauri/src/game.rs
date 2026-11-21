@@ -139,6 +139,10 @@ pub struct OverlaySettings {
     /// Price check on `price_key`, taken only while the game has focus (Windows).
     pub price_check: bool,
     pub price_key: String,
+    /// How far under a mod's roll its starting minimum sits, in percent (Awakened's default: 10).
+    pub stat_range: u32,
+    /// Ask poeprices.info for an estimate on rares. Sends the item's text there; off by default.
+    pub price_prediction: bool,
     /// Keys that type one chat command into the game, while the game is in front.
     pub macros: Vec<Macro>,
 }
@@ -170,6 +174,8 @@ impl Default for OverlaySettings {
             card_seconds: 15,
             price_check: true,
             price_key: "Ctrl+D".into(),
+            stat_range: 10,
+            price_prediction: false,
             macros: vec![Macro { key: "F5".into(), command: "/hideout".into() }],
         }
     }

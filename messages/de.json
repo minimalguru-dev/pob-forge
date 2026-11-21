@@ -205,7 +205,7 @@
 
   "app_safe_mode": "Abgesicherter Modus: Der letzte Build wurde nicht wieder geöffnet",
   "app_recover_title": "Letzten Build wieder öffnen?",
-  "app_recover_message": "PoB Forge wurde unerwartet beendet, während {build} geöffnet war. Stürzt die App beim erneuten Öffnen wieder ab, wählen Sie Leer starten; der Build wird dann als wiederhergestellte Kopie in Ihrem Build-Ordner gespeichert.",
+  "app_recover_message": "PoE Forge wurde unerwartet beendet, während {build} geöffnet war. Stürzt die App beim erneuten Öffnen wieder ab, wählen Sie Leer starten; der Build wird dann als wiederhergestellte Kopie in Ihrem Build-Ordner gespeichert.",
   "app_recover_build_fallback": "ein Build",
   "app_recover_ok": "Wieder öffnen",
   "app_recover_cancel": "Leer starten",

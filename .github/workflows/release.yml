@@ -48,7 +48,7 @@ jobs:
           id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n 1)
           if [ -z "$id" ]; then
             notes=$(bun scripts/release-notes.mjs "$TAG")
-            id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f name="PoB Forge $TAG" -f body="$notes" -F draft=true -F prerelease=false --jq .id)
+            id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f name="PoE Forge $TAG" -f body="$notes" -F draft=true -F prerelease=false --jq .id)
           fi
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
@@ -170,7 +170,7 @@ jobs:
       # A bundle whose resources are not sealed opens as "damaged" once downloaded.
       - name: Verify the macOS signature
         if: runner.os == 'macOS'
-        run: codesign --verify --deep --strict -vv "target/release/bundle/macos/PoB Forge.app"
+        run: codesign --verify --deep --strict -vv "target/release/bundle/macos/PoE Forge.app"
 
   # Matrix jobs each rewrite latest.json and can drop a platform when two finish together.
   updater-manifest:

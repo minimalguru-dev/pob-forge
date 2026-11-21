@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in PoB Forge does not work as it should.
+description: Something in PoE Forge does not work as it should.
 labels: ["bug"]
 body:
   - type: markdown
@@ -9,7 +9,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: PoB Forge version
+      label: PoE Forge version
       description: Open Settings (the gear in the title bar). The version is under Updates.
       placeholder: "0.2.19"
     validations:
@@ -70,7 +70,7 @@ body:
     attributes:
       label: Does Path of Building show the same number?
       description: >-
-        Only for a wrong number. PoB Forge runs Path of Building's own calculations, so a number that is
+        Only for a wrong number. PoE Forge runs Path of Building's own calculations, so a number that is
         also wrong in Path of Building needs a report to Path of Building instead.
       options:
         - The problem is not a wrong number

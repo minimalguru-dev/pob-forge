@@ -352,7 +352,7 @@ impl Proc {
     async fn refuse(&mut self, msg: &Value) -> Result<(), String> {
         let id = msg["request_id"].clone();
         let reply = match msg["request"]["subtype"].as_str() {
-            Some("can_use_tool") => json!({ "subtype": "success", "request_id": id, "response": { "behavior": "deny", "message": "Not available in PoB Forge." } }),
+            Some("can_use_tool") => json!({ "subtype": "success", "request_id": id, "response": { "behavior": "deny", "message": "Not available in PoE Forge." } }),
             Some("elicitation") => json!({ "subtype": "success", "request_id": id, "response": { "action": "decline" } }),
             _ => json!({ "subtype": "error", "request_id": id, "error": "not supported" }),
         };

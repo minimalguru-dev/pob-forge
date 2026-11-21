@@ -14,12 +14,9 @@
   const canUndo = $derived(build.view === "tree" && build.busy === 0);
 </script>
 
+{#if shown.length}
 <footer class="ledger" aria-label={m.ledger_title()}>
-  <span class="fg-tag">{m.ledger_title()}</span>
   <div class="list">
-    {#if shown.length === 0}
-      <span class="none">{m.ledger_none()}</span>
-    {:else}
       {#each shown as e (e.id)}
         {@const dps = formatPct(e.dps)}
         {@const ehp = formatPct(e.ehp)}
@@ -30,28 +27,26 @@
           {#if !dps && !ehp}<span class="flat">±0</span>{/if}
         </span>
       {/each}
-    {/if}
   </div>
-  {#if ledger.entries.length}
     <span class="sum">
       {m.ledger_count({ count: ledger.entries.length })}
       · {#if dpsTotal}<span class={tone(dpsTotal)}>{dpsTotal} DPS</span>{:else}{m.ledger_same({ stat: "DPS" })}{/if}
       · {#if ehpTotal}<span class={tone(ehpTotal)}>{ehpTotal} EHP</span>{:else}{m.ledger_same({ stat: "EHP" })}{/if}
     </span>
-  {/if}
   {#if build.view === "tree"}
     <button class="btn sm" disabled={!canUndo} title={m.ledger_undo_title()} onclick={() => void build.undo()}>{m.ledger_undo()}</button>
   {/if}
 </footer>
+{/if}
 
 <style>
   .ledger {
     flex: none;
     display: flex;
     align-items: center;
-    gap: 16px;
-    min-height: 38px;
-    padding: 5px 16px;
+    gap: 12px;
+    min-height: 30px;
+    padding: 3px 12px;
     border-top: 1px solid var(--plate-edge);
     background: var(--bar-bg);
     box-shadow: var(--bar-shadow);
@@ -72,7 +67,6 @@
     display: flex;
     gap: 6px;
   }
-  .none,
   .flat {
     color: var(--fg-4);
   }

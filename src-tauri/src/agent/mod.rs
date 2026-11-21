@@ -519,7 +519,7 @@ pub async fn agent_sign_in(app: AppHandle, provider: String) -> Result<(), Strin
 pub async fn agent_terminal(app: AppHandle, provider: String, action: String) -> Result<String, String> {
     let cli = Cli::from_id(&provider).ok_or_else(|| format!("unknown provider {provider}"))?;
     let path = which::search_path();
-    let title = format!("PoB Forge: {} {}", cli.label(), if action == "install" { "install" } else { "sign-in" });
+    let title = format!("PoE Forge: {} {}", cli.label(), if action == "install" { "install" } else { "sign-in" });
     if action == "install" {
         let cmd = cli.install_command().ok_or_else(|| format!("{} is installed from the app", cli.label()))?;
         terminal::open(&title, cmd, cmd, &path)?;
