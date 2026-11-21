@@ -22,31 +22,33 @@
 .scope-dark {
   color-scheme: dark;
 
-  --bg-0: oklch(13.6% 0.003 70);
-  --bg-1: oklch(15.4% 0.005 70);
-  --bg-2: oklch(18.0% 0.008 72);
-  --bg-3: oklch(21.0% 0.010 72);
-  --bg-hover: oklch(22.8% 0.012 72);
-  --bg-active: oklch(25.6% 0.014 74);
+  /* Instrument: cool graphite, hairlines, figures in white. Orange marks a gain
+     and the one primary action, blue a loss. */
+  --bg-0: #0b0c0d;
+  --bg-1: #0e1012;
+  --bg-2: #121416;
+  --bg-3: #171a1d;
+  --bg-hover: #1c2024;
+  --bg-active: #23282c;
 
-  --line-0: oklch(21.5% 0.010 70);
-  --line-1: oklch(26.0% 0.013 70);
-  --line-2: oklch(31.5% 0.018 72);
+  --line-0: #1f2326;
+  --line-1: #2a2f33;
+  --line-2: #3a4146;
 
-  --fg-0: oklch(93.0% 0.012 80);
+  --fg-0: #eef1f4;
   /* The contrast control lifts fg-1..4 from the ramp toward fg-0, so the ramp
      holds the unlifted end and fg-1..4 are whatever the control resolved to. */
-  --ramp-1: oklch(85.5% 0.015 80);
-  --ramp-2: oklch(66.0% 0.017 72);
-  --ramp-3: oklch(60.0% 0.017 70);
-  --ramp-4: oklch(46.0% 0.015 70);
+  --ramp-1: #c4ccd3;
+  --ramp-2: #a3acb4;
+  --ramp-3: #8a939b;
+  --ramp-4: #5f676e;
   --fg-1: var(--ramp-1);
   --fg-2: var(--ramp-2);
   --fg-3: var(--ramp-3);
   --fg-4: var(--ramp-4);
 
-  --focus: oklch(78.0% 0.090 85);
-  --brand: oklch(74.5% 0.085 85);
+  --focus: #f0a24a;
+  --brand: #f0a24a;
   --ok: oklch(78.4% 0.145 152);
   --warn: oklch(79.0% 0.130 79);
   --bad: oklch(68.8% 0.166 22);
@@ -81,6 +83,24 @@
   --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.55);
   --shadow-modal: 0 12px 40px rgba(0, 0, 0, 0.5);
   --shadow-tooltip: 0 20px 70px rgba(0, 0, 0, 0.9), 0 6px 24px rgba(0, 0, 0, 0.75);
+}
+
+/* A gain, a loss and the Save button. Every theme takes its own good, bad and
+   accent; the Instrument (dark) theme sets its orange and blue below. */
+:where(:root) {
+  --gain: var(--ok);
+  --loss: var(--bad);
+  --save-bg: var(--accent);
+  --save-fg: var(--accent-fg);
+  --save-hover: var(--primary-hover);
+}
+:root[data-theme="dark"],
+.scope-dark {
+  --gain: #f0a24a;
+  --loss: #5fa8e8;
+  --save-bg: #f0a24a;
+  --save-fg: #1a1005;
+  --save-hover: #ffb867;
 }
 
 /* Light: warm paper, warm ink. Chrome sits a step darker than the work area.
@@ -380,10 +400,14 @@
 }
 
 :root {
-  /* Geist carries Latin and Cyrillic only; the rest cover Japanese, Korean and Thai. */
+  /* Inter and JetBrains Mono carry Latin, Greek and Cyrillic; the rest cover Japanese, Korean and Thai. */
   --font-cjk: "Yu Gothic UI", "Meiryo", "Malgun Gothic", "Leelawadee UI", "Noto Sans CJK JP", "Noto Sans Thai", "Hiragino Sans", "Apple SD Gothic Neo", "Thonburi";
-  --font-ui: "Geist Variable", ui-sans-serif, system-ui, "Segoe UI", var(--font-cjk), sans-serif;
-  --font-mono: "Geist Mono Variable", ui-monospace, "Cascadia Mono", Consolas, var(--font-cjk), monospace;
+  --font-ui: "Inter Variable", ui-sans-serif, system-ui, "Segoe UI", var(--font-cjk), sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", Consolas, var(--font-cjk), monospace;
+  /* The wordmark and section heads. */
+  --font-head: "Space Grotesk Variable", var(--font-ui);
+  /* Section labels on the stat sheet and panels. */
+  --label-track: 0.12em;
 
   --fs-2xs: 10px;
   --fs-xs: 11px;

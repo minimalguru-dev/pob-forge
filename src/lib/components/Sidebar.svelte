@@ -15,6 +15,7 @@
   import { statLabelText } from "$lib/pob-labels";
   import { parsePobText, stripPobText } from "$lib/pobtext";
   import { m } from "$lib/paraglide/messages";
+  import { ledger, statValue, formatPct, DPS_STATS } from "$lib/state/ledger.svelte";
 
   const COLLAPSED_KEY = "pob-forge:stats-collapsed";
   let collapsed = $state<Set<string>>(new Set());
@@ -128,6 +129,26 @@
 
   const info = $derived(build.info);
   const side = $derived(build.sidebar);
+  /** The stat sheet opens on the build's headline damage, large, with its change since the last save. */
+  const headRow = $derived.by(() => {
+    const rows = (side?.rows ?? []).filter((r) => r.stat && r.rhs && r.actor !== "minion");
+    for (const s of DPS_STATS) {
+      const r = rows.find((x) => x.stat === s);
+      if (r) return r;
+    }
+    return null;
+  });
+  const headDelta = $derived(headRow ? formatPct(ledger.sinceSave(headRow.actor, headRow.stat!, statValue(headRow.rhs))) : "");
+
+  /** A row's change since the last save, coloured by whether it helps the build. */
+  function rowDelta(r: { stat: string | null; rhs: string | null; actor: "player" | "minion" | null }): { text: string; tone: string } | null {
+    if (!r.stat) return null;
+    const pct = ledger.sinceSave(r.actor, r.stat, statValue(r.rhs));
+    const text = formatPct(pct);
+    if (!text || pct === null) return null;
+    const better = pct > 0 === ledger.higherIsBetter(r.stat);
+    return { text, tone: better ? "gain" : "loss" };
+  }
   const sections = $derived(side ? groupSidebar(side.rows) : []);
   // loadouts: PoB's named tree+items+skills+config combos
   let loadouts = $state<{ loadouts: string[]; active: string | null }>({ loadouts: [], active: null });
@@ -248,32 +269,30 @@
 
 <aside class="sidebar">
   {#if info}
+    <section class="headline" aria-live="polite">
+      {#if headRow}
+        <span class="hlabel">{stripPobText(statLabelText(headRow.lhs)).replace(/:\s*$/, "")}</span>
+        <span class="hvalue"><PobText text={headRow.rhs} defaultColor="var(--fg-0)" /></span>
+        {#if headDelta}<span class="hdelta" class:gain={headDelta.startsWith("+")} class:loss={headDelta.startsWith("−")}>{m.sheet_since_save({ delta: headDelta })}</span>{/if}
+      {/if}
+      <!-- The name is in the header; renaming and loadouts stay in this menu. -->
+      <span class="hmenu"><MoreMenu label={m.sidebar_build_menu()} align="end" items={buildMenu} /></span>
+    </section>
+    {#if nameEdit !== null || loadouts.loadouts.length}
     <section class="head">
-      <div class="namerow">
-        {#if nameEdit !== null}
-          <!-- svelte-ignore a11y_autofocus -->
-          <input
-            class="input"
-            bind:value={nameEdit}
-            autofocus
-            onblur={commitName}
-            onkeydown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-              if (e.key === "Escape") (nameEdit = null);
-            }}
-          />
-        {:else}
-          <button
-            class="bname"
-            onclick={() => (nameEdit = info?.name ?? "")}
-            title={(info.file ? `${info.file}\n` : m.sidebar_not_saved()) + m.sidebar_rename_title()}
-          >
-            <span class="bn">{info.name}</span>
-            {#if info.unsaved}<span class="unsaved" title={m.sidebar_unsaved()}>●</span>{/if}
-          </button>
-        {/if}
-        <MoreMenu label={m.sidebar_build_menu()} align="end" items={buildMenu} />
-      </div>
+      {#if nameEdit !== null}
+        <!-- svelte-ignore a11y_autofocus -->
+        <input
+          class="input"
+          bind:value={nameEdit}
+          autofocus
+          onblur={commitName}
+          onkeydown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") (nameEdit = null);
+          }}
+        />
+      {/if}
       {#if loadouts.loadouts.length}
         {#if loEdit}
           <!-- svelte-ignore a11y_autofocus -->
@@ -305,6 +324,7 @@
         {/if}
       {/if}
     </section>
+    {/if}
     <div class="charwrap">
       <SkillSwitcher />
     </div>
@@ -390,6 +410,7 @@
         >
           <span class="k"><PobText text={statLabelText(r.lhs).replace(/:\s*$/, "")} defaultColor="var(--fg-1)" /></span>
           <span class="svalue">
+            {#if rowDelta(r)}{@const d = rowDelta(r)!}<span class="delta {d.tone}">{d.text}</span>{/if}
             <span class="v num"><PobText text={r.rhs} /></span>
             {#if pinned}<span class="pinmark" title={m.sidebar_breakdown_pinned()}><Icon name="push-pin" size={11} /></span>{/if}
           </span>
@@ -417,24 +438,81 @@
     display: flex;
     flex-direction: column;
     background: var(--bg-1);
+    font-variant-numeric: tabular-nums;
     border-right: 1px solid var(--line-0);
     min-height: 0;
   }
-  .head {
-    padding: 10px 12px 8px;
+  .headline {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 2px;
+    min-height: 44px;
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--line-0);
+    font-variant-numeric: tabular-nums;
   }
-  .namerow {
+  .hmenu {
+    position: absolute;
+    top: 10px;
+    right: 8px;
+  }
+  .hlabel {
+    font-size: var(--fs-2xs);
+    font-weight: 500;
+    letter-spacing: var(--label-track);
+    text-transform: uppercase;
+    color: var(--fg-3);
+  }
+  .hvalue {
+    font-family: var(--font-mono);
+    font-size: 26px;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--fg-0);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hdelta {
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    color: var(--fg-3);
+  }
+  .gain {
+    color: var(--gain);
+  }
+  .loss {
+    color: var(--loss);
+  }
+  .delta {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+  }
+  /* Group heads read as labels on a sheet, not as cards. */
+  .stats :global(.cardhead) {
+    min-height: 28px;
+    background: transparent;
+    border-bottom-color: transparent;
+    color: var(--fg-3);
+  }
+  .stats :global(.cardhead:hover) {
+    background: transparent;
+    color: var(--fg-0);
+  }
+  .stats :global(.cardname) {
+    font-size: var(--fs-2xs);
+    font-weight: 500;
+    letter-spacing: var(--label-track);
+  }
+  .stats :global(.cardsum) {
+    font-family: var(--font-mono);
+  }
+  .head {
+    padding: 8px 12px 8px;
     display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-  }
-  .namerow .bname,
-  .namerow .input {
-    flex: 1;
+    flex-direction: column;
+    gap: 2px;
   }
   .loadsel {
     align-self: flex-start;
@@ -450,37 +528,8 @@
     color: var(--fg-0);
   }
   .charwrap {
-    padding: 0 6px 8px;
+    padding: 8px 6px;
     border-bottom: 1px solid var(--line-0);
-  }
-  .bname {
-    appearance: none;
-    border: 0;
-    background: none;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    cursor: text;
-    text-align: left;
-  }
-  .bname:hover .bn {
-    color: var(--focus);
-  }
-  .bn {
-    font-family: var(--font-display);
-    font-size: 17px;
-    color: var(--fg-0);
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .unsaved {
-    color: var(--brand);
-    font-size: 10px;
-    flex: 0 0 auto;
   }
   .stats {
     position: relative;
@@ -587,6 +636,8 @@
   .srow .v {
     white-space: nowrap;
     color: var(--fg-0);
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
   }
   .svalue {
     flex: none;

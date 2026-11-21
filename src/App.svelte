@@ -4,6 +4,7 @@
   import TitleBar from "$lib/components/TitleBar.svelte";
   import Sidebar from "$lib/components/Sidebar.svelte";
   import StatusBar from "$lib/components/StatusBar.svelte";
+  import ChangeLedger from "$lib/components/ChangeLedger.svelte";
   import DownloadToast from "$lib/components/DownloadToast.svelte";
   import TreeView from "$lib/views/TreeView.svelte";
   import StatStrip from "$lib/components/StatStrip.svelte";
@@ -150,6 +151,7 @@
     </main>
     {#if chat.open && !chat.poppedOut && !appOptions.open && status?.state === "ready"}<ChatPanel />{/if}
   </div>
+  {#if build.loaded && status?.state === "ready" && !appOptions.open && build.view !== "regex" && build.view !== "import"}<ChangeLedger />{/if}
   <StatusBar {status} {paths} />
   <DownloadToast />
   <ConfirmModal />

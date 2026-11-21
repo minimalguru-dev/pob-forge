@@ -208,6 +208,7 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Ispravak:** pogođene linije popravljene; skripte s backslashevima pišu se Write alatom pa pokreću Bunom.
 - **Prevencija:** nikad heredoc za kod s regexima ili escape sekvencama; nakon zapisa grep za `\d`/`\s` u izmijenjenim linijama.
 - **Validacija:** `bun test scripts` 34 pass.
+- **Ponovilo se 2026-11-21:** `bun -e '…'` u Bash alatu s template literalom: `/:\\s*$/` završio je u Sidebar.svelte kao `/:s*$/`. Isti uzrok (escape kroz Bash), isto pravilo: skripte s backslashevima samo kao datoteka (Write) pa `bun datoteka.ts`, ili Edit alat. Nađeno grepom za `replace(/` nakon izmjene; ispravljeno Edit alatom, `bun run check` 0/0.
 
 ## 2026-11-20 — Ctrl+D ponekad otvorio i compare karticu
 

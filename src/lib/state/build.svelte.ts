@@ -1,3 +1,4 @@
+import { ledger, statMap } from "$lib/state/ledger.svelte";
 import { m } from "$lib/paraglide/messages";
 import {
   engine,
@@ -64,12 +65,17 @@ class BuildStore {
     return this.info !== null;
   }
 
-  async run<T>(fn: () => Promise<T>, opts: { sync?: boolean; user?: boolean } = {}): Promise<T | undefined> {
+  async run<T>(fn: () => Promise<T>, opts: { sync?: boolean; user?: boolean; label?: string } = {}): Promise<T | undefined> {
     if (opts.user !== false) this.userEdits++;
+    // The change ledger notes each edit of the user with what it did to the figures.
+    const before = opts.user !== false && opts.sync !== false && this.sidebar ? statMap(this.sidebar) : null;
+    const label = opts.label ?? viewLabel(this.view);
+    const generation = this.info?.generation;
     this.busy++;
     try {
       const r = await fn();
       if (opts.sync !== false) await this.sync();
+      if (before && this.sidebar && this.info?.generation === generation) ledger.record(label, before, statMap(this.sidebar));
       return r;
     } catch (e) {
       this.error = e instanceof EngineError ? `${e.method}: ${e.message}` : String(e);
@@ -187,6 +193,7 @@ class BuildStore {
     this.skills = skills;
     this.specs = specs.specs;
     this.rev = info.rev;
+    ledger.follow(info.generation, sidebar);
     this.schedulePresync();
     if (this.classes.length === 0) {
       const list = await engine.listClasses();
@@ -223,6 +230,7 @@ class BuildStore {
 
   private saved(path: string) {
     this.newBuildFolder = null;
+    ledger.reset(this.sidebar);
     this.say(m.build_saved({ path }));
     for (const fn of this.savedHooks) void fn(path);
   }
@@ -396,12 +404,29 @@ class BuildStore {
   }
 
   undo() {
-    return this.run(() => engine.treeUndo());
+    return this.run(() => engine.treeUndo(), { label: m.ledger_undo() });
   }
 
   redo() {
-    return this.run(() => engine.treeRedo());
+    return this.run(() => engine.treeRedo(), { label: m.ledger_redo() });
   }
 }
 
 export const build = new BuildStore();
+
+/** The ledger names an edit by the view it was made in. */
+function viewLabel(view: ViewId): string {
+  const labels: Partial<Record<ViewId, () => string>> = {
+    tree: m.view_tree,
+    skills: m.view_skills,
+    items: m.view_items,
+    config: m.view_config,
+    calcs: m.view_calcs,
+    party: m.view_party,
+    optimise: m.view_optimise,
+    overview: m.view_overview,
+    notes: m.view_notes,
+    import: m.view_builds,
+  };
+  return labels[view]?.() ?? view;
+}

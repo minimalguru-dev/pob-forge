@@ -10,7 +10,6 @@
   import { isTextField } from "$lib/keys";
   import { m } from "$lib/paraglide/messages";
 
-  import LogoMark from "$lib/components/LogoMark.svelte";
 
   const win = getCurrentWindow();
   let maximized = $state(false);
@@ -53,6 +52,14 @@
     { id: "compare", label: m.view_compare(), key: "", icon: "scales" },
     { id: "regex", label: m.view_regex(), key: "", icon: "magnifying-glass" },
   ]);
+
+  /** The four views a build is made in sit in one switch; the rest are plain words beside it. */
+  const PRIMARY: ViewId[] = ["items", "tree", "skills", "config"];
+  const primary = $derived(PRIMARY.map((id) => tabs.find((t) => t.id === id)!));
+  const secondary = $derived(tabs.filter((t) => !PRIMARY.includes(t.id) && t.id !== "compare"));
+  const levelLine = $derived(
+    build.info ? [`lvl ${build.info.level}`, build.info.ascendClassName ?? build.info.className].filter(Boolean).join(" · ") : "",
+  );
 
   function tabTitle(t: { label: string; key: string }) {
     const shortcut = t.key ? `Ctrl+${t.key}` : "";
@@ -145,9 +152,8 @@
 </script>
 
 <header class="titlebar" data-tauri-drag-region>
-  <div class="brand" class:wide={!ui.sidebarCollapsed} data-tauri-drag-region>
-    <LogoMark class="mark" />
-    <span class="name">PoB Forge</span>
+  <div class="brand" data-tauri-drag-region>
+    <span class="wordmark" title="PoB Forge" data-tauri-drag-region>forge<span class="slash">/</span></span>
     <button
       class="sb"
       class:on={!ui.sidebarCollapsed}
@@ -177,8 +183,30 @@
   </div>
 
 
+  <div class="lead" data-tauri-drag-region>
+    {#if build.info}
+      <span class="bname" title={build.info.file ?? m.sidebar_not_saved()}>{build.info.name}</span>
+      <span class="blevel">{levelLine}</span>
+    {/if}
+    <div class="views" role="tablist" aria-label={m.titlebar_views()}>
+      {#each primary as t (t.id)}
+        <button
+          role="tab"
+          class="seg"
+          class:active={build.view === t.id && !appOptions.open}
+          aria-selected={build.view === t.id && !appOptions.open}
+          disabled={!build.loaded}
+          onclick={() => openView(t.id)}
+          title={t.key ? `Ctrl+${t.key}` : undefined}
+        >
+          {t.label}{#if t.key}<span class="segkey">{t.key}</span>{/if}
+        </button>
+      {/each}
+    </div>
+  </div>
+
   <div class="tabs" class:compact role="tablist" bind:this={tabsEl}>
-    {#each tabs as t (t.id)}
+    {#each secondary as t (t.id)}
       <button
         role="tab"
         class="tab"
@@ -189,7 +217,7 @@
         title={tabTitle(t)}
         aria-label={t.label}
       >
-        {#if compact}<Icon name={t.icon} size={16} />{:else}{t.label}{/if}
+        {#if compact}<Icon name={t.icon} size={15} />{:else}{t.label}{/if}
       </button>
     {/each}
   </div>
@@ -197,19 +225,27 @@
   <div class="spacer" data-tauri-drag-region bind:this={spacerEl}></div>
   <div class="measure" aria-hidden="true">
     <div class="tabs" bind:this={measureEl}>
-      {#each tabs as t (t.id)}<span class="tab">{t.label}</span>{/each}
+      {#each secondary as t (t.id)}<span class="tab">{t.label}</span>{/each}
     </div>
   </div>
 
   <div class="findcell">
     {#if build.loaded}
+      <button class="find" title={m.palette_title()} onclick={() => (ui.paletteOpen = true)}>
+        <Icon name="magnifying-glass" size={13} />
+        <span class="findlabel">{m.palette_button()}</span>
+        <Kbd keys="Mod+K" />
+      </button>
+      <button
+        class="ghost"
+        class:on={build.view === "compare" && !appOptions.open}
+        aria-pressed={build.view === "compare" && !appOptions.open}
+        onclick={() => openView("compare")}
+      >
+        {m.titlebar_compare_with()}
+      </button>
       <button class="save" class:dirty={build.info?.unsaved} title={m.palette_save()} onclick={() => void build.save()}>
         {m.import_save()}{#if build.info?.unsaved}<span class="dot" aria-label={m.sidebar_unsaved()}></span>{/if}
-      </button>
-      <button class="find" title={m.palette_title()} onclick={() => (ui.paletteOpen = true)}>
-        <Icon name="magnifying-glass" size={12} />
-        <span>{m.palette_button()}</span>
-        <Kbd keys="Mod+K" />
       </button>
     {/if}
   </div>
@@ -247,7 +283,7 @@
   .titlebar {
     height: var(--titlebar-h);
     display: grid;
-    grid-template-columns: auto minmax(0, auto) minmax(0, 1fr) auto auto;
+    grid-template-columns: auto auto minmax(0, auto) minmax(0, 1fr) auto auto;
     align-items: stretch;
     background: linear-gradient(90deg, var(--glow), transparent 55%), var(--bg-1);
     border-bottom: 1px solid var(--line-0);
@@ -259,9 +295,6 @@
     gap: 10px;
     padding: 0 10px 0 14px;
     border-right: 1px solid var(--line-0);
-  }
-  .brand.wide {
-    width: var(--sidebar-w);
   }
   .sb {
     appearance: none;
@@ -283,20 +316,100 @@
   .sb.on {
     color: var(--fg-2);
   }
-  .brand :global(.mark) {
-    width: 16px;
-    height: 16px;
-    flex: none;
+  .wordmark {
+    font-family: var(--font-head);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     color: var(--fg-0);
-    pointer-events: none;
+    white-space: nowrap;
     user-select: none;
   }
-  .name {
-    font-family: var(--font-display);
-    font-size: 15px;
-    letter-spacing: 0.06em;
+  .slash {
     color: var(--brand);
+  }
+  .lead {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 0 14px 0 16px;
+  }
+  .lead .bname {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 180px;
+    font-weight: 600;
+    color: var(--fg-0);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .blevel {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--fg-3);
+    white-space: nowrap;
+  }
+  .views {
+    flex: none;
+    display: flex;
+    margin-left: 4px;
+    border: 1px solid var(--line-1);
+    border-radius: 6px;
+    overflow: hidden;
+    -webkit-app-region: no-drag;
+  }
+  .seg {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    height: 26px;
+    padding: 0 13px;
+    border: 0;
+    background: transparent;
+    color: var(--fg-2);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    white-space: nowrap;
+    line-height: 26px;
+  }
+  .seg + .seg {
+    border-left: 1px solid var(--line-1);
+  }
+  .seg:hover:not(:disabled) {
+    color: var(--fg-0);
+  }
+  .seg.active {
+    background: var(--bg-hover);
+    color: var(--fg-0);
+  }
+  .seg:disabled {
+    color: var(--fg-4);
+    cursor: var(--cursor-arrow, default);
+  }
+  .segkey {
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    color: var(--fg-4);
+  }
+  .ghost {
+    height: 26px;
+    margin-right: 6px;
+    padding: 0 11px;
+    border: 1px solid var(--line-1);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--fg-1);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .ghost:hover,
+  .ghost.on {
+    background: var(--bg-hover);
+    color: var(--fg-0);
   }
   .game {
     display: flex;
@@ -413,35 +526,37 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 24px;
-    margin-right: 6px;
-    padding: 0 10px;
-    border: 1px solid color-mix(in oklch, var(--brand) 55%, transparent);
-    border-radius: var(--r-1);
-    background: transparent;
-    color: var(--brand);
+    height: 26px;
+    margin-right: 8px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--save-bg);
+    color: var(--save-fg);
     font: inherit;
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
+    font-weight: 600;
     white-space: nowrap;
   }
   .save:hover {
-    background: color-mix(in oklch, var(--brand) 14%, transparent);
+    background: var(--save-hover);
   }
   .save .dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--brand);
+    background: currentColor;
   }
   .find {
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 24px;
-    padding: 0 6px 0 8px;
+    height: 26px;
+    margin-right: 6px;
+    padding: 0 6px 0 10px;
     border: 1px solid var(--line-1);
-    border-radius: var(--r-1);
-    background: var(--bg-1);
+    border-radius: 6px;
+    background: transparent;
     color: var(--fg-3);
     font: inherit;
     font-size: var(--fs-xs);
@@ -479,11 +594,13 @@
     background: #c42b1c;
     color: #fff;
   }
-  @media (max-width: 1360px) {
-    .brand.wide {
-      width: auto;
+  @media (max-width: 1500px) {
+    .findlabel {
+      display: none;
     }
-    .name {
+  }
+  @media (max-width: 1360px) {
+    .blevel {
       display: none;
     }
     .tab {

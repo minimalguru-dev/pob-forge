@@ -1,6 +1,6 @@
 import { mount } from "svelte";
 import "../../src/lib/state/locale.svelte";
-import "@fontsource-variable/geist";
+import "@fontsource-variable/inter";
 import "../../src/app.css";
 import ImportView from "../../src/lib/views/ImportView.svelte";
 import { game } from "../../src/lib/state/game.svelte";

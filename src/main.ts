@@ -2,8 +2,9 @@
 import "$lib/storage-migration.run";
 // Next: it overwrites Paraglide's getLocale() before any component module loads.
 import "$lib/state/locale.svelte";
-import "@fontsource-variable/geist";
-import "@fontsource-variable/geist-mono";
+import "@fontsource-variable/inter";
+import "@fontsource-variable/jetbrains-mono";
+import "@fontsource-variable/space-grotesk";
 import "./app.css";
 import { mount } from "svelte";
 import { invoke } from "@tauri-apps/api/core";
