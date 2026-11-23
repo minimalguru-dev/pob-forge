@@ -5,7 +5,6 @@ import { join } from "node:path";
 
 const BUNDLES = [
   { suffix: "_x64-setup.exe", keys: ["windows-x86_64", "windows-x86_64-nsis"] },
-  { suffix: "_aarch64.app.tar.gz", keys: ["darwin-aarch64", "darwin-aarch64-app"] },
 ];
 
 const args = process.argv.slice(2);

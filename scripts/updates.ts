@@ -45,10 +45,9 @@ export function compareVersions(a: string, b: string) {
 /** An update file on its way to the CDN: the bytes, its updater signature, and the platform keys it serves. */
 export type Bundle = { name: string; body: Uint8Array; signature: string; platforms: string[] };
 
-/** Asset suffix -> updater platform keys, as `scripts/updater-manifest.mjs` writes them. */
+/** Asset suffix -> updater platform keys, as `scripts/updater-manifest.mjs` writes them. Windows only. */
 export const BUNDLES = [
   { suffix: "_x64-setup.exe", platforms: ["windows-x86_64", "windows-x86_64-nsis"] },
-  { suffix: "_aarch64.app.tar.gz", platforms: ["darwin-aarch64", "darwin-aarch64-app"] },
 ];
 
 /** Keys and URLs on the CDN. Names have no spaces (GitHub's dotted asset names), so URLs need no escaping. */
@@ -65,9 +64,9 @@ export function manifest(cdn: string, version: string, notes: string, bundles: B
 /**
  * The bundles of a published GitHub release, downloaded into `dir` by `gh` (which runs the gh CLI
  * with these arguments and returns its output). Throws when the release is a draft, is not this
- * checkout's version, or has no signed Windows installer; other platforms are optional.
+ * checkout's version, or lacks a bundle or its signature.
  */
-export function fromRelease(tag: string, repo: string, expected: string, gh: (argv: string[]) => string, dir: string, warn: (msg: string) => void) {
+export function fromRelease(tag: string, repo: string, expected: string, gh: (argv: string[]) => string, dir: string) {
   let view: string;
   try {
     view = gh(["release", "view", tag, "-R", repo, "--json", "assets,body,isDraft,tagName"]);
@@ -81,11 +80,7 @@ export function fromRelease(tag: string, repo: string, expected: string, gh: (ar
   const bundles: Bundle[] = [];
   for (const { suffix, platforms } of BUNDLES) {
     const asset = info.assets.find((a) => a.name.endsWith(suffix));
-    if (!asset || !info.assets.some((a) => a.name === `${asset.name}.sig`)) {
-      if (suffix.endsWith(".exe")) throw new Error(`${tag} has no signed Windows installer (*${suffix} and its .sig)`);
-      warn(`${tag} has no signed *${suffix}; that platform is left out`);
-      continue;
-    }
+    if (!asset || !info.assets.some((a) => a.name === `${asset.name}.sig`)) throw new Error(`${tag} has no signed Windows installer (*${suffix} and its .sig)`);
     gh(["release", "download", tag, "-R", repo, "-p", asset.name, "-p", `${asset.name}.sig`, "-D", dir, "--clobber"]);
     bundles.push({
       name: asset.name,
@@ -115,18 +110,18 @@ export async function upload(cdn: string, version: string, notes: string, bundle
     bucket: need("R2_BUCKET"),
     endpoint: `https://${need("R2_ACCOUNT_ID")}.r2.cloudflarestorage.com`,
   });
-  const type = (name: string) => (name.endsWith(".exe") ? "application/vnd.microsoft.portable-executable" : "application/gzip");
+  const type = () => "application/vnd.microsoft.portable-executable";
   for (const b of bundles) {
     const key = cdnKey(version, b.name);
-    await s3.write(key, b.body, { type: type(b.name) });
+    await s3.write(key, b.body, { type: type() });
     const head = await fetch(`${cdn}/${key}`, { method: "HEAD" });
     const size = Number(head.headers.get("Content-Length"));
     if (!head.ok || size !== b.body.length) throw new Error(`${cdn}/${key} answers ${head.status} with ${size} bytes, expected ${b.body.length}; latest.json not changed`);
     log(`uploaded ${key}`);
   }
-  const windows = bundles.find((b) => b.name.endsWith(".exe"));
-  if (windows) {
-    for (const link of ["download/PoE-Forge-setup.exe", "download/PoB-Forge-setup.exe"]) await s3.write(link, windows.body, { type: type(windows.name) });
+  const installer = bundles.find((b) => b.name.endsWith(".exe"));
+  if (installer) {
+    for (const link of ["download/PoE-Forge-setup.exe", "download/PoB-Forge-setup.exe"]) await s3.write(link, installer.body, { type: type() });
     log("updated the download links");
   }
   await s3.write("update/latest.json", JSON.stringify(manifest(cdn, version, notes, bundles), null, 2), { type: "application/json" });

@@ -1,7 +1,7 @@
 name: release
 
-# Tag-driven. `bun run release:tag patch` (or `git tag vX.Y.Z && git push --tags`) builds both
-# platforms, signs the updater artifacts, and creates a draft GitHub Release containing
+# Tag-driven. `bun run release:tag patch` (or `git tag vX.Y.Z && git push --tags`) builds the
+# Windows installer, signs the updater artifacts, and creates a draft GitHub Release containing
 # latest.json. Try the draft's installer, edit its notes if you like, then publish it:
 # publish-cdn.yml puts it on the CDN, which is the only place installed copies look.
 # With the SIGNPATH_* variables and the SIGNPATH_API_TOKEN secret set, the
@@ -65,11 +65,6 @@ jobs:
         include:
           - os: windows-latest
             bundles: nsis
-          # macos-15 is an Apple Silicon runner, so this builds arm64 only --
-          # the Intel half of a universal binary would need a second LuaJIT
-          # build and nobody has asked for it.
-          - os: macos-15
-            bundles: app,dmg
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -290,11 +285,6 @@ jobs:
           cp "$src" "$name"
           bun tauri signer sign "$name"
           gh release upload "$TAG" "$name" "$name.sig" -R "$GITHUB_REPOSITORY" --clobber
-
-      # A bundle whose resources are not sealed opens as "damaged" once downloaded.
-      - name: Verify the macOS signature
-        if: runner.os == 'macOS'
-        run: codesign --verify --deep --strict -vv "target/release/bundle/macos/PoE Forge.app"
 
   # Matrix jobs each rewrite latest.json and can drop a platform when two finish together.
   updater-manifest:

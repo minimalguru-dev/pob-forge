@@ -86,11 +86,11 @@ talking to a server it does not own. CI reads them from repository variables of 
    bun run release:tag patch     # or minor, major, x.y.z: bumps the version, commits, tags and pushes
    ```
 
-   The tag runs `release.yml`: it builds Windows and macOS with the updater on (your public key, the CDN
-   as the only endpoint), signs the updater bundles and makes a **draft** GitHub release with notes from
+   The tag runs `release.yml`: it builds the Windows installer with the updater on (your public key, the CDN
+   as the only endpoint), signs it for the updater and makes a **draft** GitHub release with notes from
    the commits since the previous tag. Try the draft's installer and edit the notes if you like, then
-   **publish** the release. That runs `publish-cdn.yml`, which checks every bundle's signature against
-   `TAURI_UPDATER_PUBKEY`, uploads the bundles to `update/<version>/` and the Windows installer to the
+   **publish** the release. That runs `publish-cdn.yml`, which checks the installer's signature against
+   `TAURI_UPDATER_PUBKEY`, uploads it to `update/<version>/` and to the
    download link, and writes `update/latest.json` last. Installed copies look for it after start and
    every 6 hours, download it in the background, and install it on restart or when the app closes, as
    Path of Building does. To put a published release on the CDN again, run `publish-cdn.yml` by hand

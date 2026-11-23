@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 /**
- * Publish an app update on the CDN, which is where installed copies look.
+ * Publish an app update (the Windows installer) on the CDN, which is where installed copies look.
  *
  *   bun run publish:update --release v0.5.9   # files from a published GitHub release (what CI runs)
- *   bun run publish:update                    # build and sign here instead (Windows only)
+ *   bun run publish:update                    # build and sign here instead
  *
  *   --dry-run      check everything, upload nothing
  *   --skip-build   local: publish the installer already in target/
@@ -18,8 +18,8 @@
  *   GH_TOKEN, GITHUB_REPOSITORY           --release: `gh` reads the release (default repo minimalguru-dev/pob-forge)
  *   TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)  local: the updater key, its contents or path (default ~/.tauri/pob-forge.key)
  *
- * On the CDN: update/<version>/<bundle> for each platform, download/PoE-Forge-setup.exe (and the
- * old PoB-Forge-setup.exe name) for the Windows installer, and update/latest.json, written last.
+ * On the CDN: update/<version>/<installer>, download/PoE-Forge-setup.exe (and the old
+ * PoB-Forge-setup.exe name), and update/latest.json, written last.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
@@ -65,7 +65,7 @@ if (release) {
   // ── From a published GitHub release ────────────────────────────────────────
   const repo = process.env.GITHUB_REPOSITORY || "minimalguru-dev/pob-forge";
   try {
-    const r = fromRelease(release, repo, conf.version, (argv) => run("gh", argv), mkdtempSync(join(tmpdir(), "publish-update-")), console.warn);
+    const r = fromRelease(release, repo, conf.version, (argv) => run("gh", argv), mkdtempSync(join(tmpdir(), "publish-update-")));
     version = r.version;
     notes = r.notes;
     bundles.push(...r.bundles);

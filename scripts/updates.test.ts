@@ -60,41 +60,33 @@ describe("fromRelease", () => {
     return { gh, downloads };
   }
   const win = "PoE.Forge_0.5.9_x64-setup.exe";
-  const mac = "PoE.Forge_aarch64.app.tar.gz";
-  const all = [win, `${win}.sig`, mac, `${mac}.sig`, "latest.json", "PoE.Forge_0.5.9_aarch64.dmg"];
+  const all = [win, `${win}.sig`, "latest.json"];
 
-  test("downloads each signed bundle and keeps the release notes", () => {
+  test("downloads the signed installer and keeps the release notes", () => {
     const { gh, downloads } = fakeGh({ tagName: "v0.5.9", isDraft: false, body: "notes", assets: all });
-    const r = fromRelease("v0.5.9", "o/r", "0.5.9", gh, mkdtempSync(join(tmpdir(), "updates-test-")), () => {});
+    const r = fromRelease("v0.5.9", "o/r", "0.5.9", gh, mkdtempSync(join(tmpdir(), "updates-test-")));
     expect(r.version).toBe("0.5.9");
     expect(r.notes).toBe("notes");
-    expect(r.bundles.map((b) => [b.name, b.signature, b.platforms[0]])).toEqual([
-      [win, "c2ln", "windows-x86_64"],
-      [mac, "c2ln", "darwin-aarch64"],
-    ]);
+    expect(r.bundles.map((b) => [b.name, b.signature, b.platforms])).toEqual([[win, "c2ln", ["windows-x86_64", "windows-x86_64-nsis"]]]);
     expect(new TextDecoder().decode(r.bundles[0]!.body)).toBe(`bytes of ${win}`);
-    expect(downloads).toHaveLength(2);
+    expect(downloads).toHaveLength(1);
   });
-  test("leaves out a platform without a signature, with a warning", () => {
-    const warnings: string[] = [];
-    const { gh } = fakeGh({ tagName: "v0.5.9", isDraft: false, body: null, assets: [win, `${win}.sig`, mac] });
-    const r = fromRelease("v0.5.9", "o/r", "0.5.9", gh, mkdtempSync(join(tmpdir(), "updates-test-")), (m) => warnings.push(m));
-    expect(r.bundles.map((b) => b.name)).toEqual([win]);
-    expect(r.notes).toBe("");
-    expect(warnings[0]).toContain("left out");
+  test("an empty release body gives empty notes", () => {
+    const { gh } = fakeGh({ tagName: "v0.5.9", isDraft: false, body: null, assets: all });
+    expect(fromRelease("v0.5.9", "o/r", "0.5.9", gh, mkdtempSync(join(tmpdir(), "updates-test-"))).notes).toBe("");
   });
   test("refuses drafts, other versions, a release without a signed installer, and a missing release", () => {
     const dir = mkdtempSync(join(tmpdir(), "updates-test-"));
     const draft = fakeGh({ tagName: "v0.5.9", isDraft: true, body: "", assets: all }).gh;
-    expect(() => fromRelease("v0.5.9", "o/r", "0.5.9", draft, dir, () => {})).toThrow("draft");
+    expect(() => fromRelease("v0.5.9", "o/r", "0.5.9", draft, dir)).toThrow("draft");
     const other = fakeGh({ tagName: "v0.5.9", isDraft: false, body: "", assets: all }).gh;
-    expect(() => fromRelease("v0.5.9", "o/r", "0.5.8", other, dir, () => {})).toThrow("tauri.conf.json says 0.5.8");
-    const unsigned = fakeGh({ tagName: "v0.5.9", isDraft: false, body: "", assets: [win, mac, `${mac}.sig`] }).gh;
-    expect(() => fromRelease("v0.5.9", "o/r", "0.5.9", unsigned, dir, () => {})).toThrow("no signed Windows installer");
+    expect(() => fromRelease("v0.5.9", "o/r", "0.5.8", other, dir)).toThrow("tauri.conf.json says 0.5.8");
+    const unsigned = fakeGh({ tagName: "v0.5.9", isDraft: false, body: "", assets: [win] }).gh;
+    expect(() => fromRelease("v0.5.9", "o/r", "0.5.9", unsigned, dir)).toThrow("no signed Windows installer");
     const missing = () => {
       throw new Error("release not found");
     };
-    expect(() => fromRelease("v0.5.9", "o/r", "0.5.9", missing, dir, () => {})).toThrow("no release v0.5.9 on o/r");
+    expect(() => fromRelease("v0.5.9", "o/r", "0.5.9", missing, dir)).toThrow("no release v0.5.9 on o/r");
   });
 });
 
@@ -110,18 +102,15 @@ describe("compareVersions", () => {
 });
 
 describe("manifest", () => {
-  test("points every platform key at its bundle on the CDN", () => {
-    const bundles = [
-      { name: "PoE Forge_0.5.9_x64-setup.exe", body: new Uint8Array(), signature: "win", platforms: BUNDLES[0]!.platforms },
-      { name: "PoE.Forge_aarch64.app.tar.gz", body: new Uint8Array(), signature: "mac", platforms: BUNDLES[1]!.platforms },
-    ];
+  test("points both Windows keys at the installer on the CDN", () => {
+    const bundles = [{ name: "PoE Forge_0.5.9_x64-setup.exe", body: new Uint8Array(), signature: "win", platforms: BUNDLES[0]!.platforms }];
     const m = manifest("https://cdn.example", "0.5.9", "## Fixes\r\n\r\n- one\r\n", bundles, new Date("2026-11-23T12:00:00.123Z"));
     expect(m.version).toBe("0.5.9");
     expect(m.notes).toBe("## Fixes\n\n- one");
     expect(m.pub_date).toBe("2026-11-23T12:00:00Z");
     expect(m.platforms["windows-x86_64"]).toEqual({ signature: "win", url: "https://cdn.example/update/0.5.9/PoE.Forge_0.5.9_x64-setup.exe" });
     expect(m.platforms["windows-x86_64-nsis"]).toEqual(m.platforms["windows-x86_64"]!);
-    expect(m.platforms["darwin-aarch64"]!.url).toBe("https://cdn.example/update/0.5.9/PoE.Forge_aarch64.app.tar.gz");
+    expect(Object.keys(m.platforms)).toEqual(["windows-x86_64", "windows-x86_64-nsis"]);
   });
   test("keys have no spaces", () => {
     expect(cdnKey("0.5.9", "PoE Forge_0.5.9_x64-setup.exe")).toBe("update/0.5.9/PoE.Forge_0.5.9_x64-setup.exe");
