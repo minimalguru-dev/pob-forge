@@ -1228,19 +1228,9 @@ fn serve_pob_asset(
     }
 }
 
-/// Windows passes the launch link as an argument; macOS through the deep-link plugin.
-fn start_link(app: &tauri::AppHandle) -> Option<links::Link> {
-    if let Some(link) = links::from_args() {
-        return Some(link);
-    }
-    #[cfg(desktop)]
-    {
-        use tauri_plugin_deep_link::DeepLinkExt;
-        if let Ok(Some(urls)) = app.deep_link().get_current() {
-            return urls.iter().find_map(|u| links::parse(u.as_str()));
-        }
-    }
-    None
+/// Windows passes the launch link as an argument.
+fn start_link() -> Option<links::Link> {
+    links::from_args()
 }
 
 fn deliver_link(app: &tauri::AppHandle, link: links::Link) {
@@ -1293,7 +1283,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_process::init())
         .register_uri_scheme_protocol("pobasset", serve_pob_asset)
         .register_asynchronous_uri_scheme_protocol("pobart", art::serve)
         .setup(|app| {
@@ -1308,7 +1297,7 @@ pub fn run() {
                     .build(),
             )?;
             let handle = app.handle();
-            let link = start_link(handle);
+            let link = start_link();
             let user_dir = find_user_dir(handle);
             let (game, first_run) = startup_game(handle, link.as_ref());
             log::info!("game: {}", game.id());

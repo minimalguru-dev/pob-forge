@@ -88,17 +88,16 @@ impl Cli {
 
     /// The vendor's own install command for this computer: PowerShell on Windows, a shell line elsewhere.
     pub fn install_command(self) -> Option<&'static str> {
-        let (windows, unix) = match self {
-            Cli::Claude => ("irm https://claude.ai/install.ps1 | iex", "curl -fsSL https://claude.ai/install.sh | bash"),
-            Cli::Codex => ("irm https://chatgpt.com/codex/install.ps1 | iex", "curl -fsSL https://chatgpt.com/codex/install.sh | sh"),
-            Cli::Copilot => ("winget install GitHub.Copilot", "curl -fsSL https://gh.io/copilot-install | bash"),
-            Cli::Cursor => ("irm 'https://cursor.com/install?win32=true' | iex", "curl https://cursor.com/install -fsS | bash"),
-            Cli::Grok => ("irm https://x.ai/cli/install.ps1 | iex", "curl -fsSL https://x.ai/cli/install.sh | bash"),
-            Cli::Kimi => ("irm https://code.kimi.com/kimi-code/install.ps1 | iex", "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"),
-            Cli::OpenCode => ("npm install -g opencode-ai", "curl -fsSL https://opencode.ai/install | bash"),
+        Some(match self {
+            Cli::Claude => "irm https://claude.ai/install.ps1 | iex",
+            Cli::Codex => "irm https://chatgpt.com/codex/install.ps1 | iex",
+            Cli::Copilot => "winget install GitHub.Copilot",
+            Cli::Cursor => "irm 'https://cursor.com/install?win32=true' | iex",
+            Cli::Grok => "irm https://x.ai/cli/install.ps1 | iex",
+            Cli::Kimi => "irm https://code.kimi.com/kimi-code/install.ps1 | iex",
+            Cli::OpenCode => "npm install -g opencode-ai",
             Cli::Antigravity => return None,
-        };
-        Some(if cfg!(windows) { windows } else { unix })
+        })
     }
 
     fn login_args(self) -> &'static [&'static str] {
@@ -522,7 +521,7 @@ pub async fn agent_terminal(app: AppHandle, provider: String, action: String) ->
     let title = format!("PoE Forge: {} {}", cli.label(), if action == "install" { "install" } else { "sign-in" });
     if action == "install" {
         let cmd = cli.install_command().ok_or_else(|| format!("{} is installed from the app", cli.label()))?;
-        terminal::open(&title, cmd, cmd, &path)?;
+        terminal::open(&title, cmd, &path)?;
         return Ok(cmd.to_string());
     }
     let launch = app.state::<AgentState>().launch(&app, cli).ok_or_else(|| format!("{} is not installed", cli.label()))?;
@@ -532,13 +531,8 @@ pub async fn agent_terminal(app: AppHandle, provider: String, action: String) ->
         .collect();
     let mut env_ps: String = launch.remove.iter().map(|k| format!("Remove-Item Env:{k} -ErrorAction SilentlyContinue; ")).collect();
     env_ps.extend(launch.env.iter().map(|(k, v)| format!("$env:{k}={}; ", terminal::ps_quote(&v.to_string_lossy()))));
-    let env_sh: String = launch.env.iter().map(|(k, v)| format!("{k}={} ", terminal::sh_quote(&v.to_string_lossy()))).collect();
-    let unset_sh = if launch.remove.is_empty() { String::new() } else {
-        format!("env {} ", launch.remove.iter().map(|k| format!("-u {k}")).collect::<Vec<_>>().join(" "))
-    };
     let ps = format!("{env_ps}& {}", parts.iter().map(|p| terminal::ps_quote(p)).collect::<Vec<_>>().join(" "));
-    let sh = format!("{env_sh}{unset_sh}{}", parts.iter().map(|p| terminal::sh_quote(p)).collect::<Vec<_>>().join(" "));
-    terminal::open(&title, &ps, &sh, &path)?;
+    terminal::open(&title, &ps, &path)?;
     Ok(cli.login().unwrap_or_default().to_string())
 }
 

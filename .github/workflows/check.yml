@@ -3,7 +3,7 @@ name: check
 # Fast validation for ordinary commits. Installers are built and published only
 # by release.yml, on a tag.
 #
-# Runs on Windows, the platform this fork ships; there is no Linux build.
+# Runs on Windows, the only platform this fork ships.
 on:
   push:
     branches: [main]

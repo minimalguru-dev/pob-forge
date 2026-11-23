@@ -21,7 +21,6 @@ use tauri::{AppHandle, Manager};
 
 use crate::agent::{self, AgentStatus, Cli, CLIS};
 
-#[cfg(windows)]
 const SERVICE: &str = "dev.minimalguru.pobforge";
 
 #[derive(Serialize, Clone, Copy, PartialEq)]
@@ -136,7 +135,6 @@ pub(crate) fn hint(key: &str) -> String {
 /// Windows Credential Manager can refuse a write outright (error 8 when its
 /// store is full). DPAPI encrypts for the same Windows account that Credential
 /// Manager does, without the store's limits.
-#[cfg(windows)]
 mod key_file {
     use std::path::PathBuf;
 
@@ -200,17 +198,6 @@ mod key_file {
             Ok(bytes)
         }
     }
-}
-
-#[cfg(not(windows))]
-mod key_file {
-    use tauri::AppHandle;
-
-    pub fn read(_: &AppHandle, _: &str) -> Option<String> {
-        None
-    }
-
-    pub fn remove(_: &AppHandle, _: &str) {}
 }
 
 #[derive(Serialize)]
@@ -289,7 +276,6 @@ pub(crate) fn store_secret(app: &AppHandle, id: &str, secret: &str) -> Result<()
         }
         Err(e) => e,
     };
-    #[cfg(windows)]
     if matches!(err, keyring::Error::PlatformFailure(_) | keyring::Error::NoStorageAccess(_) | keyring::Error::TooLong(..)) {
         let reason = keyring_error(err);
         key_file::write(app, id, secret).map_err(|e| format!("{reason} Saving it to an encrypted file instead also failed: {e}"))?;
@@ -302,7 +288,6 @@ pub(crate) fn store_secret(app: &AppHandle, id: &str, secret: &str) -> Result<()
 
 /// keyring's own errors leave out the fix: on Windows, what error 8 means.
 fn keyring_error(e: keyring::Error) -> String {
-    #[cfg(windows)]
     if let keyring::Error::PlatformFailure(inner) = &e {
         if inner.downcast_ref::<keyring::windows::Error>().is_some_and(|w| w.0 == 8) {
             return format!(
@@ -620,11 +605,6 @@ mod tests {
     /// service name so it can never touch a key the user actually stored.
     #[test]
     fn os_store_round_trips() {
-        // A headless CI runner has no D-Bus secret service for keyring to reach,
-        // so there is nothing to round-trip through. Still runs on a real desktop.
-        if cfg!(target_os = "linux") && std::env::var_os("CI").is_some() {
-            return;
-        }
         let e = keyring::Entry::new("dev.minimalguru.pobforge.selftest", "probe").expect("open entry");
         let _ = e.delete_credential();
         e.set_password("secret-value-1234").expect("set");
@@ -633,7 +613,6 @@ mod tests {
         assert!(matches!(e.get_password(), Err(keyring::Error::NoEntry)));
     }
 
-    #[cfg(windows)]
     #[test]
     fn key_file_encryption_round_trips() {
         let sealed = super::key_file::dpapi(b"sk-or-v1-secret", true).expect("protect");
@@ -641,7 +620,6 @@ mod tests {
         assert_eq!(super::key_file::dpapi(&sealed, false).expect("unprotect"), b"sk-or-v1-secret");
     }
 
-    #[cfg(windows)]
     #[test]
     fn full_credential_store_gets_advice() {
         let e = keyring::Error::PlatformFailure(Box::new(keyring::windows::Error(8)));

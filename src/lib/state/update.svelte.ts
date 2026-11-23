@@ -1,5 +1,4 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 
 const DISMISS_KEY = "pob-forge:update";
@@ -134,13 +133,12 @@ class UpdateStore {
     if (!show) console.warn("update check failed:", e);
   }
 
-  /** On Windows the installer closes the app and starts the new version; on macOS we relaunch. */
+  /** The installer closes the app and starts the new version. */
   async restart() {
     if (!this.update || this.installing) return;
     this.installing = true;
     try {
       await this.update.install();
-      await relaunch();
     } catch (e) {
       this.installing = false;
       this.fail(e, true);

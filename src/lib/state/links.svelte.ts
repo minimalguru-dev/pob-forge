@@ -10,7 +10,7 @@ type Link = { game: "poe1" | "poe2"; url: string };
 
 class LinkStore {
   private listening = false;
-  /** macOS can report the launch link twice; the same link within this window is ignored. */
+  /** A link that arrives again within this window is ignored, so it opens once. */
   private recent = new Map<string, number>();
 
   async init(): Promise<boolean> {

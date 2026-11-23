@@ -95,11 +95,6 @@ pub fn listen(deliver: impl Fn(Link) + Send + 'static) {
     if std::fs::write(&path, serde_json::json!({ "port": port, "token": token }).to_string()).is_err() {
         return;
     }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-    }
     std::thread::spawn(move || {
         for mut stream in listener.incoming().flatten() {
             let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));

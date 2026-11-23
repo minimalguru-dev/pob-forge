@@ -36,13 +36,8 @@ impl Launch {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
-        #[cfg(windows)]
-        {
-            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-        #[cfg(unix)]
-        cmd.process_group(0);
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
         cmd
     }
 
@@ -64,20 +59,14 @@ impl Launch {
 /// Ends a child's whole process tree when dropped. Agents start helpers of
 /// their own (Antigravity's unpacker, npm's node wrapper) that outlive a plain kill.
 pub(crate) struct Tree {
-    #[cfg(windows)]
     job: windows_sys::Win32::Foundation::HANDLE,
-    #[cfg(unix)]
-    group: i32,
 }
 
 // SAFETY: the job handle is owned by this value alone and closed once, in Drop.
-#[cfg(windows)]
 unsafe impl Send for Tree {}
-#[cfg(windows)]
 unsafe impl Sync for Tree {}
 
 impl Tree {
-    #[cfg(windows)]
     pub fn attach(child: &tokio::process::Child) -> Option<Self> {
         use windows_sys::Win32::Foundation::CloseHandle;
         use windows_sys::Win32::System::JobObjects::{
@@ -107,30 +96,19 @@ impl Tree {
             Some(Self { job })
         }
     }
-
-    #[cfg(unix)]
-    pub fn attach(child: &tokio::process::Child) -> Option<Self> {
-        child.id().map(|id| Self { group: id as i32 })
-    }
 }
 
 impl Drop for Tree {
     fn drop(&mut self) {
-        // SAFETY: closing the job we own kills every process in it; the group id
-        // is the one the child was started in.
-        #[cfg(windows)]
+        // SAFETY: closing the job we own kills every process in it.
         unsafe {
             windows_sys::Win32::Foundation::CloseHandle(self.job);
-        }
-        #[cfg(unix)]
-        unsafe {
-            libc::killpg(self.group, libc::SIGKILL);
         }
     }
 }
 
 fn home() -> Option<PathBuf> {
-    std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from)
+    std::env::var_os("USERPROFILE").map(PathBuf::from)
 }
 
 /// Where installers put these CLIs when the app's own PATH does not say.
@@ -145,88 +123,26 @@ fn known_dirs() -> Vec<PathBuf> {
         dirs.push(h.join(".cargo").join("bin"));
         dirs.push(h.join(".grok").join("bin"));
         dirs.push(h.join(".kimi-code").join("bin"));
-        if cfg!(windows) {
-            dirs.push(h.join("scoop").join("shims"));
-        } else {
-            dirs.push(h.join(".npm-global").join("bin"));
-            dirs.push(h.join(".opencode").join("bin"));
-        }
+        dirs.push(h.join("scoop").join("shims"));
     }
-    if cfg!(windows) {
-        if let Some(a) = env("APPDATA") {
-            dirs.push(a.join("npm"));
-        }
-        if let Some(l) = env("LOCALAPPDATA") {
-            dirs.push(l.join("pnpm"));
-            dirs.push(l.join("Volta").join("bin"));
-            dirs.push(l.join("Programs").join("nodejs"));
-            dirs.push(l.join("Programs").join("OpenAI").join("Codex").join("bin"));
-            dirs.push(l.join("cursor-agent"));
-        }
-        if let Some(p) = env("ProgramFiles") {
-            dirs.push(p.join("nodejs"));
-        }
-    } else {
-        dirs.push(PathBuf::from("/opt/homebrew/bin"));
-        dirs.push(PathBuf::from("/usr/local/bin"));
+    if let Some(a) = env("APPDATA") {
+        dirs.push(a.join("npm"));
+    }
+    if let Some(l) = env("LOCALAPPDATA") {
+        dirs.push(l.join("pnpm"));
+        dirs.push(l.join("Volta").join("bin"));
+        dirs.push(l.join("Programs").join("nodejs"));
+        dirs.push(l.join("Programs").join("OpenAI").join("Codex").join("bin"));
+        dirs.push(l.join("cursor-agent"));
+    }
+    if let Some(p) = env("ProgramFiles") {
+        dirs.push(p.join("nodejs"));
     }
     dirs
 }
 
-/// A GUI app on macOS starts with a bare PATH, so ask the login shell.
-#[cfg(not(windows))]
-fn login_shell_path() -> Option<OsString> {
-    let fallback = if cfg!(target_os = "macos") { "/bin/zsh" } else { "/bin/bash" };
-    let mut shells: Vec<OsString> = std::env::var_os("SHELL").into_iter().collect();
-    shells.push(fallback.into());
-    shells.dedup();
-    shells.iter().find_map(shell_path).or_else(launchctl_path)
-}
-
-#[cfg(not(windows))]
-fn launchctl_path() -> Option<OsString> {
-    if !cfg!(target_os = "macos") {
-        return None;
-    }
-    let out = std::process::Command::new("/bin/launchctl").args(["getenv", "PATH"]).output().ok()?;
-    let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    (!path.is_empty()).then(|| path.into())
-}
-
-#[cfg(not(windows))]
-fn shell_path(shell: &OsString) -> Option<OsString> {
-    use std::io::Read;
-    let mut child = std::process::Command::new(shell)
-        .args(["-ilc", "printf '\\n__PATH__%s__PATH__' \"$PATH\""])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .ok()?;
-    let mut stdout = child.stdout.take()?;
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let mut s = String::new();
-        let _ = stdout.read_to_string(&mut s);
-        let _ = tx.send(s);
-    });
-    let text = rx.recv_timeout(Duration::from_secs(4)).ok();
-    let _ = child.kill();
-    let _ = child.wait();
-    let text = text?;
-    let start = text.rfind("__PATH__").map(|end| &text[..end])?;
-    let path = &start[start.rfind("__PATH__")? + "__PATH__".len()..];
-    (!path.is_empty()).then(|| path.into())
-}
-
-#[cfg(windows)]
-fn login_shell_path() -> Option<OsString> {
-    None
-}
-
 /// The app's own PATH is fixed at launch, so a CLI installed since then is only
 /// on the PATH Windows keeps in the registry.
-#[cfg(windows)]
 fn registry_path() -> Vec<PathBuf> {
     use std::os::windows::process::CommandExt;
     let expand = |s: &str| {
@@ -250,11 +166,6 @@ fn registry_path() -> Vec<PathBuf> {
     out
 }
 
-#[cfg(not(windows))]
-fn registry_path() -> Vec<PathBuf> {
-    Vec::new()
-}
-
 static PATH: std::sync::RwLock<Option<OsString>> = std::sync::RwLock::new(None);
 
 pub(crate) fn search_path() -> OsString {
@@ -263,9 +174,6 @@ pub(crate) fn search_path() -> OsString {
     }
     let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
     dirs.extend(registry_path());
-    if let Some(shell) = login_shell_path() {
-        dirs.extend(std::env::split_paths(&shell));
-    }
     dirs.extend(known_dirs());
     let mut seen = std::collections::HashSet::new();
     dirs.retain(|d| !d.as_os_str().is_empty() && seen.insert(d.clone()));
@@ -279,14 +187,11 @@ pub(crate) fn refresh_search_path() {
     *PATH.write().unwrap() = None;
 }
 
-#[cfg(windows)]
 fn node() -> Option<PathBuf> {
-    let exe = if cfg!(windows) { "node.exe" } else { "node" };
-    std::env::split_paths(&search_path()).map(|d| d.join(exe)).find(|p| p.is_file())
+    std::env::split_paths(&search_path()).map(|d| d.join("node.exe")).find(|p| p.is_file())
 }
 
 /// The npm package's `codex.js` only starts this binary; running it directly saves a node process.
-#[cfg(windows)]
 fn native_codex(script: &Path) -> Option<PathBuf> {
     let pkg = script.parent()?.parent()?;
     let (arch, triple) = if cfg!(target_arch = "aarch64") { ("arm64", "aarch64-pc-windows-msvc") } else { ("x64", "x86_64-pc-windows-msvc") };
@@ -299,7 +204,6 @@ fn native_codex(script: &Path) -> Option<PathBuf> {
 
 /// Cursor's installer puts a `.cmd` beside `versions/<date>-<commit>/` holding
 /// its own node.exe and index.js; the shim runs the newest through PowerShell.
-#[cfg(windows)]
 fn versioned_node(shim: &Path) -> Option<Launch> {
     let dir = shim.parent()?;
     let key = |name: &str| -> Option<(u32, u32, u32)> {
@@ -321,7 +225,6 @@ fn versioned_node(shim: &Path) -> Option<Launch> {
 }
 
 /// cmd.exe cannot carry these arguments, so follow an npm or pnpm `.cmd` shim to its target.
-#[cfg(windows)]
 fn follow_shim(shim: &Path) -> Option<Launch> {
     let text = std::fs::read_to_string(shim).ok()?;
     let dir = shim.parent()?;
@@ -356,39 +259,27 @@ fn follow_shim(shim: &Path) -> Option<Launch> {
 pub(crate) fn find(name: &str, configured: Option<&str>) -> Option<Launch> {
     if let Some(p) = configured.map(str::trim).filter(|p| !p.is_empty()) {
         let p = PathBuf::from(p);
-        #[cfg(windows)]
         if p.extension().is_some_and(|e| e.eq_ignore_ascii_case("cmd") || e.eq_ignore_ascii_case("bat")) {
             return follow_shim(&p);
         }
         return p.is_file().then(|| Launch { program: p, ..Default::default() });
     }
     for dir in std::env::split_paths(&search_path()) {
-        #[cfg(windows)]
-        {
-            let exe = dir.join(format!("{name}.exe"));
-            if exe.is_file() {
-                return Some(Launch { program: exe, ..Default::default() });
-            }
-            let shim = dir.join(format!("{name}.cmd"));
-            if shim.is_file() {
-                if let Some(l) = follow_shim(&shim).or_else(|| versioned_node(&shim)) {
-                    return Some(l);
-                }
-            }
+        let exe = dir.join(format!("{name}.exe"));
+        if exe.is_file() {
+            return Some(Launch { program: exe, ..Default::default() });
         }
-        #[cfg(not(windows))]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let bin = dir.join(name);
-            if std::fs::metadata(&bin).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0) {
-                return Some(Launch { program: bin, ..Default::default() });
+        let shim = dir.join(format!("{name}.cmd"));
+        if shim.is_file() {
+            if let Some(l) = follow_shim(&shim).or_else(|| versioned_node(&shim)) {
+                return Some(l);
             }
         }
     }
     None
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests {
     #[test]
     fn npm_shim_resolves_to_its_script() {

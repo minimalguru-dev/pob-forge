@@ -41,17 +41,9 @@ pub(crate) fn asset() -> Option<&'static Asset> {
         exe: ("agy_acp_server.exe", 435_075_816),
         harness: ("localharness_external.exe", 122_455_704),
     };
-    static MAC_ARM64: Asset = Asset {
-        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-agy_acp_server_1.1.1-darwin-arm64.zip",
-        sha256: "fdfa915652cdb7ba8085cc8fffed072cbe009251aa2c951aabdda07a8c28a189",
-        bytes: 316_014_828,
-        exe: ("agy_acp_server.par", 802_163_856),
-        harness: ("localharness_external", 116_766_704),
-    };
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("windows", "x86_64") => Some(&WIN_X64),
         ("windows", "aarch64") => Some(&WIN_ARM64),
-        ("macos", "aarch64") => Some(&MAC_ARM64),
         _ => None,
     }
 }
@@ -103,8 +95,7 @@ fn exe_path(app: &AppHandle, configured: Option<&str>) -> Option<PathBuf> {
 }
 
 fn harness_of(exe: &Path) -> PathBuf {
-    let name = if cfg!(windows) { "localharness_external.exe" } else { "localharness_external" };
-    exe.with_file_name(name)
+    exe.with_file_name("localharness_external.exe")
 }
 
 /// The agent unpacks about 1 GB per launch; it goes under the app's own
@@ -124,12 +115,8 @@ pub(crate) fn launch(app: &AppHandle, configured: Option<&str>) -> Option<Launch
         ("ANTIGRAVITY_HARNESS_PATH".into(), harness_of(&exe).into_os_string()),
         ("PYTHONUNBUFFERED".into(), "1".into()),
     ];
-    if cfg!(windows) {
-        env.push(("TEMP".into(), temp.clone().into_os_string()));
-        env.push(("TMP".into(), temp.clone().into_os_string()));
-    } else {
-        env.push(("TMPDIR".into(), temp.clone().into_os_string()));
-    }
+    env.push(("TEMP".into(), temp.clone().into_os_string()));
+    env.push(("TMP".into(), temp.clone().into_os_string()));
     Some(Launch { program: exe, prefix: Vec::new(), env, remove: REMOVED.to_vec(), scratch: Some(temp) })
 }
 
@@ -202,11 +189,6 @@ fn extract(zip_path: &Path, dir: &Path, a: &Asset) -> Result<(), String> {
         let out_path = dir.join(name);
         let mut out = std::fs::File::create(&out_path).map_err(|e| format!("{}: {e}", out_path.display()))?;
         std::io::copy(&mut entry, &mut out).map_err(|e| format!("{}: {e}", out_path.display()))?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&out_path, std::fs::Permissions::from_mode(0o755));
-        }
     }
     Ok(())
 }

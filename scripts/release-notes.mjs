@@ -98,7 +98,7 @@ const builds = [
 if (builds.length) out.push(`Built against ${builds.join(" and ")}.`, "");
 
 out.push(
-  "Windows: run the `.exe` installer. macOS: open the `.dmg`.",
+  "Run the `.exe` installer.",
   "Installed copies update themselves once a newer release is published.",
   "",
 );

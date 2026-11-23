@@ -52,12 +52,10 @@ pub fn send_copy() -> bool {
 }
 
 /// The game names its window class this way in both Path of Exile 1 and 2; the title is the fallback.
-#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) fn is_game(class: &str, title: &str) -> bool {
     class == "POEWindowClass" || title == "Path of Exile" || title == "Path of Exile 2"
 }
 
-#[cfg(windows)]
 mod imp {
     use super::Handle;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC, VK_CONTROL, VK_MENU};
@@ -150,37 +148,6 @@ mod imp {
         let pressed = send(&down);
         std::thread::sleep(std::time::Duration::from_millis(30));
         pressed && send(&up)
-    }
-}
-
-#[cfg(not(windows))]
-mod imp {
-    use super::Handle;
-
-    pub fn foreground_game() -> Option<Handle> {
-        None
-    }
-
-    pub fn focus(_: Handle) {}
-
-    pub fn rect(_: Handle) -> Option<(i32, i32, i32, i32)> {
-        None
-    }
-
-    pub fn ctrl_held() -> Option<bool> {
-        None
-    }
-
-    pub fn copy_keys_down() -> Option<bool> {
-        None
-    }
-
-    pub fn clipboard_sequence() -> Option<u32> {
-        None
-    }
-
-    pub fn send_copy() -> bool {
-        false
     }
 }
 

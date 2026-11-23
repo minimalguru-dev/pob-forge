@@ -1401,7 +1401,7 @@
   "items_craft": "Craft item…",
   "items_new_from_text": "New item from text",
   "items_paste": "Paste item",
-  "items_paste_hint": "Paste an item to compare (Ctrl+V / Cmd+V)",
+  "items_paste_hint": "Paste an item to compare (Ctrl+V)",
   "items_paste_empty": "The clipboard is empty. Copy an item first, or use New item from text.",
   "items_paste_failed": "Could not read the clipboard. Use New item from text to paste manually. {error}",
   "items_text_unrecognized": "Path of Building cannot read this as an item. Check the rarity and base type lines.",

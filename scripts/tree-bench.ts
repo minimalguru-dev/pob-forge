@@ -8,8 +8,7 @@
  *   WEBVIEW2_USER_DATA_FOLDER=<scratch dir> \
  *   WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9333" bun run tauri dev
  *
- * Add `--disable-gpu` to those arguments for software rendering, the closest
- * Windows gets to a Linux WebKitGTK canvas. Then:
+ * Add `--disable-gpu` to those arguments for software rendering. Then:
  *
  *   bun scripts/tree-bench.ts <build.xml> [cpu throttle rates, default 1,4]
  *

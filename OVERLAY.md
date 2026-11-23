@@ -157,9 +157,7 @@ isn't affiliated with or endorsed by Grinding Gear Games in any way.
 
 ## Limits
 
-- macOS draws the overlay opaque; transparent windows there need a Tauri feature this build does not enable.
 - The overlay does not know whether the game has focus, so it stays up when you alt-tab. Hide it with the shortcut.
-- The price check needs Windows: other systems have no way here to have the game copy an item.
 - The trade search reads equipment, jewels and flasks through PoB's item parser. Currency, gems and cards are priced
   by poe.ninja only.
 - The item and map cards use the build open in PoE Forge, not your live character. Keep it in step.

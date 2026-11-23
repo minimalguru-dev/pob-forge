@@ -114,7 +114,6 @@ fn game_in_front() -> bool {
     crate::game_window::foreground_game().is_some()
 }
 
-#[cfg(windows)]
 fn modifiers_down() -> bool {
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
     // SAFETY: GetAsyncKeyState only reads key state.
@@ -123,7 +122,6 @@ fn modifiers_down() -> bool {
 
 /// Types one chat command into the game: Enter opens the chat, the command, Enter sends it.
 /// Held modifiers would turn the typing into shortcuts, so it waits briefly for them to be let go.
-#[cfg(windows)]
 fn type_command(command: &str) {
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VK_RETURN};
     for _ in 0..20 {
@@ -153,9 +151,6 @@ fn type_command(command: &str) {
     std::thread::sleep(Duration::from_millis(20));
     send(&enter);
 }
-
-#[cfg(not(windows))]
-fn type_command(_: &str) {}
 
 /// Takes the macro keys while the game is in front and gives them back otherwise, so F5 and the
 /// like keep working in every other program.
@@ -256,10 +251,6 @@ fn monitor_at(w: &tauri::WebviewWindow, x: f64, y: f64) -> Option<tauri::Monitor
 /// It moves only to follow the cursor to another monitor: WebView2 stops painting an unfocused
 /// window that has moved, so cards are placed inside it instead of moving it.
 fn cover(app: &AppHandle, w: &tauri::WebviewWindow, m: &tauri::Monitor) {
-    // macOS draws the overlay opaque, so there it stays a small window.
-    if cfg!(target_os = "macos") {
-        return;
-    }
     // One pixel short of the monitor: Windows treats an exactly monitor-sized window as fullscreen,
     // and then the overlay stops drawing over a game in front of it.
     let (p, s) = (*m.position(), *m.size());
@@ -544,8 +535,6 @@ async fn open_window(app: &AppHandle) -> Result<(), String> {
         .shadow(false)
         .resizable(false)
         .inner_size(s.width, s.height);
-    // Transparent windows need the private-API feature on macOS; there the overlay is opaque.
-    #[cfg(not(target_os = "macos"))]
     let builder = builder.transparent(true);
     let window = builder.build().map_err(|e| e.to_string())?;
     let monitor = app.cursor_position().ok().and_then(|c| monitor_at(&window, c.x, c.y)).or_else(|| window.primary_monitor().ok().flatten());

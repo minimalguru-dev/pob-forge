@@ -3,7 +3,7 @@
 [![Latest release](https://img.shields.io/github/v/release/minimalguru-dev/pob-forge?style=flat-square&label=release)](../../releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/minimalguru-dev/pob-forge/total?style=flat-square&label=downloads)](../../releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2a2a30?style=flat-square)](LICENSE)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-2a2a30?style=flat-square)
+![Platform](https://img.shields.io/badge/platform-Windows-2a2a30?style=flat-square)
 
 A desktop app for planning Path of Exile 1 and 2 builds. It runs Path of Building Community's own
 calculation code, so every number matches Path of Building, and it opens the same build files.
@@ -15,9 +15,8 @@ Every installer is on the [Releases](../../releases/latest) page.
 | System | File | Install |
 |---|---|---|
 | Windows 10 or 11 | `PoE.Forge_<version>_x64-setup.exe` | Run it. It installs for your user only and fetches WebView2 if Windows lacks it. |
-| macOS, Apple Silicon | `PoE.Forge_<version>_aarch64.dmg` | Drag the app to Applications. See [macOS says the app cannot be opened](#macos-says-the-app-cannot-be-opened). |
 
-There is no build for Linux or Intel Macs.
+PoE Forge is for Windows only.
 
 Windows releases are signed through SignPath Foundation's free programme for open source, once the project is
 approved; until then they are unsigned. See the [code signing policy](CODE_SIGNING_POLICY.md). Free code signing
@@ -63,7 +62,7 @@ Tree, skills, items, calcs, config, notes, party and builds are all here, with P
 breakdowns. Calcs sorts PoB's sections into offence, defence and other, with DPS, EHP and the
 largest hit you can take at the top. Your buffs and the curses on the enemy show as game icons.
 
-Ctrl+K (Cmd+K on macOS) opens a search for commands, tabs, saved builds and everything in the open
+Ctrl+K opens a search for commands, tabs, saved builds and everything in the open
 build: notables and keystones, items, skills, config options and calcs rows. Pick one to go straight to it.
 
 ### Optimize
@@ -118,12 +117,6 @@ the address, an access token and ready-made client settings. It listens on `127.
 when the app closes, and refuses any request without the token.
 
 ## Troubleshooting
-
-### macOS says the app cannot be opened
-
-The app is not signed with an Apple Developer ID or notarized yet, so macOS blocks the first launch.
-On macOS 15 or later, open System Settings → Privacy & Security and click **Open Anyway**. On macOS
-14 and earlier, right-click the app and choose **Open**. [MACOS.md](MACOS.md) has more detail.
 
 ### An API key will not save on Windows
 
