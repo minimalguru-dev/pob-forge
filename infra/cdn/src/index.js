@@ -1,12 +1,13 @@
 // PoE Forge CDN: serves tree art, item art and game data from an R2 bucket,
-// and the updater manifest from the latest GitHub release.
+// and app updates (scripts/publish-update.ts uploads them).
 //
 // Paths the app asks for:
 //   tree/<sha256>.<ext>                hashed tree art (immutable)
 //   data/<sha256>                      hashed game data (immutable)
 //   maps/<game>/latest.json            item-art map (changes with leagues)
 //   <game>/Art/...webp?v=<tag>         item art, versioned by tag
-//   update/latest.json                 updater manifest
+//   update/latest.json                 updater manifest (falls back to the latest GitHub release)
+//   update/<version>/<installer>       signed installers the manifest points to (immutable)
 //
 // With ORIGIN set, a file missing from the bucket is fetched from ORIGIN once,
 // stored, and served; leave ORIGIN empty to serve only what is in the bucket.
@@ -30,13 +31,13 @@ export default {
     }
     if (!path || path.split("/").some((p) => p === "" || p === "." || p === "..") || path.includes("\\")) return notFound();
 
-    if (path === "update/latest.json") return updateManifest(env);
+    if (path === "update/latest.json") return updateManifest(request, env);
 
     const tag = url.searchParams.get("v");
     if (tag !== null && !/^[0-9a-f]{8}$/i.test(tag)) return notFound();
     const key = tag ? `${path}?v=${tag}` : path;
     const mutable = /^maps\/[^/]+\/latest\.json$/.test(path);
-    const cache = path.startsWith("tree/") || path.startsWith("data/") || tag ? YEAR : mutable ? "no-cache" : DAY;
+    const cache = path.startsWith("tree/") || path.startsWith("data/") || path.startsWith("update/") || tag ? YEAR : mutable ? "no-cache" : DAY;
 
     const stored = await env.BUCKET.get(key, { onlyIf: request.headers });
     const stale = stored && mutable && Date.now() - stored.uploaded.getTime() > REFRESH_MS;
@@ -77,7 +78,10 @@ function withHeaders({ body, contentType }, request, cache) {
   });
 }
 
-async function updateManifest(env) {
+// The bucket's manifest is the one in use; it changes on every release, so clients always revalidate.
+async function updateManifest(request, env) {
+  const stored = await env.BUCKET.get("update/latest.json", { onlyIf: request.headers });
+  if (stored) return fromBucket(stored, request, "no-cache");
   if (!env.UPDATE_REPO) return notFound();
   const res = await fetch(`https://github.com/${env.UPDATE_REPO}/releases/latest/download/latest.json`, {
     cf: { cacheTtl: 300, cacheEverything: true },

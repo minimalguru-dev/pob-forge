@@ -17,6 +17,7 @@
   import { chat } from "$lib/state/chat.svelte";
   import { overlay } from "$lib/state/overlay.svelte";
   import AssistantSettings from "$lib/components/AssistantSettings.svelte";
+  import Markdown from "$lib/components/Markdown.svelte";
   import { m } from "$lib/paraglide/messages";
 
   type Tone = "ok" | "warn" | "off" | undefined;
@@ -41,7 +42,6 @@
   );
   const jsonCfg = $derived(mcpUrl ? mcpConfigJson(mcp.status) : "");
   let copied = $state("");
-  let checked = $state(false);
   let version = $state("");
   getVersion().then((v) => (version = v)).catch(() => {});
   async function copy(key: string, text: string) {
@@ -616,42 +616,45 @@
           <div class="opt">
             <span>
               {m.settings_version()}
-              <span class="hint">{m.settings_version_hint()}</span>
+              <span class="hint">{m.settings_update_hint()}</span>
             </span>
             <div class="row">
-              {#if appUpdate.phase === "available"}
-                <span>{m.update_available()} <span class="mono" style:color="var(--ok)">{appUpdate.version}</span> {m.update_available_suffix()}</span>
-                <button class="btn sm" onclick={() => appUpdate.install()}>{m.update_install()}</button>
-              {:else if appUpdate.phase === "downloading"}
+              {#if appUpdate.phase === "downloading"}
                 <span class="dim">
                   {m.update_downloading()} <span class="mono">{appUpdate.version}</span>
                   {#if appUpdate.progress !== null}<span class="mono">{appUpdate.progress}%</span>{/if}
                 </span>
               {:else if appUpdate.phase === "ready"}
                 <span class="mono" style:color="var(--ok)">{m.settings_version_ready({ version: appUpdate.version ?? "" })}</span>
-                <button class="btn sm" onclick={() => appUpdate.restart()}>{m.update_restart()}</button>
+                <button class="btn sm primary" disabled={appUpdate.installing} onclick={() => appUpdate.restart()}>{m.update_restart()}</button>
               {:else}
                 {#if appUpdate.phase === "checking"}
                   <span class="dim">{m.settings_version_checking()}</span>
                 {:else if appUpdate.phase === "error"}
                   <span class="mono" style:color="var(--bad)" title={appUpdate.error}>{m.settings_version_failed()}</span>
-                {:else if checked}
+                {:else if appUpdate.upToDate}
                   <span class="dim">{m.settings_version_current()}</span>
                 {/if}
-                <button
-                  class="btn sm ghost"
-                  onclick={async () => {
-                    await appUpdate.check(true);
-                    checked = true;
-                  }}
-                  disabled={appUpdate.phase === "checking"}
-                >
+                <button class="btn sm ghost" onclick={() => appUpdate.check(true)} disabled={appUpdate.phase === "checking"}>
                   {m.settings_check_updates()}
                 </button>
               {/if}
             </div>
           </div>
+          {#if appUpdate.enabled}
+            <label class="opt">
+              <span>
+                {m.settings_update_auto()}
+                <span class="hint">{m.settings_update_auto_hint()}</span>
+              </span>
+              <input class="switch" type="checkbox" role="switch" checked={appUpdate.auto} onchange={(e) => appUpdate.setAuto((e.target as HTMLInputElement).checked)} />
+            </label>
+          {/if}
         </div>
+        {#if (appUpdate.phase === "downloading" || appUpdate.phase === "ready") && appUpdate.notes}
+          <h2 class="label ghead">{m.update_whats_new()} <span class="mono">{appUpdate.version}</span></h2>
+          <div class="notes"><Markdown text={appUpdate.notes} /></div>
+        {/if}
         <p class="note">{m.ggg_disclaimer()}</p>
       {:else if active === "overlay"}
         {@render head(m.settings_overlay(), m.settings_overlay_desc(), overlay.settings?.enabled ? m.status_on() : m.status_off(), overlay.settings?.enabled ? "ok" : "off")}
@@ -937,6 +940,14 @@
   }
   .opt:last-child {
     border-bottom: 0;
+  }
+  .notes {
+    max-height: 320px;
+    overflow: auto;
+    padding: 8px 10px;
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-sm, 4px);
+    font-size: var(--fs-sm);
   }
   .note {
     margin: 10px 2px 0;

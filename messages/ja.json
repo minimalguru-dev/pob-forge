@@ -68,7 +68,6 @@
   "settings_mcp_running": "実行中",
   "settings_mcp_port": "ポート",
   "settings_version": "アプリのバージョン",
-  "settings_version_hint": "起動直後に一度だけ確認します。インストールするとアプリが置き換わり、再起動が必要です。",
   "settings_version_ready": "{version} の準備ができました",
   "settings_version_checking": "確認中…",
   "settings_version_failed": "確認に失敗しました",
@@ -187,12 +186,8 @@
   "breakdown_radius": "効果範囲の半径: {radius}",
   "breakdown_none": "内訳はありません。",
 
-  "update_available": "バージョン",
-  "update_available_suffix": "が利用できます。",
-  "update_install": "アップデート",
   "update_later": "後で",
   "update_downloading": "ダウンロード中",
-  "update_ready": "アップデートをインストールしました。再起動すると完了します。",
   "update_restart": "再起動",
 
   "confirm_ok": "OK",

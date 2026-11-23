@@ -68,7 +68,6 @@
   "settings_mcp_running": "กำลังทำงาน",
   "settings_mcp_port": "พอร์ต",
   "settings_version": "เวอร์ชันแอป",
-  "settings_version_hint": "ตรวจสอบหนึ่งครั้งหลังเปิดโปรแกรม การติดตั้งจะแทนที่แอปและต้องเริ่มโปรแกรมใหม่",
   "settings_version_ready": "{version} พร้อมแล้ว",
   "settings_version_checking": "กำลังตรวจสอบ…",
   "settings_version_failed": "ตรวจสอบไม่สำเร็จ",
@@ -187,12 +186,8 @@
   "breakdown_radius": "รัศมีพื้นที่ส่งผล: {radius}",
   "breakdown_none": "ไม่มีรายละเอียด",
 
-  "update_available": "เวอร์ชัน",
-  "update_available_suffix": "พร้อมให้ใช้งานแล้ว",
-  "update_install": "อัปเดต",
   "update_later": "ไว้ทีหลัง",
   "update_downloading": "กำลังดาวน์โหลด",
-  "update_ready": "ติดตั้งการอัปเดตแล้ว เริ่มโปรแกรมใหม่เพื่อให้เสร็จสมบูรณ์",
   "update_restart": "เริ่มใหม่",
 
   "confirm_ok": "ตกลง",

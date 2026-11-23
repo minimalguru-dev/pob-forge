@@ -68,7 +68,6 @@
   "settings_mcp_running": "en marcha",
   "settings_mcp_port": "Puerto",
   "settings_version": "Versión de la aplicación",
-  "settings_version_hint": "Se comprueba una vez poco después del inicio. La instalación sustituye la aplicación y requiere reiniciar.",
   "settings_version_ready": "{version} lista",
   "settings_version_checking": "comprobando…",
   "settings_version_failed": "fallo en la comprobación",
@@ -187,12 +186,8 @@
   "breakdown_radius": "Radio del área de efecto: {radius}",
   "breakdown_none": "No hay desglose disponible.",
 
-  "update_available": "La versión",
-  "update_available_suffix": "está disponible.",
-  "update_install": "Actualizar",
   "update_later": "Más tarde",
   "update_downloading": "Descargando",
-  "update_ready": "Actualización instalada. Reinicia para terminar.",
   "update_restart": "Reiniciar",
 
   "confirm_ok": "Aceptar",

@@ -68,7 +68,6 @@
   "settings_mcp_running": "en marche",
   "settings_mcp_port": "Port",
   "settings_version": "Version de l'application",
-  "settings_version_hint": "Vérifiée une fois peu après le démarrage. L'installation remplace l'application et nécessite un redémarrage.",
   "settings_version_ready": "{version} prête",
   "settings_version_checking": "vérification…",
   "settings_version_failed": "échec de la vérification",
@@ -187,12 +186,8 @@
   "breakdown_radius": "Rayon de la zone d'effet : {radius}",
   "breakdown_none": "Aucun détail disponible.",
 
-  "update_available": "La version",
-  "update_available_suffix": "est disponible.",
-  "update_install": "Mettre à jour",
   "update_later": "Plus tard",
   "update_downloading": "Téléchargement",
-  "update_ready": "Mise à jour installée. Redémarrez pour terminer.",
   "update_restart": "Redémarrer",
 
   "confirm_ok": "OK",

@@ -68,7 +68,6 @@
   "settings_mcp_running": "работает",
   "settings_mcp_port": "Порт",
   "settings_version": "Версия приложения",
-  "settings_version_hint": "Проверяется один раз вскоре после запуска. Установка заменяет приложение и требует перезапуска.",
   "settings_version_ready": "{version} готова",
   "settings_version_checking": "проверка…",
   "settings_version_failed": "проверка не удалась",
@@ -187,12 +186,8 @@
   "breakdown_radius": "Радиус области действия: {radius}",
   "breakdown_none": "Разбор недоступен.",
 
-  "update_available": "Версия",
-  "update_available_suffix": "доступна.",
-  "update_install": "Обновить",
   "update_later": "Позже",
   "update_downloading": "Загрузка",
-  "update_ready": "Обновление установлено. Перезапустите, чтобы завершить.",
   "update_restart": "Перезапустить",
 
   "confirm_ok": "ОК",

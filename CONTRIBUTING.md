@@ -58,10 +58,13 @@ talking to a server it does not own. CI reads them from repository variables of 
 ## Releasing
 
 1. Once: run `bun tauri signer generate -w ~/.tauri/pob-forge.key`. Keep the private key and its
-   password out of the repository. In the GitHub repository, add the secrets `TAURI_SIGNING_PRIVATE_KEY`
-   (the key file's contents) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the variable
-   `TAURI_UPDATER_PUBKEY` (the `.pub` file's contents).
-2. Once: deploy the CDN and set `POB_FORGE_CDN_URL`; see [infra/cdn/README.md](infra/cdn/README.md).
+   password out of the repository, and back both up: without them no installed copy can be updated
+   again. In the GitHub repository, add the secrets `TAURI_SIGNING_PRIVATE_KEY` (the key file's
+   contents) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the variable `TAURI_UPDATER_PUBKEY` (the
+   `.pub` file's contents).
+2. Once: deploy the CDN and set `POB_FORGE_CDN_URL`; see [infra/cdn/README.md](infra/cdn/README.md). For
+   publishing, create an R2 API token with Object Read & Write on the bucket, and add the secrets
+   `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` and the variable `R2_BUCKET`.
 3. Once, for Windows code signing (SignPath Foundation, free for open source; see
    [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md)):
    - Turn on multi-factor authentication on GitHub, and later on SignPath.
@@ -77,11 +80,29 @@ talking to a server it does not own. CI reads them from repository variables of 
    From then on the release workflow signs the Windows program and installer. Each release makes two signing
    requests (the program, then the installer); approve each in SignPath within an hour or the job stops. Without
    the variables Windows builds stay unsigned, as before.
-4. `bun run release:tag patch` (or `minor`, `major`, `x.y.z`) bumps the version, commits, tags and
-   pushes. Publish the draft release the workflow creates. Installed copies find it through `update/latest.json` on the CDN, or the
-   release's own `latest.json`.
+4. Release:
 
-Builds made without the release workflow do not update themselves and are not code-signed.
+   ```sh
+   bun run release:tag patch     # or minor, major, x.y.z: bumps the version, commits, tags and pushes
+   ```
+
+   The tag runs `release.yml`: it builds Windows and macOS with the updater on (your public key, the CDN
+   as the only endpoint), signs the updater bundles and makes a **draft** GitHub release with notes from
+   the commits since the previous tag. Try the draft's installer and edit the notes if you like, then
+   **publish** the release. That runs `publish-cdn.yml`, which checks every bundle's signature against
+   `TAURI_UPDATER_PUBKEY`, uploads the bundles to `update/<version>/` and the Windows installer to the
+   download link, and writes `update/latest.json` last. Installed copies look for it after start and
+   every 6 hours, download it in the background, and install it on restart or when the app closes, as
+   Path of Building does. To put a published release on the CDN again, run `publish-cdn.yml` by hand
+   (Actions → publish update to CDN), with `force` to replace a version the CDN already offers.
+
+   Without GitHub, `bun run publish:update` builds and signs the Windows installer on this computer
+   and publishes it the same way (`--dry-run` stops before uploading; the script's header lists its
+   options and environment). Builds made there cannot be code-signed by SignPath, which signs only
+   GitHub builds.
+
+Builds made without the updater key (a plain `bun run tauri build`) do not update themselves. Copies installed
+from such a build have to be installed again once, from the download link, before they update.
 
 ## Layout
 

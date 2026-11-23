@@ -68,7 +68,6 @@
   "settings_mcp_running": "실행 중",
   "settings_mcp_port": "포트",
   "settings_version": "앱 버전",
-  "settings_version_hint": "시작 직후 한 번 확인합니다. 설치하면 앱이 교체되며 재시작이 필요합니다.",
   "settings_version_ready": "{version} 준비됨",
   "settings_version_checking": "확인 중…",
   "settings_version_failed": "확인 실패",
@@ -187,12 +186,8 @@
   "breakdown_radius": "효과 범위 반경: {radius}",
   "breakdown_none": "세부 내역이 없습니다.",
 
-  "update_available": "버전",
-  "update_available_suffix": "을(를) 사용할 수 있습니다.",
-  "update_install": "업데이트",
   "update_later": "나중에",
   "update_downloading": "다운로드 중",
-  "update_ready": "업데이트를 설치했습니다. 다시 시작하면 완료됩니다.",
   "update_restart": "다시 시작",
 
   "confirm_ok": "확인",

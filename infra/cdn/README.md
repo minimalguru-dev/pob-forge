@@ -8,7 +8,8 @@ every installer, and the updater manifest. Both fit Cloudflare's free tier.
 | `tree/<sha256>.<ext>` | Passive tree art | `bun run sync`, then `bun run downloads upload` |
 | `data/<sha256>` | PoE1 timeless jewel data | same |
 | `maps/<game>/latest.json`, `<game>/Art/…?v=<tag>` | Item art | copied from `ORIGIN` on first request |
-| `update/latest.json` | Updater manifest | latest GitHub release of `UPDATE_REPO` |
+| `update/latest.json`, `update/<version>/…` | Updater manifest and signed bundles | publishing a GitHub release (`publish-cdn.yml`), or `bun run publish:update`; without a manifest in the bucket, the latest GitHub release of `UPDATE_REPO` |
+| `download/PoE-Forge-setup.exe` | Installer behind the download link | publishing a release, as above |
 
 ## Set up
 
@@ -37,7 +38,12 @@ once the bucket holds everything you need, and from then on nothing is fetched f
 
 ## Updates
 
-The Worker forwards `update/latest.json` from the latest GitHub release, cached for five minutes. The
-release workflow lists it before the GitHub address in the app's updater endpoints, so either one
-working is enough. The manifest and installers are signed with your updater key; see
-[CONTRIBUTING.md](../../CONTRIBUTING.md#releasing).
+Installed copies ask `update/latest.json` on this Worker, and nothing else, for a new version.
+Publishing a GitHub release runs `publish-cdn.yml` (`bun run publish:update --release <tag>`), which checks each
+bundle's updater signature, uploads the bundles to `update/<version>/` and the Windows installer to the download
+link, and writes `update/latest.json` last; the manifest is served with `no-cache`, the installers as
+immutable. Until the bucket holds a manifest, the Worker forwards the latest GitHub release's
+`latest.json` instead. The installers are signed with your updater key and the app checks that
+signature before installing; see [CONTRIBUTING.md](../../CONTRIBUTING.md#releasing).
+
+The Worker change that serves the manifest from the bucket needs a deploy (`bun x wrangler deploy`).

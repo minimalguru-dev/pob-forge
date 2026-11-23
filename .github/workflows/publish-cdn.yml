@@ -1,0 +1,57 @@
+name: publish update to CDN
+
+# Installed copies look for updates only on the CDN (infra/cdn). The release workflow builds and
+# signs a draft release; publishing that draft on GitHub runs this, which checks each bundle's
+# updater signature against TAURI_UPDATER_PUBKEY, uploads the bundles to the CDN and writes
+# update/latest.json last. Run it by hand to publish (or republish) a release that is out already.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published release to put on the CDN (for example v0.5.9)"
+        required: true
+      force:
+        description: "Publish even if the CDN already offers this version or a newer one"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Two runs writing latest.json at once could leave the older version in it.
+concurrency:
+  group: publish-cdn
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Uploading needs the R2 secrets; a fork or a repository without them has nothing to publish to.
+    if: vars.POB_FORGE_CDN_URL != ''
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
+          sparse-checkout: |
+            scripts
+            src-tauri/tauri.conf.json
+          sparse-checkout-cone-mode: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Put the release on the CDN
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+          FORCE: ${{ inputs.force && '--force' || '' }}
+          POB_FORGE_CDN_URL: ${{ vars.POB_FORGE_CDN_URL }}
+          TAURI_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: bun scripts/publish-update.ts --release "$TAG" $FORCE

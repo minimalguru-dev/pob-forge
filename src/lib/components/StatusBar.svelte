@@ -4,6 +4,7 @@
   import { mcp } from "$lib/state/mcp.svelte";
   import { chat } from "$lib/state/chat.svelte";
   import { appOptions } from "$lib/state/options.svelte";
+  import { appUpdate } from "$lib/state/update.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import { m } from "$lib/paraglide/messages";
 
@@ -75,6 +76,18 @@
   {/if}
   {#if build.info}
     <div class="seg dim"><span>{m.status_rev()}</span><span class="num">{build.info.rev}</span></div>
+  {/if}
+  {#if appUpdate.phase === "ready"}
+    <button
+      class="seg update"
+      onclick={() => {
+        appOptions.section = "updates";
+        appOptions.open = true;
+      }}
+      title={m.update_status_title({ version: appUpdate.version ?? "" })}
+    >
+      <span>{m.update_status_ready()}</span>
+    </button>
   {/if}
   <button
     class="seg iconbtn"
@@ -155,6 +168,15 @@
     max-width: 50vw;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  /* Path of Building's "Update Ready" corner button: stays until the restart. */
+  .update {
+    color: var(--ok);
+    border-left: 1px solid var(--line-0);
+    cursor: var(--cursor-pointer, pointer);
+  }
+  .update:hover {
+    background: var(--bg-2);
   }
   .seg.on {
     color: var(--fg-0);

@@ -68,7 +68,6 @@
   "settings_mcp_running": "läuft",
   "settings_mcp_port": "Port",
   "settings_version": "App-Version",
-  "settings_version_hint": "Wird kurz nach dem Start einmal geprüft. Die Installation ersetzt die App und erfordert einen Neustart.",
   "settings_version_ready": "{version} bereit",
   "settings_version_checking": "wird geprüft…",
   "settings_version_failed": "Prüfung fehlgeschlagen",
@@ -187,12 +186,8 @@
   "breakdown_radius": "Wirkungsbereichsradius: {radius}",
   "breakdown_none": "Keine Aufschlüsselung verfügbar.",
 
-  "update_available": "Version",
-  "update_available_suffix": "ist verfügbar.",
-  "update_install": "Aktualisieren",
   "update_later": "Später",
   "update_downloading": "Wird heruntergeladen",
-  "update_ready": "Update installiert. Zum Abschließen neu starten.",
   "update_restart": "Neu starten",
 
   "confirm_ok": "OK",

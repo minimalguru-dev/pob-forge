@@ -131,12 +131,14 @@
   "chat_open_trade_slot": "Trade: {slot}",
 
   "settings_version": "App version",
-  "settings_version_hint": "Checked once shortly after start. Installing replaces the app and needs a restart.",
   "settings_version_ready": "{version} ready",
   "settings_version_checking": "checking…",
   "settings_version_failed": "check failed",
   "settings_version_current": "up to date",
   "settings_check_updates": "Check for updates",
+  "settings_update_hint": "Looks for a new version after start and every 6 hours, and downloads it in the background. It installs when you restart or close the app.",
+  "settings_update_auto": "Check for updates automatically",
+  "settings_update_auto_hint": "Off: only the button above looks.",
 
   "settings_report": "Bug report file",
   "settings_report_hint": "A text file with app details and recent logs, for attaching to an issue. Paths, tokens and API keys are masked.",
@@ -501,12 +503,12 @@
   "breakdown_radius": "Area of effect radius: {radius}",
   "breakdown_none": "No breakdown available.",
 
-  "update_available": "Version",
-  "update_available_suffix": "is available.",
-  "update_install": "Update",
   "update_later": "Later",
+  "update_ready_banner": "PoE Forge {version} is downloaded. It installs when you close the app.",
+  "update_whats_new": "What's new",
+  "update_status_ready": "Update ready",
+  "update_status_title": "PoE Forge {version} is downloaded. Restart, or close the app, to install it.",
   "update_downloading": "Downloading",
-  "update_ready": "Update installed. Restart to finish.",
   "update_restart": "Restart",
 
   "confirm_ok": "OK",

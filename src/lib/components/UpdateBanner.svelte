@@ -1,68 +1,48 @@
 <script lang="ts">
   import { appUpdate } from "$lib/state/update.svelte";
+  import Markdown from "$lib/components/Markdown.svelte";
   import { m } from "$lib/paraglide/messages";
+
+  let notesOpen = $state(false);
 </script>
 
 {#if appUpdate.showBanner}
   <div class="banner" role="status">
-    {#if appUpdate.phase === "available"}
-      <span class="txt">{m.update_available()} <span class="mono">{appUpdate.version}</span> {m.update_available_suffix()}</span>
-      <button class="btn sm" onclick={() => appUpdate.install()}>{m.update_install()}</button>
+    <div class="line">
+      <span class="txt">{m.update_ready_banner({ version: appUpdate.version ?? "" })}</span>
+      {#if appUpdate.notes}
+        <button class="btn sm ghost" aria-expanded={notesOpen} onclick={() => (notesOpen = !notesOpen)}>{m.update_whats_new()}</button>
+      {/if}
+      <button class="btn sm primary" disabled={appUpdate.installing} onclick={() => appUpdate.restart()}>{m.update_restart()}</button>
       <button class="btn sm ghost" onclick={() => appUpdate.dismiss()}>{m.update_later()}</button>
-    {:else if appUpdate.phase === "downloading"}
-      <span class="txt">
-        {m.update_downloading()} <span class="mono">{appUpdate.version}</span>
-        {#if appUpdate.progress !== null}<span class="mono">{appUpdate.progress}%</span>{/if}
-      </span>
-      <div class="bar"><div class="fill" style:width="{appUpdate.progress ?? 15}%" class:idle={appUpdate.progress === null}></div></div>
-    {:else if appUpdate.phase === "ready"}
-      <span class="txt">{m.update_ready()}</span>
-      <button class="btn sm" onclick={() => appUpdate.restart()}>{m.update_restart()}</button>
-      <button class="btn sm ghost" onclick={() => appUpdate.dismiss()}>{m.update_later()}</button>
+    </div>
+    {#if notesOpen && appUpdate.notes}
+      <div class="notes"><Markdown text={appUpdate.notes} /></div>
     {/if}
   </div>
 {/if}
 
 <style>
   .banner {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     padding: 6px 12px;
     background: var(--bg-2);
     border-bottom: 1px solid var(--line-1);
     font-size: var(--fs-sm);
     color: var(--fg-1);
   }
-  .txt {
-    flex: 1;
+  .line {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 10px;
   }
-  .bar {
-    width: 160px;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--bg-3);
-    overflow: hidden;
+  .txt {
+    flex: 1;
   }
-  .fill {
-    height: 100%;
-    background: var(--focus);
-    transition: width 120ms linear;
-  }
-  /* No content-length from the server, so show motion instead of a false value. */
-  .fill.idle {
-    animation: creep 1.4s ease-in-out infinite;
-  }
-  @keyframes creep {
-    0%,
-    100% {
-      opacity: 0.35;
-    }
-    50% {
-      opacity: 1;
-    }
+  .notes {
+    max-height: 40vh;
+    overflow: auto;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--line-0);
   }
 </style>
