@@ -157,20 +157,66 @@ stays in English whatever the interface language is.
 ## Update the bundled PoB data
 
 The installer bundles PoB's Lua and game data. The app never downloads data while it runs, and PoB's
-built-in updater is stubbed out. To move to a newer PoB:
+built-in updater is stubbed out. Users get a new league's gems, uniques and tree only when the pins move
+and an app update ships.
 
-1. Pull the PathOfBuilding-PoE2 checkout.
-2. Put the new commit hash in `pob-sync.toml`. `bun run sync` refuses to run if the checkout's HEAD
-   differs from that pin. Pass `--allow-commit-mismatch` to override.
-3. Run `bun run sync`. Use the full sync when the tree changed, because tree art is decoded only with
-   `--tree-assets`.
-4. Run the checks below, then open one of your builds and compare the sidebar against Path of
-   Building. `lua/bridge.lua` drives PoB's internals, so an upstream refactor can break it.
-5. Build and release. CI reads the pin from `pob-sync.toml` and checks out that exact commit, so the
-   repo alone describes a release.
+`bun run pob:outdated` compares the pins in `pob-sync.toml` with upstream. For each game it prints the
+pinned commit, the release that contains it, the newest release, and how many commits the pin is behind
+that release and `dev`. It exits 1 when a newer release exists. `.github/workflows/pob-outdated.yml` runs
+it every Monday: with issues on, it keeps one issue open while a pin is behind; with issues off, the run
+fails and its summary has the report. Neither one changes a pin, because a pin is the revision the engine
+was validated against.
 
-Users get new data with a new app release. The status bar shows the bundled PoB version and commit.
-Do not edit files under `src-tauri/resources/pob/`, because the next sync overwrites them.
+To move one game (PoE1 below; for PoE2 use `../PathOfBuilding-PoE2`, `[poe2]`, `bun run sync:poe2`,
+`golden` and `golden:accept`):
+
+1. Check out the release, or the `dev` commit, you want in the checkout next to this repo:
+   `git -C ../PathOfBuilding fetch --tags` and `git -C ../PathOfBuilding checkout v2.68.1`.
+2. Put its full hash (`git -C ../PathOfBuilding rev-parse HEAD`) in `commit` under `[poe1]` in
+   `pob-sync.toml`. Sync refuses a checkout whose HEAD differs from the pin; `--allow-commit-mismatch`
+   is for experiments only.
+3. Sync in PowerShell, with `NoDefaultCurrentDirectoryInExePath` removed in the same process, or LuaJIT's
+   build cannot find `minilua` (see `mistakes.md`):
+
+   ```powershell
+   Remove-Item Env:NoDefaultCurrentDirectoryInExePath -ErrorAction SilentlyContinue
+   bun run sync:poe1
+   ```
+
+   Use the full sync, not `sync:fast`: tree art is decoded only with `--tree-assets`, and a fast sync
+   stops when the newest tree has no art.
+4. Check the patches. Sync applies `patches/poe1/*.patch` in filename order (a later one may build on an
+   earlier one) and stops at `apply 000N-….patch` when one no longer fits. For each, find out whether
+   upstream merged the fix: `git -C ../PathOfBuilding log --oneline -F --grep "<the patch's Subject>"`,
+   or the upstream pull request. If it did, delete the patch. If not, remake it against the new commit
+   and replace the file. Repeat until sync finishes; its last line counts the patches applied.
+5. Test against the synced data:
+
+   ```powershell
+   cargo test -p pob-engine
+   bun run golden:poe1
+   bun run i18n:labels
+   bun run check
+   ```
+
+   An engine test skips, rather than fails, when its data is missing, so look for `skipping` in the
+   output. The golden check needs the build corpus in `corpus/`; CI runs it when the corpus is
+   configured. When builds move, make sure each move comes from the new data, then run
+   `bun run golden:poe1:accept` and say what moved in the commit message. Then open one of your builds
+   in the app and compare the sidebar against Path of Building. `lua/bridge.lua` drives PoB's internals,
+   so an upstream refactor can break it.
+6. If `trees/poe1/art.json` or `src-tauri/resources/pob1/downloads.json` changed (a new tree or new
+   timeless jewel data), put the new files on the CDN before shipping: `bun run downloads upload`
+   (R2 credentials, see [infra/cdn/README.md](infra/cdn/README.md)), then
+   `bun run downloads check` with `POB_FORGE_CDN_URL` set.
+7. Commit `pob-sync.toml` with the changed `trees/`, `patches/`, `golden/` and `messages/pob/` files,
+   for example `chore(pob): move PoE1 to v2.68.1`, then ship it with `bun run publish:update` (see
+   Releasing). CI reads the pin from `pob-sync.toml` and checks out that exact commit, so the repo alone
+   describes a release.
+
+The status bar shows the bundled PoB version and commit. Do not edit files under
+`src-tauri/resources/pob/` or `pob1/`, because the next sync overwrites them; carry a fix as a patch in
+`patches/<game>/` instead.
 
 ## Run checks without the UI
 

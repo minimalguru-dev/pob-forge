@@ -1,0 +1,82 @@
+name: pob-outdated
+
+# Weekly: is there an upstream Path of Building release the pins in pob-sync.toml
+# do not include? With issues on, keeps one open issue while there is and closes
+# it once there is not. With issues off, the run fails, so GitHub emails the
+# owner, and the report is in the run's summary. It never bumps the pins; see
+# "Update the bundled PoB data" in CONTRIBUTING.md.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: pob-outdated
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: Path of Building has a newer release than the pinned commits
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Compare the pins with upstream
+        id: check
+        run: |
+          set +e
+          bun scripts/pob-outdated.ts --markdown > report.md
+          code=$?
+          set -e
+          cat report.md | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          # 0 = current, 1 = a newer release; anything else is a failed check.
+          [ "$code" -le 1 ]
+
+      - name: Find the open issue
+        id: issue
+        run: |
+          enabled=$(gh repo view --json hasIssuesEnabled --jq .hasIssuesEnabled)
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+          [ "$enabled" = true ] || exit 0
+          n=$(gh issue list --state open --limit 100 --json number,title \
+            --jq '.[] | "\(.number)\t\(.title)"' | awk -F'\t' -v t="$TITLE" '$2 == t { print $1; exit }')
+          echo "number=$n" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the issue
+        if: steps.check.outputs.code == '1' && steps.issue.outputs.enabled == 'true'
+        env:
+          N: ${{ steps.issue.outputs.number }}
+        run: |
+          if [ -z "$N" ]; then
+            gh issue create --title "$TITLE" --body-file report.md
+            exit 0
+          fi
+          old=$(gh issue view "$N" --json body --jq .body | head -1)
+          gh issue edit "$N" --body-file report.md
+          # A comment notifies watchers; an edit does not. Comment only when a newer release appeared.
+          if [ "$old" != "$(head -1 report.md)" ]; then
+            gh issue comment "$N" --body "Upstream has released again since this issue was last updated. The table above is current."
+          fi
+
+      - name: Close the issue
+        if: steps.check.outputs.code == '0' && steps.issue.outputs.number != ''
+        env:
+          N: ${{ steps.issue.outputs.number }}
+        run: |
+          gh issue edit "$N" --body-file report.md
+          gh issue close "$N" --comment "The pins in pob-sync.toml now include the newest upstream releases."
+
+      - name: Fail the run (issues are off)
+        if: steps.check.outputs.code == '1' && steps.issue.outputs.enabled != 'true'
+        run: |
+          echo "::error title=PoB update available::Upstream Path of Building has a release the pins do not include. See the run summary."
+          exit 1

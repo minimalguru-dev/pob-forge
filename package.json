@@ -28,6 +28,7 @@
     "release:tag": "bun scripts/release.mjs",
     "i18n:labels": "bun scripts/pob-labels.ts",
     "check:labels": "bun scripts/pob-labels.ts --check",
+    "pob:outdated": "bun scripts/pob-outdated.ts",
     "i18n": "paraglide-js compile --project ./project.inlang --output-structure locale-modules"
   },
   "dependencies": {
