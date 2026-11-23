@@ -3698,7 +3698,7 @@ dependencies = [
 
 [[package]]
 name = "pob-engine"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "clap",
  "crc32fast",
@@ -3717,7 +3717,7 @@ dependencies = [
 
 [[package]]
 name = "pob-forge"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -3755,7 +3755,7 @@ dependencies = [
 
 [[package]]
 name = "pob-sync"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "anyhow",
  "clap",
