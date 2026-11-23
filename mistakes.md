@@ -2,6 +2,15 @@
 
 Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedostatke, uz ispravak i status provjere. Ne pretvarati pretpostavke u potvrđene uzroke. Datumi/vremena odnose se na Europe/Zagreb.
 
+## 2026-11-23 — Apostrof u komentaru unutar `bun -e '…'` u workflowu
+
+- **Simptom:** prvi `release.yml` za `v0.5.9` ([run 45259285118](https://github.com/minimalguru-dev/pob-forge/actions/runs/45259285118)) pao je u koraku "Configure the updater" na Windowsu; macOS otkazan, `updater-manifest` preskočen, draft bez datoteka.
+- **Dokaz:** `line 11: syntax error near unexpected token '('`; lokalni `bash -n` nad tijelom koraka daje istu grešku, nad ispravkom prolazi.
+- **Uzrok:** novi JS komentar "this repository's latest release" unutar bash single-quoted `bun -e '…'`; apostrof zatvara navodnike. YAML parse i čitanje diffa to ne vide.
+- **Ispravak:** komentar bez apostrofa i s napomenom da ih tamo ne smije biti (`e8aea01` → sljedeći commit). Release ponovno pokrenut kroz `workflow_dispatch` s istim tagom: definicija workflowa dolazi s grane, kod s taga.
+- **Prevencija:** nakon izmjene workflowa pustiti svaki bash `run` kroz `bash -n` (zamijeniti `${{ … }}`), ne samo YAML parser; u single-quoted skriptama ne koristiti apostrofe.
+- **Validacija:** čeka ponovljeni release run.
+
 ## 2026-11-23 — Windows preview workflow nije dobio adresu CDN-a
 
 - **Simptom:** "Windows preview build" (`progression-windows.yml`) pada na svakom pushu `feat/**` grane od 2026-11-21 (npr. [run 44888797245](https://github.com/minimalguru-dev/pob-forge/actions/runs/44888797245), `bd125a8`), u koraku "Sync pinned PoB engines".
