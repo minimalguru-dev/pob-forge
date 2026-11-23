@@ -2,6 +2,15 @@
 
 Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedostatke, uz ispravak i status provjere. Ne pretvarati pretpostavke u potvrđene uzroke. Datumi/vremena odnose se na Europe/Zagreb.
 
+## 2026-11-23 — Windows preview workflow nije dobio adresu CDN-a
+
+- **Simptom:** "Windows preview build" (`progression-windows.yml`) pada na svakom pushu `feat/**` grane od 2026-11-21 (npr. [run 44888797245](https://github.com/minimalguru-dev/pob-forge/actions/runs/44888797245), `bd125a8`), u koraku "Sync pinned PoB engines".
+- **Dokaz:** log: `Error: tree art is missing locally and POB_FORGE_CDN_URL is not set, so it cannot be downloaded`.
+- **Uzrok:** rebrand je maknuo `art.pobredux.com` i uveo build-time `POB_FORGE_CDN_URL`; `release.yml` i `check.yml` čitaju `vars.POB_FORGE_CDN_URL`, ali Windows preview workflow nije ažuriran. Neuspjesi nisu primijećeni jer se ishod tog workflowa nije provjeravao nakon pusha.
+- **Ispravak:** `env: POB_FORGE_CDN_URL: ${{ vars.POB_FORGE_CDN_URL }}` na razini workflowa.
+- **Prevencija:** kad se uvodi nova build-time varijabla, pretražiti sve `.github/workflows/*.yml` (ne samo release); nakon pusha provjeriti ishod svakog pokrenutog workflowa, ne samo onog koji se mijenjao.
+- **Validacija:** čeka run nakon pusha ispravka.
+
 ## 2026-11-15 — Lua string.sub reže bajtove, ne Unicode znakove
 
 - **Nalaz u završnom pregledu:** `label:sub(1, 160)` skraćuje valjan naziv od 160 znakova s dijakriticima i može presjeći UTF-8 znak. HTML maxlength broji znakove, ne iste bajtove.

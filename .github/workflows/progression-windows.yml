@@ -8,6 +8,9 @@ permissions:
 concurrency:
   group: windows-preview-${{ github.ref }}
   cancel-in-progress: true
+# pob-sync downloads the tree art from the CDN when the checkout lacks it, as in release.yml.
+env:
+  POB_FORGE_CDN_URL: ${{ vars.POB_FORGE_CDN_URL }}
 jobs:
   windows:
     runs-on: windows-latest
