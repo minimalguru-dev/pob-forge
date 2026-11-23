@@ -9,7 +9,7 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Uzrok:** rebrand je maknuo `art.pobredux.com` i uveo build-time `POB_FORGE_CDN_URL`; `release.yml` i `check.yml` čitaju `vars.POB_FORGE_CDN_URL`, ali Windows preview workflow nije ažuriran. Neuspjesi nisu primijećeni jer se ishod tog workflowa nije provjeravao nakon pusha.
 - **Ispravak:** `env: POB_FORGE_CDN_URL: ${{ vars.POB_FORGE_CDN_URL }}` na razini workflowa.
 - **Prevencija:** kad se uvodi nova build-time varijabla, pretražiti sve `.github/workflows/*.yml` (ne samo release); nakon pusha provjeriti ishod svakog pokrenutog workflowa, ne samo onog koji se mijenjao.
-- **Validacija:** čeka run nakon pusha ispravka.
+- **Validacija:** [run 45253373627](https://github.com/minimalguru-dev/pob-forge/actions/runs/45253373627) na `e8aea01` uspješan: sync oba enginea, engine i app testovi, browser testovi, nepotpisani installer i lockfile provjera.
 
 ## 2026-11-15 — Lua string.sub reže bajtove, ne Unicode znakove
 
