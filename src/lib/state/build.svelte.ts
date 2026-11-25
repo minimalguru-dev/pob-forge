@@ -28,7 +28,7 @@ export function autosaveKey() {
   return game.isPoe2 ? AUTOSAVE_KEY : `${AUTOSAVE_KEY}:${game.current}`;
 }
 
-export type ViewId = "overview" | "tree" | "skills" | "items" | "calcs" | "config" | "party" | "optimise" | "compare" | "import" | "regex";
+export type ViewId = "overview" | "tree" | "skills" | "items" | "calcs" | "config" | "notes" | "party" | "optimise" | "compare" | "import" | "regex";
 
 /**
  * The one live build. Mutations go through the engine and then re-pull the
@@ -425,6 +425,7 @@ function viewLabel(view: ViewId): string {
     party: m.view_party,
     optimise: m.view_optimise,
     overview: m.view_overview,
+    notes: m.view_notes,
     import: m.view_builds,
   };
   return labels[view]?.() ?? view;

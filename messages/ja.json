@@ -104,6 +104,7 @@
   "view_items": "アイテム",
   "view_calcs": "計算",
   "view_config": "設定",
+  "view_notes": "メモ",
   "view_party": "パーティ",
   "view_optimise": "最適化",
   "view_compare": "比較",
@@ -191,6 +192,11 @@
 
   "confirm_ok": "OK",
 
+  "notes_insert": "{name} を挿入（{code}）",
+  "notes_edit": "編集",
+  "notes_edit_title": "カラーコードを表示したまま、メモをテキストとして編集します",
+  "notes_placeholder": "メモはビルドと一緒に保存されます。",
+  "notes_empty": "メモはありません。「編集」を選ぶと追加できます。",
 
   "app_safe_mode": "セーフモード: 直前のビルドは開き直されませんでした",
   "app_recover_title": "直前のビルドを開き直しますか？",

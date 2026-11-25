@@ -347,6 +347,7 @@
   "view_items": "Items",
   "view_calcs": "Calcs",
   "view_config": "Config",
+  "view_notes": "Notes",
   "view_party": "Party",
   "view_optimise": "Optimize",
   "view_compare": "Compare",
@@ -512,6 +513,11 @@
 
   "confirm_ok": "OK",
 
+  "notes_insert": "Insert {name} ({code})",
+  "notes_edit": "Edit",
+  "notes_edit_title": "Edit the notes as text, with the colour codes shown",
+  "notes_placeholder": "Notes are saved with the build.",
+  "notes_empty": "No notes. Choose Edit to add some.",
 
   "calcs_player": "Player",
   "calcs_minion": "Minion",
