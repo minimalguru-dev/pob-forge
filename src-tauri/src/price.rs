@@ -240,6 +240,40 @@ pub async fn price_trade(state: State<'_, PriceState>, game: Game, league: Strin
     Ok(TradeResult { total, url, listings: listings_out })
 }
 
+/// One request from PoB's Trader (its searches and listing fetches), sent without signing in.
+/// It shares the price check's limits, so the two never add up to more than GGG allows.
+#[tauri::command]
+pub async fn price_trade_request(state: State<'_, PriceState>, url: String, body: Option<String>) -> Result<crate::ggg::TradeReply, String> {
+    let (url, policy) = anon_url(&url)?;
+    if let Some(seconds) = state.wait(policy) {
+        return Ok(crate::ggg::TradeReply::Wait { seconds });
+    }
+    let request = match body {
+        Some(json) => client().post(url).header("content-type", "application/json").body(json),
+        None => client().get(url),
+    };
+    let resp = request.send().await.map_err(|e| format!("pathofexile.com: {e}"))?;
+    let status = resp.status().as_u16();
+    let wait = match crate::ggg::wait_from(resp.headers()) {
+        0 if status == 429 => 60,
+        wait => wait,
+    };
+    state.limit(policy, wait);
+    let body = resp.text().await.map_err(|e| format!("pathofexile.com: {e}"))?;
+    Ok(match status {
+        429 => crate::ggg::TradeReply::Wait { seconds: wait },
+        status => crate::ggg::TradeReply::Reply { status, body },
+    })
+}
+
+/// The address to send and its rate-limit bucket. Parsing first resolves `..` segments, so the
+/// prefix check sees the address actually sent.
+fn anon_url(url: &str) -> Result<(reqwest::Url, &'static str), String> {
+    let url = reqwest::Url::parse(url).map_err(|_| "not a pathofexile.com trade request".to_string())?;
+    let policy = anon_policy(url.as_str())?;
+    Ok((url, policy))
+}
+
 /// poeprices.info's estimate for a rare: a range, the currency, and how sure it is.
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -569,6 +603,17 @@ mod tests {
         assert_eq!((t.primary.as_str(), t.rates.get("divine")), ("chaos", Some(&0.004)));
         assert_eq!(t.lines.len(), 1);
         assert_eq!((t.lines[0].name.as_str(), t.lines[0].value), ("Divine Orb", 250.0));
+    }
+
+    #[test]
+    fn the_trader_may_only_reach_the_trade_api() {
+        let ok = super::anon_url("https://www.pathofexile.com/api/trade/search/Mercenaries").unwrap();
+        assert_eq!(ok.1, "https://www.pathofexile.com/api/trade/search/");
+        assert!(super::anon_url("https://www.pathofexile.com/api/trade2/fetch/a,b?query=x&realm=poe2").is_ok());
+        assert!(super::anon_url("https://www.pathofexile.com/api/trade/search/../../profile").is_err());
+        assert!(super::anon_url("https://www.pathofexile.com/my-account").is_err());
+        assert!(super::anon_url("https://www.pathofexile.com.evil.example/api/trade/search/x").is_err());
+        assert!(super::anon_url("http://www.pathofexile.com/api/trade/search/x").is_err());
     }
 
     #[test]

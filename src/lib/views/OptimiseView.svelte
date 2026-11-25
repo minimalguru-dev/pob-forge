@@ -19,6 +19,7 @@
   import { game } from "$lib/state/game.svelte";
   import { stripPobText } from "$lib/pobtext";
   import { m } from "$lib/paraglide/messages";
+  import TraderWindow from "$lib/components/TraderWindow.svelte";
 
   // Review: PoB's numbers plus the rule-based findings, refreshed with the build.
   let summary = $state<BuildSummary | null>(null);
@@ -53,6 +54,8 @@
   let range = $state(1);
   let chosen = $state<Set<string>>(new Set());
   let running = $state(false);
+  let traderOpen = $state(false);
+  let idealOpen = $state(false);
   let progress = $state<GearOptProgress | null>(null);
   let result = $state<GearOptResult | null>(null);
   let error = $state<string | null>(null);
@@ -323,6 +326,14 @@
       <span class="title">{m.opt_gear()}</span>
     </div>
     <div class="controls">
+      <div class="ctl run">
+        <button class="btn sm primary" onclick={() => (traderOpen = true)} disabled={!build.loaded}>{m.opt_find_upgrades()}</button>
+        <span class="dim small">{m.opt_find_upgrades_hint()}</span>
+      </div>
+    </div>
+    <details class="ideal" bind:open={idealOpen}>
+    <summary>{m.opt_ideal()}</summary>
+    <div class="controls">
       <div class="ctl">
         <span class="label">{m.opt_aim()}</span>
         <div class="seg" role="radiogroup">
@@ -420,6 +431,7 @@
         {/each}
       </div>
     {/if}
+    </details>
     {#if game.isPoe1}
       <div class="head tree">
         <span class="title">{m.opt_cluster()}</span>
@@ -559,7 +571,21 @@
   </section>
 </div>
 
+{#if traderOpen}
+  <TraderWindow onclose={() => (traderOpen = false)} />
+{/if}
+
 <style>
+  .ideal > summary {
+    cursor: var(--cursor-pointer, pointer);
+    padding: 6px 12px;
+    color: var(--fg-2);
+    font-size: var(--fs-sm);
+    border-top: 1px solid var(--line-0);
+  }
+  .ideal > summary:hover {
+    color: var(--fg-0);
+  }
   .page {
     flex: 1;
     display: grid;

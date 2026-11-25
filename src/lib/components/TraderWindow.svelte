@@ -4,6 +4,7 @@
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import {
     engine,
+    anonTradeRequest,
     gggTradeRequest,
     type ItemSetInfo,
     type PowerStat,
@@ -19,6 +20,8 @@
   import { build } from "$lib/state/build.svelte";
   import { game } from "$lib/state/game.svelte";
   import { ggg } from "$lib/state/ggg.svelte";
+  import { chat } from "$lib/state/chat.svelte";
+  import { upgradePrompt } from "$lib/trade-prompt";
   import PobTooltip from "$lib/components/PobTooltip.svelte";
   import SearchSelect from "$lib/components/SearchSelect.svelte";
   import { m } from "$lib/paraglide/messages";
@@ -166,7 +169,10 @@
   let tip = $state<{ tt: Tooltip; x: number; y: number; width: number } | null>(null);
   let tipFor = "";
 
-  const live = $derived(ggg.account?.trade === true);
+  // Signed in, requests go with the account (and private leagues show); otherwise anonymously,
+  // under the same limits as the overlay's price check.
+  const signedIn = $derived(ggg.account?.trade === true);
+  const send = (url: string, body: string | null) => (signedIn ? gggTradeRequest(url, body) : anonTradeRequest(url, body));
   const realmId = $derived(game.isPoe2 ? "poe2" : realm);
   const activeWeights = $derived(weights.filter((w) => w.weightMult > 0));
   const slotRows = $derived(rows.filter((r) => !r.special));
@@ -227,7 +233,7 @@
     } catch {
       leagues = null;
     }
-    if (live) await privateLeagues();
+    if (signedIn) await privateLeagues();
   }
 
   /** Signed in, the trade site also lists the private leagues the account is in. */
@@ -244,7 +250,7 @@
   /** PoB's currency rates. The price sorts and the order of the total need them. */
   async function loadRates() {
     const key = `${realmId}/${league}`;
-    if (!live || ratesFor === key) return;
+    if (ratesFor === key) return;
     ratesFor = key;
     try {
       rates = (await engine.tradeRates({ league, realm: realmId })).rates;
@@ -344,7 +350,7 @@
     waitLeft = 0;
   }
 
-  /** PoB decides which searches and listings to ask for; each one is sent with the user's sign-in. */
+  /** PoB decides which searches and listings to ask for; `send` delivers each one. */
   async function listings(r: Row, source: { query: string } | { url: string }) {
     if (sort === "Price" || sort === "StatValuePrice") await loadRates();
     let state = await engine.tradeResultsStart({ ...target(r), ...source, league, realm: realmId, pages, sort, statWeights: activeWeights });
@@ -353,10 +359,10 @@
       if (cancel) throw new Error(STOPPED);
       const request = queue.shift();
       if (!request) throw new Error(m.trader_stalled());
-      let reply = await gggTradeRequest(request.url, request.body);
+      let reply = await send(request.url, request.body);
       while (reply.kind === "wait") {
         await pause(reply.seconds);
-        reply = await gggTradeRequest(request.url, request.body);
+        reply = await send(request.url, request.body);
       }
       state = await engine.tradeResultsReply({ id: request.id, status: reply.status, body: reply.body });
       queue.push(...state.requests);
@@ -394,7 +400,7 @@
       }
       const { query } = await engine.tradeSearchResult();
       patch(key, { url: urlFor(query) });
-      return live ? await withListings(r, { query }) : true;
+      return await withListings(r, { query });
     } catch (e) {
       patch(key, { url: "", error: friendly(e) });
       return false;
@@ -488,17 +494,6 @@
     if (!r) return;
     itemSets = r.itemSets;
     await loadRows(false);
-  }
-
-  async function signIn() {
-    try {
-      if (await ggg.signIn()) {
-        await privateLeagues();
-        await loadRates();
-      }
-    } catch (e) {
-      build.error = String(e);
-    }
   }
 
   async function importResult(r: Row) {
@@ -614,6 +609,17 @@
   }
 
   const ready = $derived(rows.filter((r) => r.url).length);
+  const scored = $derived(rows.filter((r) => r.results?.length));
+
+  /** Puts PoB's scored listings in the assistant's box, unsent, for the user to add a budget. */
+  function askAssistant() {
+    chat.input = upgradePrompt(
+      scored.map((r) => ({ label: r.label, current: r.itemName, results: r.results ?? [] })),
+      league,
+    );
+    if (!chat.open) chat.toggle();
+    onclose();
+  }
   const busy = $derived(busyKey !== null || runAll);
 </script>
 
@@ -658,18 +664,16 @@
         </select>
       </div>
 
-      {#if live}
-        <div class="orow">
-          <span class="olabel">{m.trader_sort()}</span>
-          <select class="select sm" bind:value={sort} onchange={resort} title={m.trader_sort_title()}>
-            {#each options?.sorts ?? [] as id (id)}
-              <option value={id}>{sortLabel[id]}</option>
-            {/each}
-          </select>
-          <span class="olabel wide">{m.trader_pages()}</span>
-          <input class="input sm wnum" type="number" min="1" max="10" bind:value={pages} title={m.trader_pages_title()} />
-        </div>
-      {/if}
+      <div class="orow">
+        <span class="olabel">{m.trader_sort()}</span>
+        <select class="select sm" bind:value={sort} onchange={resort} title={m.trader_sort_title()}>
+          {#each options?.sorts ?? [] as id (id)}
+            <option value={id}>{sortLabel[id]}</option>
+          {/each}
+        </select>
+        <span class="olabel wide">{m.trader_pages()}</span>
+        <input class="input sm wnum" type="number" min="1" max="10" bind:value={pages} title={m.trader_pages_title()} />
+      </div>
 
       {#each weights as w, i}
         <div class="orow">
@@ -813,22 +817,16 @@
             {:else}
               <span class="iname" style:color={rarityColor[r.itemRarity ?? ""] ?? "var(--fg-2)"}>{r.itemName ?? m.trader_empty_slot()}</span>
             {/if}
-            {#if live || r.url}
-              <input
-                class="input sm grow mono"
-                value={r.url}
-                placeholder={live ? m.trader_url_placeholder() : ""}
-                oninput={(e) => patch(r.key, { url: (e.target as HTMLInputElement).value })}
-                onfocus={(e) => (e.target as HTMLInputElement).select()}
-              />
-              {#if live}
-                <button class="btn sm ghost" onclick={() => price(r.key)} disabled={busy || !priceable(r.url)} title={m.trader_price_title()}>{m.trader_price()}</button>
-              {/if}
-              <button class="btn sm ghost" onclick={() => copy(r.url)} disabled={!r.url}>{m.common_copy_button()}</button>
-              <button class="btn sm" onclick={() => tradeWindow.open(r.url)} disabled={!r.url}>{m.common_open()}</button>
-            {:else}
-              <span class="grow"></span>
-            {/if}
+            <input
+              class="input sm grow mono"
+              value={r.url}
+              placeholder={m.trader_url_placeholder()}
+              oninput={(e) => patch(r.key, { url: (e.target as HTMLInputElement).value })}
+              onfocus={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <button class="btn sm ghost" onclick={() => price(r.key)} disabled={busy || !priceable(r.url)} title={m.trader_price_title()}>{m.trader_price()}</button>
+            <button class="btn sm ghost" onclick={() => copy(r.url)} disabled={!r.url}>{m.common_copy_button()}</button>
+            <button class="btn sm" onclick={() => tradeWindow.open(r.url)} disabled={!r.url}>{m.common_open()}</button>
             {#if r.special === "Watcher's Eye"}
               <label class="chk small" title={m.trader_all_mods_title()}>
                 <input type="checkbox" checked={r.allMods} onchange={(e) => patch(r.key, { allMods: (e.target as HTMLInputElement).checked })} />
@@ -925,21 +923,6 @@
       </div>
     </div>
 
-    {#if !live}
-      <p class="note dim small">
-        {ggg.account ? m.trader_note_again() : m.trader_note_sign_in()}
-        {#if ggg.signingIn}
-          <span>{m.import_ggg_waiting()}</span>
-          {#if ggg.link}
-            <button class="btn sm ghost" title={m.ggg_copy_link_title()} onclick={() => ggg.copyLink().catch((e) => (build.error = String(e)))}>{ggg.linkCopied ? m.common_copied() : m.ggg_copy_link()}</button>
-          {/if}
-          <button class="btn sm ghost" onclick={() => ggg.cancel()}>{m.common_cancel()}</button>
-        {:else}
-          <button class="btn sm" onclick={signIn}>{m.import_ggg_sign_in()}</button>
-        {/if}
-      </p>
-    {/if}
-
     <div class="acts">
       {#if busy}
         <button class="btn ghost sm" onclick={() => (cancel = true)}>{m.common_stop()}</button>
@@ -954,6 +937,9 @@
         <button class="btn primary" onclick={all}>{m.trader_find_all()}</button>
         {#if ready}
           <button class="btn sm ghost" onclick={copyAll}>{m.trader_copy_all()}</button>
+        {/if}
+        {#if scored.length}
+          <button class="btn sm ghost" onclick={askAssistant} title={m.trader_ask_assistant_title()}>{m.trader_ask_assistant()}</button>
         {/if}
         {#if note}<span class="dim small">{note}</span>{/if}
         <span class="sp"></span>
@@ -1160,12 +1146,6 @@
   }
   .pad {
     padding: 8px 10px;
-  }
-  .note {
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
   }
   .acts {
     display: flex;

@@ -308,6 +308,11 @@ export function gggTradeRequest(url: string, body: string | null): Promise<GggTr
   return invoke<GggTradeReply>("ggg_trade_request", { url, body });
 }
 
+/** The same request without signing in, under the price check's rate limits. */
+export function anonTradeRequest(url: string, body: string | null): Promise<GggTradeReply> {
+  return invoke<GggTradeReply>("price_trade_request", { url, body });
+}
+
 export interface TradeRequest {
   id: number;
   kind: "search" | "fetch";

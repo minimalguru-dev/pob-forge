@@ -1387,6 +1387,7 @@ pub fn run() {
             ggg::ggg_character,
             ggg::ggg_trade_request,
             price::price_trade,
+            price::price_trade_request,
             price::price_ninja,
             price::price_bulk,
             price::price_predict,
