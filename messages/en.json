@@ -518,6 +518,10 @@
   "notes_edit_title": "Edit the notes as text, with the colour codes shown",
   "notes_placeholder": "Notes are saved with the build.",
   "notes_empty": "No notes. Choose Edit to add some.",
+  "notes_done": "Done",
+  "notes_colours": "Colours",
+  "notes_preview": "Preview",
+  "notes_outline": "Contents",
 
   "calcs_player": "Player",
   "calcs_minion": "Minion",
