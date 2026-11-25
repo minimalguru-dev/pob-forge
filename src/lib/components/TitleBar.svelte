@@ -46,9 +46,8 @@
     { id: "items", label: m.view_items(), key: "4", icon: "sword" },
     { id: "calcs", label: m.view_calcs(), key: "5", icon: "calculator" },
     { id: "config", label: m.view_config(), key: "6", icon: "sliders-horizontal" },
-    { id: "notes", label: m.view_notes(), key: "7", icon: "note-pencil" },
-    { id: "party", label: m.view_party(), key: "8", icon: "users-three" },
-    { id: "optimise", label: m.view_optimise(), key: "9", icon: "chart-line-up" },
+    { id: "party", label: m.view_party(), key: "7", icon: "users-three" },
+    { id: "optimise", label: m.view_optimise(), key: "8", icon: "chart-line-up" },
     { id: "compare", label: m.view_compare(), key: "", icon: "scales" },
     { id: "regex", label: m.view_regex(), key: "", icon: "magnifying-glass" },
   ]);

@@ -104,7 +104,6 @@
   "view_items": "Objets",
   "view_calcs": "Calculs",
   "view_config": "Config",
-  "view_notes": "Notes",
   "view_party": "Groupe",
   "view_optimise": "Optimiser",
   "view_compare": "Comparer",
@@ -192,11 +191,6 @@
 
   "confirm_ok": "OK",
 
-  "notes_insert": "Insérer {name} ({code})",
-  "notes_edit": "Modifier",
-  "notes_edit_title": "Modifier les notes sous forme de texte, avec les codes de couleur visibles",
-  "notes_placeholder": "Les notes sont enregistrées avec le build.",
-  "notes_empty": "Aucune note. Choisissez Modifier pour en ajouter.",
 
   "app_safe_mode": "Mode sans échec : le dernier build n'a pas été rouvert",
   "app_recover_title": "Rouvrir le dernier build ?",

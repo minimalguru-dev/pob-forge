@@ -127,9 +127,8 @@
       ["items", m.view_items(), "4"],
       ["calcs", m.view_calcs(), "5"],
       ["config", m.view_config(), "6"],
-      ["notes", m.view_notes(), "7"],
-      ["party", m.view_party(), "8"],
-      ["optimise", m.view_optimise(), "9"],
+      ["party", m.view_party(), "7"],
+      ["optimise", m.view_optimise(), "8"],
       ["compare", m.view_compare(), "0"],
     ];
     return all

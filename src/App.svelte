@@ -15,7 +15,6 @@
   import ItemsView from "$lib/views/ItemsView.svelte";
   import CalcsView from "$lib/views/CalcsView.svelte";
   import ConfigView from "$lib/views/ConfigView.svelte";
-  import NotesView from "$lib/views/NotesView.svelte";
   import PartyView from "$lib/views/PartyView.svelte";
   import OptimiseView from "$lib/views/OptimiseView.svelte";
   import CompareView from "$lib/views/CompareView.svelte";
@@ -138,8 +137,6 @@
         <CalcsView />
       {:else if build.view === "config"}
         <ConfigView />
-      {:else if build.view === "notes"}
-        <NotesView />
       {:else if build.view === "party"}
         <PartyView />
       {:else if build.view === "optimise"}

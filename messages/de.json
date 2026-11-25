@@ -104,7 +104,6 @@
   "view_items": "Gegenstände",
   "view_calcs": "Berechnung",
   "view_config": "Konfiguration",
-  "view_notes": "Notizen",
   "view_party": "Gruppe",
   "view_optimise": "Optimieren",
   "view_compare": "Vergleichen",
@@ -192,11 +191,6 @@
 
   "confirm_ok": "OK",
 
-  "notes_insert": "{name} einfügen ({code})",
-  "notes_edit": "Bearbeiten",
-  "notes_edit_title": "Die Notizen als Text bearbeiten, mit sichtbaren Farbcodes",
-  "notes_placeholder": "Notizen werden mit dem Build gespeichert.",
-  "notes_empty": "Keine Notizen. Wählen Sie Bearbeiten, um welche anzulegen.",
 
   "app_safe_mode": "Abgesicherter Modus: Der letzte Build wurde nicht wieder geöffnet",
   "app_recover_title": "Letzten Build wieder öffnen?",

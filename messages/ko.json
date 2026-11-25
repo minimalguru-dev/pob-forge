@@ -104,7 +104,6 @@
   "view_items": "아이템",
   "view_calcs": "계산",
   "view_config": "구성",
-  "view_notes": "메모",
   "view_party": "파티",
   "view_optimise": "최적화",
   "view_compare": "비교",
@@ -192,11 +191,6 @@
 
   "confirm_ok": "확인",
 
-  "notes_insert": "{name} 삽입 ({code})",
-  "notes_edit": "편집",
-  "notes_edit_title": "색상 코드를 표시한 채로 메모를 텍스트로 편집합니다",
-  "notes_placeholder": "메모는 빌드와 함께 저장됩니다.",
-  "notes_empty": "메모가 없습니다. '편집'을 선택해 추가하세요.",
 
   "app_safe_mode": "안전 모드: 마지막 빌드를 다시 열지 않았습니다",
   "app_recover_title": "마지막 빌드를 다시 열까요?",
