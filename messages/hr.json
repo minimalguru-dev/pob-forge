@@ -519,5 +519,12 @@
   "overlay_price_key_hint": "Šalje igri jedan Ctrl+Alt+C.",
   "regex_saved_empty": "Još ništa nije spremljeno.",
   "timeless_wanted_empty": "Odaberi s lijeva.",
-  "import_ggg_unavailable": "Prijava računom nije postavljena u ovom buildu."
+  "import_ggg_unavailable": "Prijava računom nije postavljena u ovom buildu.",
+  "trader_ask_placeholder": "Traži iteme, npr. prsten s life i fire res do 50c",
+  "trader_ask": "Traži",
+  "trader_asking": "Tražim…",
+  "trader_ask_title": "Asistent postavi pretragu; Path of Building ocjenjuje listinge.",
+  "trader_ask_setup": "Prvo postavi asistenta u postavkama.",
+  "trader_ask_nothing": "Nema se što tražiti.",
+  "trader_ask_missed": "Nema trade moda za: {mods}."
 }

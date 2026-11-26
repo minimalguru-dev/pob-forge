@@ -22,6 +22,7 @@
   import { ggg } from "$lib/state/ggg.svelte";
   import { chat } from "$lib/state/chat.svelte";
   import { upgradePrompt } from "$lib/trade-prompt";
+  import { ASK_INSTRUCTIONS, askPrompt, matchMod, parsePlan, type AskContext, type ModRequest } from "$lib/trader-ai";
   import PobTooltip from "$lib/components/PobTooltip.svelte";
   import SearchSelect from "$lib/components/SearchSelect.svelte";
   import { m } from "$lib/paraglide/messages";
@@ -620,7 +621,73 @@
     if (!chat.open) chat.toggle();
     onclose();
   }
-  const busy = $derived(busyKey !== null || runAll);
+  // The request field: the assistant picks the slots, weights and filters; the Trader searches and
+  // Path of Building scores, as for any other search. Weights stay in the window, not the build.
+  let request = $state("");
+  let asking = $state(false);
+  const busy = $derived(busyKey !== null || runAll || asking);
+
+  async function toFilters(r: Row, wanted: ModRequest[], missed: string[]): Promise<Filter[]> {
+    if (!wanted.length || !r.slot) return [];
+    const { mods } = await engine.tradeMods({ slotName: r.slot, jewelType });
+    modLists = { ...modLists, [r.key]: mods.map((mod) => ({ value: mod.tradeId, label: mod.type === "Explicit" ? mod.text : `${mod.text} (${mod.type})` })) };
+    const out: Filter[] = [];
+    for (const w of wanted) {
+      const hit = matchMod(w.text, mods);
+      if (hit) out.push({ tradeId: hit.tradeId, value: w.min === null ? "" : String(w.min) });
+      else missed.push(w.text);
+    }
+    return out.slice(0, MAX_FILTERS);
+  }
+
+  async function ask() {
+    const text = request.trim();
+    if (!text || busy) return;
+    asking = true;
+    cancel = false;
+    note = "";
+    try {
+      const ctx: AskContext = {
+        game: game.isPoe2 ? "poe2" : "poe1",
+        rows: slotRows.map((r) => ({ key: r.key, label: r.label, itemName: r.itemName })),
+        stats: powerStats.filter((s): s is { stat: string; label: string } => !!s.stat).map((s) => ({ stat: s.stat, label: s.label })),
+        currencies: options?.currencies ?? [],
+      };
+      const plan = parsePlan(await chat.askOnce(ASK_INSTRUCTIONS, askPrompt(text, ctx)), ctx);
+      if (!plan.rows.length) {
+        note = plan.note ?? m.trader_ask_nothing();
+        return;
+      }
+      if (plan.weights) weights = plan.weights;
+      if (plan.maxPrice !== null) {
+        maxPrice = plan.maxPrice;
+        maxPriceType = plan.maxPriceType ?? "";
+      }
+      if (plan.maxLevel !== null) maxLevel = plan.maxLevel;
+      if (plan.corrupted !== null) corrupted = plan.corrupted;
+      const missed: string[] = [];
+      for (const key of plan.rows) {
+        const r = rows.find((row) => row.key === key);
+        if (!r) continue;
+        patch(key, { required: await toFilters(r, plan.required[key] ?? [], missed), blocked: await toFilters(r, plan.blocked[key] ?? [], missed) });
+      }
+      remember();
+      let ok = 0;
+      for (const key of plan.rows) {
+        if (cancel) break;
+        if (await generate(key)) ok++;
+      }
+      note = [
+        cancel ? m.trader_stopped({ done: ok, total: plan.rows.length }) : m.trader_summary({ ok, total: plan.rows.length }),
+        missed.length ? m.trader_ask_missed({ mods: missed.join(", ") }) : "",
+        plan.note ?? "",
+      ].filter(Boolean).join(" ");
+    } catch (e) {
+      note = friendly(e);
+    } finally {
+      asking = false;
+    }
+  }
 </script>
 
 <div class="modal">
@@ -629,6 +696,17 @@
       <span class="label">{m.trader_title()}</span>
       {#if ggg.account}<span class="dim small">{m.trader_signed_in({ name: ggg.account.name })}</span>{/if}
     </div>
+
+    <form class="ask" onsubmit={(e) => { e.preventDefault(); void ask(); }}>
+      <input
+        class="input sm grow"
+        bind:value={request}
+        placeholder={m.trader_ask_placeholder()}
+        title={chat.ready ? m.trader_ask_title() : m.trader_ask_setup()}
+        disabled={!chat.ready || busy}
+      />
+      <button class="btn sm primary" type="submit" disabled={!chat.ready || busy || !request.trim()}>{asking ? m.trader_asking() : m.trader_ask()}</button>
+    </form>
 
     <div class="opts">
       <div class="orow">
@@ -983,6 +1061,13 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+  }
+  .ask {
+    display: flex;
+    gap: 8px;
+  }
+  .ask .grow {
+    flex: 1;
   }
   .orow {
     display: flex;

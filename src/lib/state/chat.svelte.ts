@@ -811,7 +811,7 @@ class ChatStore {
     this.titling = id;
     try {
       const ask = `<message>\n${first.slice(0, 2000)}\n</message>`;
-      const raw = this.isAgent ? await this.askAgentOnce(ask) : await this.askModelOnce(ask);
+      const raw = await this.askOnce(TITLE_PROMPT, ask, 40);
       const line = (raw.split("\n").map((l) => l.trim()).find(Boolean) ?? "").replace(/^title:\s*/i, "");
       const title = line.replace(/^["'“”‘’`*#\s]+|["'“”‘’`*.!\s]+$/g, "").slice(0, 80);
       await this.patchThread(id, title && title.toLowerCase() !== "new thread" ? { title, titled: true } : { titled: true });
@@ -822,14 +822,23 @@ class ChatStore {
     }
   }
 
-  private async askAgentOnce(text: string): Promise<string> {
+  /**
+   * One question to the provider in use, outside any thread and with no tools: the answer's text.
+   * Used for thread titles and the Trader's request field.
+   */
+  async askOnce(instructions: string, text: string, maxTokens = 600): Promise<string> {
+    if (!this.ready) throw new Error("The assistant is not set up.");
+    return this.isAgent ? await this.askAgentOnce(instructions, text) : await this.askModelOnce(instructions, text, maxTokens);
+  }
+
+  private async askAgentOnce(instructions: string, text: string): Promise<string> {
     const session = await invoke<string>("agent_open", {
       provider: this.provider,
       model: this.model,
       effort: null,
       fast: false,
       tools: [],
-      instructions: TITLE_PROMPT,
+      instructions,
       thread: null,
       resume: null,
     });
@@ -846,11 +855,11 @@ class ChatStore {
     return out;
   }
 
-  private async askModelOnce(text: string): Promise<string> {
+  private async askModelOnce(instructions: string, text: string, maxTokens: number): Promise<string> {
     const result = streamText({
       model: this.buildModel(),
-      maxOutputTokens: 40,
-      instructions: { role: "system", content: TITLE_PROMPT },
+      maxOutputTokens: maxTokens,
+      instructions: { role: "system", content: instructions },
       messages: [{ role: "user", content: text }],
     });
     let out = "";
