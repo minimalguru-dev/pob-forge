@@ -397,6 +397,7 @@ export interface Mark {
   /** The line as the game wrote it. */
   line: string;
   checked: boolean;
+  kind: "influence" | "fractured" | "synthesised" | "eldritch" | "mirrored" | "split" | "sanctified";
   /** A trade misc filter set to true, or a pseudo stat to require. */
   misc?: string;
   pseudo?: string;
@@ -404,17 +405,95 @@ export interface Mark {
 
 const INFLUENCE = ["Shaper", "Elder", "Crusader", "Redeemer", "Hunter", "Warlord"];
 
-/** The marks the trade site can search on, each ticked: they are part of what the item is. */
+/**
+ * The marks the trade site can search on, as Awakened PoE Trade offers them: all off until the
+ * base search turns the ones that make a base on (presetMarks). Like Awakened, an item with more
+ * than two influences offers none.
+ */
 export function itemMarks(game: Game, item: CopiedItem): Mark[] {
   const out: Mark[] = [];
+  const influences = item.marks.filter((line) => INFLUENCE.some((i) => line === `${i} Item`));
   for (const line of item.marks) {
     const influence = INFLUENCE.find((i) => line === `${i} Item`);
-    if (influence && game === "poe1") out.push({ line, checked: true, pseudo: `pseudo.pseudo_has_${influence.toLowerCase()}_influence` });
-    const misc: Record<string, string> = game === "poe1"
-      ? { "Searing Exarch Item": "searing_item", "Eater of Worlds Item": "tangled_item", "Fractured Item": "fractured_item", "Synthesised Item": "synthesised_item", Mirrored: "mirrored", Split: "split" }
-      : { "Fractured Item": "fractured_item", Mirrored: "mirrored", Sanctified: "sanctified" };
-    if (misc[line]) out.push({ line, checked: true, misc: misc[line] });
+    if (influence && game === "poe1" && influences.length <= 2) {
+      out.push({ line, checked: false, kind: "influence", pseudo: `pseudo.pseudo_has_${influence.toLowerCase()}_influence` });
+    }
+    const misc: Record<string, [string, Mark["kind"]]> = game === "poe1"
+      ? {
+          "Searing Exarch Item": ["searing_item", "eldritch"],
+          "Eater of Worlds Item": ["tangled_item", "eldritch"],
+          "Fractured Item": ["fractured_item", "fractured"],
+          "Synthesised Item": ["synthesised_item", "synthesised"],
+          Mirrored: ["mirrored", "mirrored"],
+          Split: ["split", "split"],
+        }
+      : { "Fractured Item": ["fractured_item", "fractured"], Mirrored: ["mirrored", "mirrored"], Sanctified: ["sanctified", "sanctified"] };
+    if (misc[line]) out.push({ line, checked: false, kind: misc[line][1], misc: misc[line][0] });
   }
+  return out;
+}
+
+/** The marks as one preset starts them: the base search requires what makes the base. */
+export function presetMarks(marks: Mark[], base: boolean): Mark[] {
+  const makesBase = new Set<Mark["kind"]>(["influence", "fractured", "synthesised", "eldritch"]);
+  return marks.map((mk) => ({ ...mk, checked: base && makesBase.has(mk.kind) }));
+}
+
+const floorTo = (n: number, steps: number[]) => [...steps].sort((a, b) => b - a).find((s) => s <= n) ?? steps[0]!;
+const ceilTo = (n: number, steps: number[]) => [...steps].sort((a, b) => a - b).find((s) => s >= n) ?? steps[steps.length - 1]!;
+
+/** Awakened's item level filter: the item's own, at most 86; a cluster jewel's level bracket. */
+export function itemLevelFilter(itemLevel: number, cluster: boolean): { min: number; max: number | null } {
+  if (cluster) return { min: floorTo(itemLevel, [1, 50, 68, 75, 84]), max: ceilTo(itemLevel, [49, 67, 74, 100]) };
+  return { min: Math.min(itemLevel, 86), max: null };
+}
+
+/**
+ * Awakened's rarity filter: any non-unique for normal, magic and rare items (so a base search
+ * never lists the uniques on that base), magic for a magic jewel. Uniques get none.
+ */
+export function searchRarity(item: CopiedItem): string | null {
+  if (item.rarity === "Magic" && /Jewels?$/.test(item.itemClass)) return "magic";
+  return craftable(item) ? "nonunique" : null;
+}
+
+/** Normal, magic and rare gear and jewels: what Awakened calls craftable. */
+const craftable = (item: CopiedItem) => item.rarity === "Normal" || item.rarity === "Magic" || item.rarity === "Rare";
+const has = (item: CopiedItem, line: string) => item.marks.includes(line);
+
+/**
+ * Whether the base is worth a search of its own, as Awakened decides when to offer its base preset:
+ * influenced, fractured, synthesised, a cluster or magic jewel, or item level 82 and up.
+ */
+export function hasCraftingValue(item: CopiedItem, itemLevel: number | null): boolean {
+  const jewel = /Jewels?$/.test(item.itemClass);
+  return (
+    has(item, "Synthesised Item") ||
+    has(item, "Fractured Item") ||
+    item.marks.some((line) => INFLUENCE.some((i) => line === `${i} Item`)) ||
+    /Cluster Jewel$/.test(item.baseType ?? "") ||
+    (jewel && item.rarity === "Magic") ||
+    (!jewel && (itemLevel ?? 0) >= 82)
+  );
+}
+
+/** A finished item is priced by its mods, not its base: a unique, crafted, 20 quality, corrupted or mirrored. */
+export function likelyFinished(item: CopiedItem, crafted: boolean): boolean {
+  return item.rarity === "Unique" || crafted || item.quality === 20 || item.corrupted || has(item, "Mirrored");
+}
+
+/**
+ * Listings Awakened leaves out unless the item is one: fractured, mirrored and (outside Standard,
+ * or for the base search) split items. Each name is a misc filter set to false.
+ */
+export function exclusions(game: Game, item: CopiedItem, o: { base: boolean; league: string }): string[] {
+  if (!craftable(item) || item.corrupted || has(item, "Mirrored")) return [];
+  const out: string[] = [];
+  if (!has(item, "Fractured Item")) out.push("fractured_item");
+  out.push("mirrored");
+  const influenced = item.marks.some((line) => INFLUENCE.some((i) => line === `${i} Item`));
+  const permanent = /^(SSF )?Standard$/i.test(o.league);
+  if (game === "poe1" && !has(item, "Split") && !has(item, "Synthesised Item") && !has(item, "Fractured Item") && !influenced && (!permanent || o.base)) out.push("split");
   return out;
 }
 
@@ -426,6 +505,12 @@ export interface Filters {
   /** Ticked item marks. */
   marks?: Mark[];
   itemLevel: number | null;
+  /** A cluster jewel's top of its level bracket. */
+  itemLevelMax?: number | null;
+  /** Misc filters set to false (exclusions). */
+  exclude?: string[];
+  /** The trade site's rarity option, e.g. "nonunique" (searchRarity). */
+  rarity?: string | null;
   quality: number | null;
   links: number | null;
   /** "any", or whether the listing must be corrupted. */
@@ -440,7 +525,9 @@ export function applyFilters(queryJson: string, f: Filters): string {
   const query = q.query && typeof q.query === "object" ? q.query : q;
   query.filters ??= {};
   const group = (name: string) => ((query.filters[name] ??= { filters: {} }).filters ??= {});
-  if (f.itemLevel !== null) group("misc_filters").ilvl = { min: f.itemLevel };
+  if (f.itemLevel !== null) group("misc_filters").ilvl = { min: f.itemLevel, ...(f.itemLevelMax != null ? { max: f.itemLevelMax } : {}) };
+  for (const name of f.exclude ?? []) group("misc_filters")[name] ??= { option: "false" };
+  if (f.rarity) group("type_filters").rarity ??= { option: f.rarity };
   if (f.quality !== null) group("misc_filters").quality = { min: f.quality };
   if (f.corrupted !== "any") group("misc_filters").corrupted = { option: f.corrupted === "yes" ? "true" : "false" };
   if (f.links !== null) group("socket_filters").links = { min: f.links };
@@ -449,6 +536,7 @@ export function applyFilters(queryJson: string, f: Filters): string {
   const weapons = f.game === "poe2" ? "equipment_filters" : "weapon_filters";
   const range = (min: number | null, max?: number | null) => ({ ...(min !== null ? { min } : {}), ...(max != null ? { max } : {}) });
   for (const d of f.dps ?? []) if (d.min !== null || d.max != null) group(weapons)[d.key] = range(d.min, d.max);
+  // A ticked mark wins over an exclusion of the same filter.
   for (const mk of f.marks ?? []) if (mk.misc) group("misc_filters")[mk.misc] = { option: "true" };
   const pseudo = [
     ...f.pseudo.map((p) => (p.min === null && p.max == null ? { id: p.id } : { id: p.id, value: range(p.min, p.max) })),

@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { engine, openUrl, type BuySimilarInfo } from "$lib/engine.svelte";
   import { game } from "$lib/state/game.svelte";
   import { m } from "$lib/paraglide/messages";
   import {
     age, applyFilters, defaultChoices, formatListing, formatValue, matchNinja, ninjaSources, parseCopied, poedbUrl,
-    pseudoTotals, sparkPoints, wikiUrl, PSEUDO, defaultQuality, weaponChoices, itemMarks, mapStats, blight, type DpsChoice, type Mark, type MapStat, modTags, templeRooms, roomFilter, isTemple, isMap, simpleQuery, VALUABLE_ROOMS,
+    pseudoTotals, sparkPoints, wikiUrl, PSEUDO, defaultQuality, weaponChoices, itemMarks, presetMarks, itemLevelFilter, hasCraftingValue, likelyFinished, exclusions, searchRarity, mapStats, blight, type DpsChoice, type Mark, type MapStat, modTags, templeRooms, roomFilter, isTemple, isMap, simpleQuery, VALUABLE_ROOMS,
     isLogbook, logbookFactions, LOGBOOK_FACTIONS, isPricedBase, matchBase,
     type Choice, type NinjaLine, type NinjaTable, type PseudoTotal,
   } from "./price";
@@ -35,8 +35,14 @@
   let mods = $state<Choice[]>([]);
   let defences = $state<Choice[]>([]);
   let dps = $state<DpsChoice[]>([]);
-  /** Influences, Fractured Item, Mirrored…: ticked, since they are part of what the item is. */
+  /**
+   * Influences, Fractured Item, Mirrored…: off in the usual search and on in the base search, as
+   * Awakened PoE Trade's two presets start them. Each preset keeps its own choices.
+   */
   let marks = $state<Mark[]>([]);
+  let otherMarks: Mark[] = [];
+  let otherLevel = false;
+  let mode: "mods" | "base" = "mods";
   let maps = $state<MapStat[]>([]);
   let blighted = $state(false);
   /** A Foulborn unique's mutated mods, as PoB read them (the game's copy does not mark them). */
@@ -46,6 +52,7 @@
   let baseType = $state(false);
   let listed = $state(1);
   let itemLevel = $state("");
+  let itemLevelMax = $state<number | null>(null);
   /**
    * Number filters are words to switch on and off, as in Awakened PoE Trade: item level starts
    * off at the copied item's own, quality and links on where they matter.
@@ -73,8 +80,27 @@
   let gemLevel = $state("");
   let mapTier = $state("");
   let areaLevel = $state("");
-  /** The base alone, as for crafting: mod filters are left out (not lost) while it is on. */
+  /**
+   * Awakened's base item preset: the exact base, its item level and influences, and its fractured
+   * mods; the other mod filters are left out (not lost) while it is on.
+   */
   let baseOnly = $state(false);
+  /** Awakened offers the base search for a base worth one that is not a finished item. */
+  let offerBase = $state(false);
+  /** Mods kept in the base search: a fractured mod is part of the base. */
+  let baseMods = $state(new Set<number>());
+  $effect(() => {
+    const want = baseOnly ? "base" : "mods";
+    if (want === mode) return;
+    untrack(() => {
+      const keep = { marks, level: useItemLevel };
+      marks = otherMarks;
+      useItemLevel = otherLevel;
+      otherMarks = keep.marks;
+      otherLevel = keep.level;
+      mode = want;
+    });
+  });
   let factions = $state<{ name: string; id: string; checked: boolean }[]>([]);
   let result = $state<TradeResult | null>(null);
   const rows = $derived(result ? groupListings(result.listings) : []);
@@ -274,7 +300,7 @@
         ilvlMin: null,
         ilvlMax: null,
         defences: defences.map((d) => ({ checked: modsOn && d.checked, min: num(d.min), max: num(d.max) })),
-        mods: mods.map((d, i) => ({ checked: modsOn && d.checked && !inTotal.has(i), min: num(d.min), max: num(d.max) })),
+        mods: mods.map((d, i) => ({ checked: (modsOn || baseMods.has(i)) && d.checked && !inTotal.has(i), min: num(d.min), max: num(d.max) })),
       });
       if (!query) throw new Error("this Path of Building version builds no trade query");
       const filtered = applyFilters(query, {
@@ -286,9 +312,12 @@
             ]
           : [],
         dps: modsOn ? dps.filter((d) => d.checked).map((d) => ({ key: d.key, min: num(d.min), max: num(d.max) })) : [],
-        marks: modsOn ? marks.filter((mk) => mk.checked) : [],
+        marks: marks.filter((mk) => mk.checked),
         game: game.current,
         itemLevel: when(useItemLevel, itemLevel),
+        itemLevelMax: useItemLevel ? itemLevelMax : null,
+        exclude: item ? exclusions(game.current, item, { base: baseOnly, league }) : [],
+        rarity: item ? searchRarity(item) : null,
         quality: when(useQuality, quality),
         links: game.isPoe1 ? when(useLinks, links) : null,
         corrupted,
@@ -420,7 +449,7 @@
           dps = weaponChoices(info, range);
           quality = defaultQuality(item);
           useQuality = quality !== "";
-          marks = itemMarks(game.current, item);
+          const offered = itemMarks(game.current, item);
           void lookBase();
           mutatedLines = info.mods.filter((mod) => mod.kinds?.includes("mutated")).flatMap((mod) => mod.lines.map(plain));
           if (mutatedLines.length) void lookNinja();
@@ -438,8 +467,26 @@
           // clicked; a cluster jewel is its base (and item level) from the start.
           const cluster = /Cluster Jewel$/.test(info.baseName ?? "");
           baseType = cluster;
-          if (cluster) useItemLevel = true;
-          itemLevel = info.itemLevel ? String(info.itemLevel) : "";
+          if (info.itemLevel) {
+            const level = itemLevelFilter(info.itemLevel, cluster);
+            itemLevel = String(level.min);
+            itemLevelMax = level.max;
+          } else {
+            itemLevel = "";
+            itemLevelMax = null;
+          }
+          // Awakened's two presets: the usual one, and the base search for a base worth one.
+          // Flasks and tinctures never search by item level.
+          const levelMatters = !!info.itemLevel && !/Flasks?$|Tinctures?$/.test(item.itemClass);
+          baseMods = new Set(tagged.flatMap((tags, i) => (tags.includes("fractured") ? [i] : [])));
+          offerBase = !info.unique && (item.rarity === "Normal" || (hasCraftingValue(item, info.itemLevel ?? null) && !likelyFinished(item, tagged.some((t) => t.includes("crafted")))));
+          const startBase = item.rarity === "Normal";
+          marks = presetMarks(offered, startBase);
+          otherMarks = presetMarks(offered, !startBase);
+          useItemLevel = cluster || (startBase && levelMatters);
+          otherLevel = cluster || (!startBase && levelMatters);
+          mode = startBase ? "base" : "mods";
+          baseOnly = startBase;
           listed = Math.max(1, info.listed.indexOf("Instant Buyout & In Person") + 1);
           corrupted = item.corrupted ? "yes" : "no";
           if (game.isPoe1 && item.links) {
@@ -594,12 +641,13 @@
           <FilterChip numeric label={m.price_chip_empty_suffixes()} bind:on={useEmptySuffix} bind:value={emptySuffix} disabled={baseOnly} />
         {/if}
         {#each marks as mk, i (mk.line)}
-          <FilterChip label={mk.line.replace(/ Item$/, "")} bind:on={marks[i].checked} disabled={baseOnly} />
+          <FilterChip label={mk.line.replace(/ Item$/, "")} bind:on={marks[i].checked} />
         {/each}
         {@render corruptChip()}
-        {#if !info.unique}<FilterChip label={m.price_base_only()} title={m.price_base_only_title()} bind:on={baseOnly} />{/if}
+        {#if offerBase}<FilterChip label={m.price_base_only()} title={m.price_base_only_title()} bind:on={baseOnly} />{/if}
       </div>
-      <div class="mods" class:muted={baseOnly} inert={baseOnly}>
+      <div class="mods">
+        <div class="part" class:muted={baseOnly} inert={baseOnly}>
         {#each pseudo as p, i (p.key)}
           <label class="mod pseudo" class:off={!p.checked}>
             <input type="checkbox" bind:checked={pseudo[i].checked} />
@@ -621,9 +669,11 @@
             <span class="minmax"><input class="input sm mono" bind:value={defences[i].min} aria-label={m.price_min()} /><input class="input sm mono" bind:value={defences[i].max} aria-label={m.price_max()} placeholder="max" /></span>
           </label>
         {/each}
+        </div>
         {#each info.mods as mod, i (`m${i}`)}
           {@const counted = inTotal.has(i)}
-          <label class="mod" class:off={!mods[i].checked || counted} class:dead={!mod.searchable || counted} title={counted ? m.price_in_total() : ""}>
+          {@const parked = baseOnly && !baseMods.has(i)}
+          <label class="mod" class:muted={parked} inert={parked} class:off={!mods[i].checked || counted} class:dead={!mod.searchable || counted} title={counted ? m.price_in_total() : ""}>
             <input type="checkbox" bind:checked={mods[i].checked} disabled={!mod.searchable || counted} />
             <span class="small">
               {mod.lines.map(plain).join(" / ")}{#if counted}<span class="dim">&nbsp;· {m.price_in_total()}</span>{/if}
@@ -806,7 +856,8 @@
     background: color-mix(in oklch, var(--fg-3) 18%, transparent); text-transform: lowercase; }
   .foul { color: oklch(68% 0.16 350); }
   .tag.mutated { color: oklch(72% 0.15 350); background: color-mix(in oklch, oklch(60% 0.16 350) 18%, transparent); }
-  .mods.muted { opacity: 0.4; }
+  .part { display: flex; flex-direction: column; gap: 2px; }
+  .part.muted, .mod.muted { opacity: 0.4; }
   .results { display: contents; }
   .results.stale { display: block; opacity: 0.4; }
   .warn { color: var(--warn); }

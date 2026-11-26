@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { applyFilters, blight, itemMarks, mapStats, matchNinja, modTags, parseCopied, simpleQuery, type NinjaTable } from "../src/lib/overlay/price";
+import { applyFilters, blight, exclusions, searchRarity, hasCraftingValue, itemLevelFilter, itemMarks, likelyFinished, mapStats, matchNinja, modTags, parseCopied, presetMarks, simpleQuery, type NinjaTable } from "../src/lib/overlay/price";
 
 const FOULBORN = `Item Class: Belts
 Rarity: Unique
@@ -47,6 +47,83 @@ test("turns influence and item marks into trade filters", () => {
   expect(q.query.stats[0].filters).toEqual([{ id: "pseudo.pseudo_has_shaper_influence" }]);
   // PoE2 has no influences.
   expect(itemMarks("poe2", item).map((m) => m.misc)).toEqual(["fractured_item", "mirrored"]);
+});
+
+const RARE = (marks: string, extra = "") =>
+  parseCopied(`Item Class: Helmets\nRarity: Rare\nDoom Crown\nHubris Circlet\n--------\nItem Level: 87\n--------\n+90 to maximum Life${extra}\n--------\n${marks}`)!;
+
+test("the usual search starts the marks off, the base search turns on what makes the base", () => {
+  const item = RARE("Shaper Item\nElder Item\nFractured Item\nSynthesised Item\n");
+  const marks = itemMarks("poe1", item);
+  expect(marks.map((m) => [m.kind, m.checked])).toEqual([["influence", false], ["influence", false], ["fractured", false], ["synthesised", false]]);
+  expect(presetMarks(marks, true).every((m) => m.checked)).toBe(true);
+  expect(presetMarks(marks, false).some((m) => m.checked)).toBe(false);
+  // Mirrored and Split are never required by a preset.
+  expect(presetMarks(itemMarks("poe1", RARE("Mirrored\nSplit\n")), true).map((m) => m.checked)).toEqual([false, false]);
+  // Like Awakened: more than two influences, no influence filters.
+  expect(itemMarks("poe1", RARE("Shaper Item\nElder Item\nCrusader Item\n")).filter((m) => m.kind === "influence")).toEqual([]);
+});
+
+test("item level as Awakened sets it: at most 86, a cluster jewel's bracket", () => {
+  expect(itemLevelFilter(87, false)).toEqual({ min: 86, max: null });
+  expect(itemLevelFilter(84, false)).toEqual({ min: 84, max: null });
+  expect(itemLevelFilter(84, true)).toEqual({ min: 84, max: 100 });
+  expect(itemLevelFilter(80, true)).toEqual({ min: 75, max: 100 });
+  expect(itemLevelFilter(70, true)).toEqual({ min: 68, max: 74 });
+  expect(itemLevelFilter(55, true)).toEqual({ min: 50, max: 67 });
+});
+
+test("offers the base search for a base worth one that is not finished", () => {
+  expect(hasCraftingValue(RARE("Shaper Item\n"), 70)).toBe(true);
+  expect(hasCraftingValue(RARE(""), 82)).toBe(true);
+  expect(hasCraftingValue(RARE(""), 81)).toBe(false);
+  expect(likelyFinished(RARE(""), false)).toBe(false);
+  expect(likelyFinished(RARE(""), true)).toBe(true);
+  expect(likelyFinished(RARE("Mirrored\n"), false)).toBe(true);
+  expect(likelyFinished({ ...RARE(""), corrupted: true }, false)).toBe(true);
+});
+
+test("leaves out fractured, mirrored and split listings, as Awakened does", () => {
+  expect(exclusions("poe1", RARE(""), { base: false, league: "Mercenaries" })).toEqual(["fractured_item", "mirrored", "split"]);
+  // Standard keeps split items unless it is the base search.
+  expect(exclusions("poe1", RARE(""), { base: false, league: "Standard" })).toEqual(["fractured_item", "mirrored"]);
+  expect(exclusions("poe1", RARE(""), { base: true, league: "Standard" })).toEqual(["fractured_item", "mirrored", "split"]);
+  // An influenced or fractured item may be split; a fractured one is not left out for being fractured.
+  expect(exclusions("poe1", RARE("Shaper Item\n"), { base: false, league: "Mercenaries" })).toEqual(["fractured_item", "mirrored"]);
+  expect(exclusions("poe1", RARE("Fractured Item\n"), { base: false, league: "Mercenaries" })).toEqual(["mirrored"]);
+  // Corrupted, mirrored and unique items exclude nothing.
+  expect(exclusions("poe1", { ...RARE(""), corrupted: true }, { base: false, league: "x" })).toEqual([]);
+  expect(exclusions("poe1", RARE("Mirrored\n"), { base: false, league: "x" })).toEqual([]);
+  expect(exclusions("poe1", { ...RARE(""), rarity: "Unique" }, { base: false, league: "x" })).toEqual([]);
+  expect(exclusions("poe2", RARE(""), { base: false, league: "x" })).toEqual(["fractured_item", "mirrored"]);
+});
+
+test("a base search for a Shaper Hubris Circlet: base, item level 86, influence, no mods", () => {
+  const item = RARE("Shaper Item\n");
+  const marks = presetMarks(itemMarks("poe1", item), true).filter((m) => m.checked);
+  const q = JSON.parse(applyFilters(JSON.stringify({ query: { type: "Hubris Circlet", stats: [{ type: "and", filters: [] }] } }), {
+    pseudo: [], itemLevel: itemLevelFilter(87, false).min, quality: null, links: null, corrupted: "no", priceIn: "any", marks,
+    exclude: exclusions("poe1", item, { base: true, league: "Mercenaries" }),
+    rarity: searchRarity(item),
+  }));
+  expect(q.query.type).toBe("Hubris Circlet");
+  expect(q.query.filters.type_filters.filters.rarity).toEqual({ option: "nonunique" });
+  expect(q.query.filters.misc_filters.filters).toEqual({ ilvl: { min: 86 }, corrupted: { option: "false" }, fractured_item: { option: "false" }, mirrored: { option: "false" } });
+  expect(q.query.stats[0].filters).toEqual([{ id: "pseudo.pseudo_has_shaper_influence" }]);
+});
+
+test("rarity as Awakened sets it", () => {
+  expect(searchRarity(RARE(""))).toBe("nonunique");
+  expect(searchRarity({ ...RARE(""), rarity: "Normal" })).toBe("nonunique");
+  expect(searchRarity({ ...RARE(""), rarity: "Unique" })).toBeNull();
+  expect(searchRarity({ ...RARE(""), rarity: "Magic", itemClass: "Jewels" })).toBe("magic");
+});
+
+test("a ticked mark wins over the exclusion of the same filter", () => {
+  const item = RARE("");
+  const q = JSON.parse(applyFilters(JSON.stringify({ query: {} }), { pseudo: [], itemLevel: null, quality: null, links: null, corrupted: "any", priceIn: "any", exclude: ["mirrored"], marks: [{ line: "Mirrored", checked: true, kind: "mirrored", misc: "mirrored" }] }));
+  expect(q.query.filters.misc_filters.filters.mirrored).toEqual({ option: "true" });
+  expect(item.rarity).toBe("Rare");
 });
 
 test("searches a Forbidden Tome by its area level", () => {
