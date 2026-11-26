@@ -128,7 +128,6 @@
   {#if limbs.length}
     <div class="extras">{#each limbs as slot (slot.slot)}{@render cell(slot)}{/each}</div>
   {/if}
-  {#if legend}<div class="legend"><span>{m.items_equipment_hint()}</span></div>{/if}
 </div>
 
 <style>
@@ -164,5 +163,4 @@
   .gem.disabled { opacity: 0.45; }
   .extras { display: flex; justify-content: center; flex-wrap: wrap; gap: 5px; margin: 10px auto 0; max-width: 400px; }
   .extras .cell { width: 38px; height: 62px; }
-  .legend { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin-top: 12px; font-size: 10px; color: var(--fg-3); }
 </style>

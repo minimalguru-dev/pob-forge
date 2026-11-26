@@ -1007,6 +1007,323 @@
 {/snippet}
 
 <div class="page">
+  <section class="col side">
+    <div class="panel-head">
+      <span class="label">{m.ggg_account_title()}</span>
+      {#if ggg.account}
+        <button class="btn sm ghost" onclick={() => ggg.signOut().catch((e) => (build.error = String(e)))} disabled={charBusy !== null}>{m.import_ggg_sign_out()}</button>
+      {/if}
+    </div>
+    <div class="block">
+      {#if ggg.account}
+        <div class="arow">
+          <span class="grow">{ggg.account.name}</span>
+          {#if ggg.daysLeft > 1}
+            <span class="dim small">{m.ggg_reauth_days({ count: ggg.daysLeft })}</span>
+          {:else}
+            <span class="small" style:color="var(--warn)">{m.ggg_reauth_soon()}</span>
+          {/if}
+        </div>
+      {:else if ggg.signingIn}
+        <div class="arow">
+          <span class="dim small grow">{m.import_ggg_waiting()}</span>
+          {#if ggg.link}
+            <button class="btn sm ghost" title={m.ggg_copy_link_title()} onclick={() => ggg.copyLink().catch((e) => (build.error = String(e)))}>{ggg.linkCopied ? m.common_copied() : m.ggg_copy_link()}</button>
+          {/if}
+          <button class="btn sm" onclick={() => ggg.cancel()}>{m.common_cancel()}</button>
+        </div>
+      {:else}
+        <div class="actions">
+          <button class="btn primary" onclick={signIn} disabled={!ggg.available}>{m.import_ggg_sign_in()}</button>
+        </div>
+        {#if !ggg.available}<p class="dim small">{m.import_ggg_unavailable()}</p>{/if}
+      {/if}
+    </div>
+
+    <div class="panel-head"><span class="label">{m.import_title()}</span></div>
+    <div class="block">
+      <textarea
+        class="textarea"
+        rows="5"
+        placeholder={m.import_code_placeholder()}
+        bind:value={code}
+      ></textarea>
+      <div class="actions">
+        <button class="btn primary" onclick={doImport} disabled={!code.trim() || build.busy > 0 || fetching || pasting}>
+          {fetching ? m.import_fetching() : m.import_title()}
+        </button>
+        <button class="btn" onclick={pasteImport} disabled={build.busy > 0 || fetching || pasting}>{pasting ? m.import_pasting() : m.import_paste_and_import()}</button>
+      </div>
+      {#if importError}<p role="alert" class="small" style:color="var(--bad)">{importError}</p>{/if}
+    </div>
+
+    <div class="panel-head">
+      <span class="label">{m.import_character()}</span>
+      <select class="select sm" bind:value={charSource} title={m.import_source_title()}>
+        <option value="ggg">pathofexile.com</option>
+        <option value="ninja">poe.ninja</option>
+      </select>
+    </div>
+    <div class="block">
+      {#if charSource === "ninja"}
+        <div class="charform">
+          <input
+            class="input grow"
+            placeholder={m.import_account_placeholder()}
+            bind:value={charAccount}
+            onkeydown={(e) => e.key === "Enter" && findCharacters()}
+          />
+          <button class="btn" onclick={findCharacters} disabled={!charAccount.trim() || charBusy !== null}>
+            {charBusy === "list" ? m.import_finding() : m.import_find()}
+          </button>
+        </div>
+      {:else if ggg.account}
+        <div class="charform">
+          {#if !game.isPoe2}
+            <select class="select" bind:value={charRealm} title={m.import_realm()}>
+              <option value="pc">{m.import_realm_pc()}</option>
+              <option value="xbox">{m.import_realm_xbox()}</option>
+              <option value="sony">{m.import_realm_sony()}</option>
+            </select>
+          {/if}
+          <button class="btn" onclick={findCharacters} disabled={charBusy !== null}>
+            {charBusy === "list" ? m.import_finding() : m.import_ggg_find()}
+          </button>
+        </div>
+      {:else}
+        <div class="dim small">{m.import_ggg_need_sign_in()}</div>
+      {/if}
+      {#if shownList}
+        <div class="charhead">
+          <select class="select sm" bind:value={charLeague}>
+            {#each charLeagues as l}<option value={l}>{l}</option>{/each}
+            <option value="">{m.import_all_leagues()}</option>
+          </select>
+          <span class="dim small"><span class="num">{shownCharacters.length}</span> {m.import_characters()}</span>
+        </div>
+        <div class="charlist">
+          {#each shownCharacters as c (c.key)}
+            {@const who = ascendByKey.get(c.className) ?? (build.classes.some((k) => k.name === c.className) ? { cls: c.className, asc: null } : undefined)}
+            <div class="charrow">
+              {#if artVersion && who}
+                <ClassIcon game={game.current} version={artVersion} className={who.cls} ascendancy={who.asc} size={18} />
+              {:else}
+                <span class="noart small-art"></span>
+              {/if}
+              <span class="cname" title={c.updated ? m.import_char_title_saved({ name: c.name, league: c.league, date: shortDate(c.updated) }) : m.import_char_title({ name: c.name, league: c.league })}>
+                {c.name}{#if !charLeague}<span class="dim small cleague">{c.league}</span>{/if}
+              </span>
+              <span class="dim small"><span style:color={classColour.get(c.className)}>{who?.asc ?? c.className}</span> <span class="num">{c.level}</span></span>
+              {#if c.status === "listed"}
+                {#if build.info}
+                  <button
+                    class="act"
+                    class:on={updating === c.key}
+                    aria-expanded={updating === c.key}
+                    title={m.import_update_open_title()}
+                    onclick={() => (updating = updating === c.key ? null : c.key)}
+                    disabled={charBusy !== null || build.busy > 0}>{m.import_update_open()}</button
+                  >
+                {/if}
+                <button class="act" onclick={() => importCharacter(c)} disabled={charBusy !== null || build.busy > 0}>
+                  {charBusy === c.key && updating !== c.key ? m.import_importing() : m.import_import_short()}
+                </button>
+              {:else}
+                <span class="dim small nobuild" title={m.import_no_ninja_build()}>{ninjaReason(c)}</span>
+              {/if}
+            </div>
+            {#if updating === c.key && build.info}
+              <div class="reimport">
+                <div class="rpart">
+                  <label class="chk small"><input type="checkbox" bind:checked={reimport.tree} /> {m.import_reimport_tree()}</label>
+                  <label class="chk small sub"><input type="checkbox" bind:checked={reimport.deleteJewels} disabled={!reimport.tree} /> {m.import_reimport_delete_jewels()}</label>
+                </div>
+                <div class="rpart">
+                  <label class="chk small"><input type="checkbox" bind:checked={reimport.gear} /> {m.import_reimport_gear()}</label>
+                  <label class="chk small sub"><input type="checkbox" bind:checked={reimport.deleteEquipment} disabled={!reimport.gear} /> {m.import_reimport_delete_equipment()}</label>
+                  <label class="chk small sub"><input type="checkbox" bind:checked={reimport.deleteSkills} disabled={!reimport.gear} /> {m.import_reimport_delete_skills()}</label>
+                  <label class="chk small sub"><input type="checkbox" bind:checked={reimport.ignoreWeaponSwap} disabled={!reimport.gear} /> {m.import_reimport_ignore_swap()}</label>
+                </div>
+                <div class="rgo">
+                  <span class="dim small">{m.import_reimport_into({ name: build.info.name })}</span>
+                  <button
+                    class="btn sm primary"
+                    onclick={() => reimportCharacter(c)}
+                    disabled={(!reimport.tree && !reimport.gear) || charBusy !== null || build.busy > 0}
+                  >{charBusy === c.key ? m.import_updating() : m.import_update()}</button>
+                </div>
+              </div>
+            {/if}
+          {/each}
+        </div>
+      {/if}
+    </div>
+
+    {#if plannerOpen}
+      <div class="overlay" role="presentation" onclick={() => !plannerBusy && (plannerOpen = false)} onkeydown={(e) => e.key === "Escape" && !plannerBusy && (plannerOpen = false)}>
+        <div class="modal" role="dialog" aria-label={m.import_planner_dialog()} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === "Escape" && !plannerBusy && (plannerOpen = false)}>
+          <div class="mhead">
+            <span class="label">{m.import_planner_dialog()}</span>
+            <button class="btn sm ghost" onclick={() => (plannerOpen = false)} disabled={plannerBusy}>{m.common_close()}</button>
+          </div>
+          <div class="mbody">
+            {#if plannerLoadouts > 1}
+              {#each plannerModes as [id, title, hint] (id)}
+                <label class="mrow pmode">
+                  <input type="radio" name="planner-mode" value={id} bind:group={plannerMode} disabled={plannerBusy} />
+                  <span class="mtext"><span class="mtitle">{title}</span><span class="dim small">{hint}</span></span>
+                </label>
+              {/each}
+            {/if}
+            <label class="mrow pmode">
+              <input type="checkbox" bind:checked={plannerAuto} disabled={plannerBusy || !build.info?.file} />
+              <span class="mtext">
+                <span class="mtitle">{m.import_planner_auto()}</span>
+                {#if !build.info?.file}<span class="dim small">{m.import_planner_auto_unsaved()}</span>{/if}
+              </span>
+            </label>
+            <div class="mrow">
+              <span class="mtext dim small">{plannerLink ? m.import_planner_linked({ target: plannerLink.target }) : ""}</span>
+              {#if plannerLink && build.info?.file}
+                <button class="btn sm ghost" onclick={() => build.info?.file && planner.setLink(build.info.file, null)} disabled={plannerBusy}>{m.import_planner_stop()}</button>
+              {/if}
+              <button class="btn primary sm" onclick={runPlannerExport} disabled={plannerBusy}>{m.import_planner_save()}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    {#if moba}
+      <div class="overlay" role="presentation" onclick={() => !mobaBusy && (moba = null)} onkeydown={(e) => e.key === "Escape" && (moba = null)}>
+        <div class="modal" role="dialog" aria-label={m.import_moba_dialog()} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === "Escape" && (moba = null)}>
+          <div class="mhead">
+            <span class="label">{m.import_moba()}</span>
+            <span class="dim small mono">{moba.slug}</span>
+            <button class="btn sm ghost" onclick={() => (moba = null)} disabled={mobaBusy}>{m.common_close()}</button>
+          </div>
+          <div class="mbody">
+            {#if moba.pobCode}
+              <div class="mrow">
+                <div class="mtext">
+                  <div class="mtitle">{m.import_moba_pob()}</div>
+                </div>
+                <button class="btn primary sm" onclick={mobaImportPob} disabled={mobaBusy || build.busy > 0}>{m.import_title()}</button>
+              </div>
+            {/if}
+            {#if moba.variants.length}
+              <div class="mrow">
+                <div class="mtext">
+                  <div class="mtitle">{m.import_moba_planner()} <span class="dim num">{moba.variants.length}</span></div>
+                  <div class="dim small">
+                    {m.import_moba_planner_blurb({ folder: gameBuilds?.dir ?? m.import_moba_folder_fallback() })}
+                    {#if !moba.pobCode}{m.import_moba_planner_warning()}{/if}
+                  </div>
+                </div>
+                <button class="btn sm" class:primary={!moba.pobCode} onclick={mobaSaveAll} disabled={mobaBusy}>{m.import_moba_save_all()}</button>
+              </div>
+              <div class="mvariants">
+                {#each moba.variants as v (v.id)}
+                  <div class="mvar">
+                    <span class="mvname" title={v.name}>{v.name}</span>
+                    <span class="dim small num">{m.import_moba_variant({ passives: v.passives, skills: v.skills })}</span>
+                    <button class="act" onclick={() => mobaOpenVariant(v)} disabled={mobaBusy || build.busy > 0}>{m.import_moba_open_here()}</button>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    {#if guide}
+      <div class="overlay" role="presentation" onclick={() => !guideBusy && (guide = null)} onkeydown={(e) => e.key === "Escape" && (guide = null)}>
+        <div class="modal" role="dialog" aria-label={m.import_maxroll_dialog()} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === "Escape" && (guide = null)}>
+          <div class="mhead">
+            <span class="label">{m.import_maxroll()}</span>
+            <span class="dim small mtrunc" title={guide.title}>{guide.title}</span>
+            <button class="btn sm ghost" onclick={() => (guide = null)} disabled={guideBusy}>{m.common_close()}</button>
+          </div>
+          <div class="mbody">
+            {#each guide.links as l, i (l.url)}
+              <div class="mrow">
+                <div class="mtext">
+                  <div class="mtitle">{l.name}</div>
+                  <div class="dim small mtrunc" title={l.url}>{l.source} · <span class="mono">{l.url.replace(/^https?:\/\//, "")}</span></div>
+                </div>
+                <button class="btn sm" class:primary={i === 0} onclick={() => guideImport(l)} disabled={guideBusy || build.busy > 0}>{m.import_title()}</button>
+              </div>
+            {/each}
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    {#if build.loaded}
+      <div class="panel-head">
+        <span class="label">{m.import_current()}</span>
+        {#if build.info?.unsaved}<span class="dim small">{m.import_unsaved()}</span>{/if}
+      </div>
+      <div class="block current">
+        <div class="fld">
+          <span class="label">{m.import_name()}</span>
+          {#if nameDraft !== null}
+            <!-- svelte-ignore a11y_autofocus -->
+            <input
+              class="input grow"
+              bind:value={nameDraft}
+              autofocus
+              onblur={commitBuildName}
+              onkeydown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                if (e.key === "Escape") (nameDraft = null);
+              }}
+            />
+          {:else}
+            <button
+              class="bname grow"
+              onclick={() => (nameDraft = build.info?.name ?? "")}
+              title={(build.info?.file ? `${build.info.file}\n` : m.import_not_saved()) + m.import_click_rename()}
+            >{build.info?.name ?? "—"}</button>
+          {/if}
+        </div>
+        <div class="fld">
+          <span class="label">{m.import_author_label()}</span>
+          <input class="input grow" bind:value={author} placeholder="—" title={m.import_author_title()} onblur={commitAuthor} />
+        </div>
+        <div class="arow">
+          <span class="label">{m.import_save()}</span>
+          <button class="btn sm" onclick={saveCurrent} title={build.info?.file ?? m.import_save_title()}>{m.import_save()}</button>
+          <button class="btn sm" onclick={saveAs}>{m.import_save_as()}</button>
+        </div>
+        <div class="arow">
+          <span class="label">{m.import_share()}</span>
+          <button class="btn sm" onclick={copyCode}>{m.import_copy_code()}</button>
+          <span class="joined">
+            <button class="btn sm" onclick={shareLink} disabled={sharing} title={m.import_link_title()}>{sharing ? m.import_creating_link() : m.import_link()}</button>
+            <select class="select xs" bind:value={shareSite} disabled={sharing}>
+              {#each SHARE_SITES as site}<option value={site}>{site}</option>{/each}
+            </select>
+          </span>
+        </div>
+        <div class="arow">
+          <span class="label">{m.import_export()}</span>
+          <button class="btn sm" onclick={exportXml}>{m.import_export_xml()}</button>
+          {#if game.isPoe2}
+            <button class="btn sm" onclick={saveGameBuild} title={m.import_export_planner_title()}>{m.import_export_planner()}</button>
+          {/if}
+        </div>
+        {#if shareUrl}
+          <div class="arow">
+            <input class="input grow mono" readonly value={shareUrl} onfocus={(e) => (e.target as HTMLInputElement).select()} />
+            <button class="btn sm" onclick={() => copyToClipboard(shareUrl!, m.import_what_link())}>{m.common_copy_button()}</button>
+          </div>
+        {/if}
+      </div>
+    {/if}
+    {#if flash}<div class="flash">{flash}</div>{/if}
+  </section>
   <section class="col">
     <div class="toolbar">
       <span class="hinted">
@@ -1066,7 +1383,6 @@
           />
           <button class="btn sm primary" disabled={!newFolder.trim()} onclick={commitNewFolder}>{m.common_create()}</button>
           <button class="btn sm ghost" onclick={() => (newFolder = null)}>{m.common_cancel()}</button>
-          <span class="hint">{m.import_folder_hint()}</span>
         </div>
       {/if}
       {#if autosave && autosave.name !== build.info?.name}
@@ -1079,7 +1395,7 @@
         </div>
       {/if}
       {#if recentEntries.length && !filter.trim()}
-        <div class="srchead" title={m.import_recent_desc()}>
+        <div class="srchead">
           <div class="srctitle">{m.import_recent_title()}</div>
         </div>
         {#each recentEntries as b (b.path)}
@@ -1280,347 +1596,24 @@
     </div>
   </section>
 
-  <section class="col side">
-    <div class="panel-head">
-      <span class="label">{m.ggg_account_title()}</span>
-      {#if ggg.account}
-        <button class="btn sm ghost" onclick={() => ggg.signOut().catch((e) => (build.error = String(e)))} disabled={charBusy !== null}>{m.import_ggg_sign_out()}</button>
-      {/if}
-    </div>
-    <div class="block">
-      {#if ggg.account}
-        <div class="arow">
-          <span class="grow">{ggg.account.name}</span>
-          {#if ggg.daysLeft > 1}
-            <span class="dim small">{m.ggg_reauth_days({ count: ggg.daysLeft })}</span>
-          {:else}
-            <span class="small" style:color="var(--warn)">{m.ggg_reauth_soon()}</span>
-          {/if}
-        </div>
-      {:else if ggg.signingIn}
-        <div class="arow">
-          <span class="dim small grow">{m.import_ggg_waiting()}</span>
-          {#if ggg.link}
-            <button class="btn sm ghost" title={m.ggg_copy_link_title()} onclick={() => ggg.copyLink().catch((e) => (build.error = String(e)))}>{ggg.linkCopied ? m.common_copied() : m.ggg_copy_link()}</button>
-          {/if}
-          <button class="btn sm" onclick={() => ggg.cancel()}>{m.common_cancel()}</button>
-        </div>
-      {:else}
-        <div class="actions">
-          <button class="btn primary" onclick={signIn} disabled={!ggg.available}>{m.import_ggg_sign_in()}</button>
-        </div>
-        {#if !ggg.available}<p class="dim small">{m.import_ggg_unavailable()}</p>{/if}
-      {/if}
-    </div>
-
-    <div class="panel-head"><span class="label">{m.import_title()}</span></div>
-    <div class="block">
-      <textarea
-        class="textarea"
-        rows="5"
-        placeholder={m.import_code_placeholder()}
-        bind:value={code}
-      ></textarea>
-      <div class="actions">
-        <button class="btn primary" onclick={doImport} disabled={!code.trim() || build.busy > 0 || fetching || pasting}>
-          {fetching ? m.import_fetching() : m.import_title()}
-        </button>
-        <button class="btn" onclick={pasteImport} disabled={build.busy > 0 || fetching || pasting}>{pasting ? m.import_pasting() : m.import_paste_and_import()}</button>
-      </div>
-      {#if importError}<p role="alert" class="small" style:color="var(--bad)">{importError}</p>{/if}
-    </div>
-
-    <div class="panel-head">
-      <span class="label">{m.import_character()}</span>
-      <select class="select sm" bind:value={charSource} title={m.import_source_title()}>
-        <option value="ggg">pathofexile.com</option>
-        <option value="ninja">poe.ninja</option>
-      </select>
-    </div>
-    <div class="block">
-      {#if charSource === "ninja"}
-        <div class="charform">
-          <input
-            class="input grow"
-            placeholder={m.import_account_placeholder()}
-            bind:value={charAccount}
-            onkeydown={(e) => e.key === "Enter" && findCharacters()}
-          />
-          <button class="btn" onclick={findCharacters} disabled={!charAccount.trim() || charBusy !== null}>
-            {charBusy === "list" ? m.import_finding() : m.import_find()}
-          </button>
-        </div>
-      {:else if ggg.account}
-        <div class="charform">
-          {#if !game.isPoe2}
-            <select class="select" bind:value={charRealm} title={m.import_realm()}>
-              <option value="pc">{m.import_realm_pc()}</option>
-              <option value="xbox">{m.import_realm_xbox()}</option>
-              <option value="sony">{m.import_realm_sony()}</option>
-            </select>
-          {/if}
-          <button class="btn" onclick={findCharacters} disabled={charBusy !== null}>
-            {charBusy === "list" ? m.import_finding() : m.import_ggg_find()}
-          </button>
-        </div>
-      {:else}
-        <div class="dim small">{m.import_ggg_need_sign_in()}</div>
-      {/if}
-      {#if shownList}
-        <div class="charhead">
-          <select class="select sm" bind:value={charLeague}>
-            {#each charLeagues as l}<option value={l}>{l}</option>{/each}
-            <option value="">{m.import_all_leagues()}</option>
-          </select>
-          <span class="dim small"><span class="num">{shownCharacters.length}</span> {m.import_characters()}</span>
-        </div>
-        <div class="charlist">
-          {#each shownCharacters as c (c.key)}
-            {@const who = ascendByKey.get(c.className) ?? (build.classes.some((k) => k.name === c.className) ? { cls: c.className, asc: null } : undefined)}
-            <div class="charrow">
-              {#if artVersion && who}
-                <ClassIcon game={game.current} version={artVersion} className={who.cls} ascendancy={who.asc} size={18} />
-              {:else}
-                <span class="noart small-art"></span>
-              {/if}
-              <span class="cname" title={c.updated ? m.import_char_title_saved({ name: c.name, league: c.league, date: shortDate(c.updated) }) : m.import_char_title({ name: c.name, league: c.league })}>
-                {c.name}{#if !charLeague}<span class="dim small cleague">{c.league}</span>{/if}
-              </span>
-              <span class="dim small"><span style:color={classColour.get(c.className)}>{who?.asc ?? c.className}</span> <span class="num">{c.level}</span></span>
-              {#if c.status === "listed"}
-                {#if build.info}
-                  <button
-                    class="act"
-                    class:on={updating === c.key}
-                    aria-expanded={updating === c.key}
-                    title={m.import_update_open_title()}
-                    onclick={() => (updating = updating === c.key ? null : c.key)}
-                    disabled={charBusy !== null || build.busy > 0}>{m.import_update_open()}</button
-                  >
-                {/if}
-                <button class="act" onclick={() => importCharacter(c)} disabled={charBusy !== null || build.busy > 0}>
-                  {charBusy === c.key && updating !== c.key ? m.import_importing() : m.import_import_short()}
-                </button>
-              {:else}
-                <span class="dim small nobuild" title={m.import_no_ninja_build()}>{ninjaReason(c)}</span>
-              {/if}
-            </div>
-            {#if updating === c.key && build.info}
-              <div class="reimport">
-                <div class="rpart">
-                  <label class="chk small"><input type="checkbox" bind:checked={reimport.tree} /> {m.import_reimport_tree()}</label>
-                  <label class="chk small sub"><input type="checkbox" bind:checked={reimport.deleteJewels} disabled={!reimport.tree} /> {m.import_reimport_delete_jewels()}</label>
-                </div>
-                <div class="rpart">
-                  <label class="chk small"><input type="checkbox" bind:checked={reimport.gear} /> {m.import_reimport_gear()}</label>
-                  <label class="chk small sub"><input type="checkbox" bind:checked={reimport.deleteEquipment} disabled={!reimport.gear} /> {m.import_reimport_delete_equipment()}</label>
-                  <label class="chk small sub"><input type="checkbox" bind:checked={reimport.deleteSkills} disabled={!reimport.gear} /> {m.import_reimport_delete_skills()}</label>
-                  <label class="chk small sub"><input type="checkbox" bind:checked={reimport.ignoreWeaponSwap} disabled={!reimport.gear} /> {m.import_reimport_ignore_swap()}</label>
-                </div>
-                <div class="rgo">
-                  <span class="dim small">{m.import_reimport_into({ name: build.info.name })}</span>
-                  <button
-                    class="btn sm primary"
-                    onclick={() => reimportCharacter(c)}
-                    disabled={(!reimport.tree && !reimport.gear) || charBusy !== null || build.busy > 0}
-                  >{charBusy === c.key ? m.import_updating() : m.import_update()}</button>
-                </div>
-              </div>
-            {/if}
-          {/each}
-        </div>
-      {:else if charSource === "ninja"}
-        <div class="dim small">{m.import_ninja_blurb()}</div>
-      {/if}
-    </div>
-
-    {#if plannerOpen}
-      <div class="overlay" role="presentation" onclick={() => !plannerBusy && (plannerOpen = false)} onkeydown={(e) => e.key === "Escape" && !plannerBusy && (plannerOpen = false)}>
-        <div class="modal" role="dialog" aria-label={m.import_planner_dialog()} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === "Escape" && !plannerBusy && (plannerOpen = false)}>
-          <div class="mhead">
-            <span class="label">{m.import_planner_dialog()}</span>
-            <button class="btn sm ghost" onclick={() => (plannerOpen = false)} disabled={plannerBusy}>{m.common_close()}</button>
-          </div>
-          <div class="mbody">
-            {#if plannerLoadouts > 1}
-              {#each plannerModes as [id, title, hint] (id)}
-                <label class="mrow pmode">
-                  <input type="radio" name="planner-mode" value={id} bind:group={plannerMode} disabled={plannerBusy} />
-                  <span class="mtext"><span class="mtitle">{title}</span><span class="dim small">{hint}</span></span>
-                </label>
-              {/each}
-            {/if}
-            <label class="mrow pmode">
-              <input type="checkbox" bind:checked={plannerAuto} disabled={plannerBusy || !build.info?.file} />
-              <span class="mtext">
-                <span class="mtitle">{m.import_planner_auto()}</span>
-                <span class="dim small">{build.info?.file ? m.import_planner_auto_hint() : m.import_planner_auto_unsaved()}</span>
-              </span>
-            </label>
-            <div class="mrow">
-              <span class="mtext dim small">{plannerLink ? m.import_planner_linked({ target: plannerLink.target }) : ""}</span>
-              {#if plannerLink && build.info?.file}
-                <button class="btn sm ghost" onclick={() => build.info?.file && planner.setLink(build.info.file, null)} disabled={plannerBusy}>{m.import_planner_stop()}</button>
-              {/if}
-              <button class="btn primary sm" onclick={runPlannerExport} disabled={plannerBusy}>{m.import_planner_save()}</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    {/if}
-
-    {#if moba}
-      <div class="overlay" role="presentation" onclick={() => !mobaBusy && (moba = null)} onkeydown={(e) => e.key === "Escape" && (moba = null)}>
-        <div class="modal" role="dialog" aria-label={m.import_moba_dialog()} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === "Escape" && (moba = null)}>
-          <div class="mhead">
-            <span class="label">{m.import_moba()}</span>
-            <span class="dim small mono">{moba.slug}</span>
-            <button class="btn sm ghost" onclick={() => (moba = null)} disabled={mobaBusy}>{m.common_close()}</button>
-          </div>
-          <div class="mbody">
-            {#if moba.pobCode}
-              <div class="mrow">
-                <div class="mtext">
-                  <div class="mtitle">{m.import_moba_pob()}</div>
-                  <div class="dim small">{m.import_moba_pob_blurb()}</div>
-                </div>
-                <button class="btn primary sm" onclick={mobaImportPob} disabled={mobaBusy || build.busy > 0}>{m.import_title()}</button>
-              </div>
-            {/if}
-            {#if moba.variants.length}
-              <div class="mrow">
-                <div class="mtext">
-                  <div class="mtitle">{m.import_moba_planner()} <span class="dim num">{moba.variants.length}</span></div>
-                  <div class="dim small">
-                    {m.import_moba_planner_blurb({ folder: gameBuilds?.dir ?? m.import_moba_folder_fallback() })}
-                    {#if !moba.pobCode}{m.import_moba_planner_warning()}{/if}
-                  </div>
-                </div>
-                <button class="btn sm" class:primary={!moba.pobCode} onclick={mobaSaveAll} disabled={mobaBusy}>{m.import_moba_save_all()}</button>
-              </div>
-              <div class="mvariants">
-                {#each moba.variants as v (v.id)}
-                  <div class="mvar">
-                    <span class="mvname" title={v.name}>{v.name}</span>
-                    <span class="dim small num">{m.import_moba_variant({ passives: v.passives, skills: v.skills })}</span>
-                    <button class="act" onclick={() => mobaOpenVariant(v)} disabled={mobaBusy || build.busy > 0}>{m.import_moba_open_here()}</button>
-                  </div>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        </div>
-      </div>
-    {/if}
-
-    {#if guide}
-      <div class="overlay" role="presentation" onclick={() => !guideBusy && (guide = null)} onkeydown={(e) => e.key === "Escape" && (guide = null)}>
-        <div class="modal" role="dialog" aria-label={m.import_maxroll_dialog()} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === "Escape" && (guide = null)}>
-          <div class="mhead">
-            <span class="label">{m.import_maxroll()}</span>
-            <span class="dim small mtrunc" title={guide.title}>{guide.title}</span>
-            <button class="btn sm ghost" onclick={() => (guide = null)} disabled={guideBusy}>{m.common_close()}</button>
-          </div>
-          <div class="mbody">
-            {#each guide.links as l, i (l.url)}
-              <div class="mrow">
-                <div class="mtext">
-                  <div class="mtitle">{l.name}</div>
-                  <div class="dim small mtrunc" title={l.url}>{l.source} · <span class="mono">{l.url.replace(/^https?:\/\//, "")}</span></div>
-                </div>
-                <button class="btn sm" class:primary={i === 0} onclick={() => guideImport(l)} disabled={guideBusy || build.busy > 0}>{m.import_title()}</button>
-              </div>
-            {/each}
-          </div>
-        </div>
-      </div>
-    {/if}
-
-    {#if build.loaded}
-      <div class="panel-head">
-        <span class="label">{m.import_current()}</span>
-        {#if build.info?.unsaved}<span class="dim small">{m.import_unsaved()}</span>{/if}
-      </div>
-      <div class="block current">
-        <div class="fld">
-          <span class="label">{m.import_name()}</span>
-          {#if nameDraft !== null}
-            <!-- svelte-ignore a11y_autofocus -->
-            <input
-              class="input grow"
-              bind:value={nameDraft}
-              autofocus
-              onblur={commitBuildName}
-              onkeydown={(e) => {
-                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                if (e.key === "Escape") (nameDraft = null);
-              }}
-            />
-          {:else}
-            <button
-              class="bname grow"
-              onclick={() => (nameDraft = build.info?.name ?? "")}
-              title={(build.info?.file ? `${build.info.file}\n` : m.import_not_saved()) + m.import_click_rename()}
-            >{build.info?.name ?? "—"}</button>
-          {/if}
-        </div>
-        <div class="fld">
-          <span class="label">{m.import_author_label()}</span>
-          <input class="input grow" bind:value={author} placeholder="—" title={m.import_author_title()} onblur={commitAuthor} />
-        </div>
-        <div class="arow">
-          <span class="label">{m.import_save()}</span>
-          <button class="btn sm" onclick={saveCurrent} title={build.info?.file ?? m.import_save_title()}>{m.import_save()}</button>
-          <button class="btn sm" onclick={saveAs}>{m.import_save_as()}</button>
-        </div>
-        <div class="arow">
-          <span class="label">{m.import_share()}</span>
-          <button class="btn sm" onclick={copyCode}>{m.import_copy_code()}</button>
-          <span class="joined">
-            <button class="btn sm" onclick={shareLink} disabled={sharing} title={m.import_link_title()}>{sharing ? m.import_creating_link() : m.import_link()}</button>
-            <select class="select xs" bind:value={shareSite} disabled={sharing}>
-              {#each SHARE_SITES as site}<option value={site}>{site}</option>{/each}
-            </select>
-          </span>
-        </div>
-        <div class="arow">
-          <span class="label">{m.import_export()}</span>
-          <button class="btn sm" onclick={exportXml}>{m.import_export_xml()}</button>
-          {#if game.isPoe2}
-            <button class="btn sm" onclick={saveGameBuild} title={m.import_export_planner_title()}>{m.import_export_planner()}</button>
-          {/if}
-        </div>
-        {#if shareUrl}
-          <div class="arow">
-            <input class="input grow mono" readonly value={shareUrl} onfocus={(e) => (e.target as HTMLInputElement).select()} />
-            <button class="btn sm" onclick={() => copyToClipboard(shareUrl!, m.import_what_link())}>{m.common_copy_button()}</button>
-          </div>
-        {/if}
-      </div>
-    {/if}
-    {#if flash}<div class="flash">{flash}</div>{/if}
-  </section>
 </div>
 
 <style>
   .page {
     flex: 1;
     display: grid;
-    grid-template-columns: minmax(360px, 1fr) minmax(360px, 460px);
+    grid-template-columns: minmax(360px, 460px) minmax(360px, 1fr);
     min-height: 0;
   }
   .col {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    border-right: 1px solid var(--line-0);
-  }
-  .col:last-child {
-    border-right: 0;
-    background: var(--bg-1);
   }
   .side {
     overflow-y: auto;
+    border-right: 1px solid var(--line-0);
+    background: var(--bg-1);
   }
   .side .panel-head {
     flex: none;
@@ -1861,11 +1854,6 @@
     padding: 8px 12px;
     border-bottom: 1px solid var(--line-0);
     background: var(--bg-1);
-  }
-  .newdir .hint {
-    flex-basis: 100%;
-    font-size: var(--fs-xs);
-    color: var(--fg-2);
   }
   .caret.open {
     transform: rotate(90deg);

@@ -41,7 +41,7 @@
         <span class="lead"><Icon name={on ? "lightning" : "brain"} size={12} /></span>
         <span class="text">
           <span>{on ? m.chat_speed_fast() : m.chat_speed_standard()}</span>
-          <span class="desc">{on ? m.chat_speed_fast_desc() : m.chat_speed_standard_desc()}</span>
+          {#if on}<span class="desc">{m.chat_speed_fast_desc()}</span>{/if}
         </span>
         {#if fastOn === on}<span class="check"><Icon name="check" size={12} /></span>{/if}
       </button>

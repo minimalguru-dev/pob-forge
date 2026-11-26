@@ -129,7 +129,6 @@
     {#if !party}
       <div class="dim small pad">{m.party_no_build()}</div>
     {:else}
-      {#if !advanced}<p class="dim small note">{m.party_values_note()}</p>{/if}
       <div class="cols">
         {#each boxes as b (b.kind)}
           {@const box = party[b.kind]}
@@ -273,10 +272,6 @@
     margin: 0;
     max-height: 300px;
     overflow-y: auto;
-  }
-  .note {
-    margin: 0;
-    padding: 10px 12px 0;
   }
   .buff + .buff {
     margin-top: 8px;

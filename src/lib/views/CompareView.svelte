@@ -264,7 +264,6 @@
   {#if !entries.length}
     <div class="empty">
       <p>{m.compare_empty()}</p>
-      <p class="dim small">{m.compare_empty_hint()}</p>
     </div>
   {:else}
     {#if loadouts}
@@ -349,7 +348,6 @@
             <span><b class="num down">{tree.lost.length}</b> {m.compare_lost()}</span>
             <button class="btn sm" onclick={takeTree} disabled={busy}>{m.compare_copy_tree()}</button>
           </div>
-          <p class="dim small hint">{m.compare_copy_tree_hint()}</p>
         {/if}
       {:else if pane === "items"}
         <div class="thead">
@@ -641,9 +639,6 @@
     align-items: center;
     gap: 16px;
     padding: 12px 2px 0;
-  }
-  .hint {
-    margin: 6px 2px 0;
   }
   .gems {
     display: flex;

@@ -6,14 +6,14 @@
 
   let open = $state(false);
 
-  const options = $derived<{ ask: boolean; icon: IconName; label: string; desc: string }[]>([
-    { ask: false, icon: "sparkle", label: m.chat_changes_auto(), desc: m.chat_changes_auto_desc() },
-    { ask: true, icon: "lock-simple", label: m.chat_changes_supervised(), desc: m.chat_changes_supervised_desc() },
+  const options = $derived<{ ask: boolean; icon: IconName; label: string }[]>([
+    { ask: false, icon: "sparkle", label: m.chat_changes_auto() },
+    { ask: true, icon: "lock-simple", label: m.chat_changes_supervised() },
   ]);
   const now = $derived(options.find((o) => o.ask === chat.askFirst) ?? options[0]);
 </script>
 
-<ComposerMenu bind:open label={now.desc}>
+<ComposerMenu bind:open label={now.label}>
   {#snippet trigger()}
     <Icon name={now.icon} size={12} />
     <span class="lbl">{now.label}</span>
@@ -21,10 +21,7 @@
   {#each options as o (o.ask)}
     <button class="item" role="menuitemradio" aria-checked={chat.askFirst === o.ask} onclick={() => { chat.setAskFirst(o.ask); open = false; }}>
       <span class="lead"><Icon name={o.icon} size={13} /></span>
-      <span class="text">
-        <span>{o.label}</span>
-        <span class="desc">{o.desc}</span>
-      </span>
+      <span class="text">{o.label}</span>
       {#if chat.askFirst === o.ask}<span class="check"><Icon name="check" size={12} /></span>{/if}
     </button>
   {/each}
@@ -63,11 +60,6 @@
     gap: 2px;
     flex: 1;
     min-width: 0;
-  }
-  .desc {
-    font-size: var(--fs-2xs);
-    color: var(--fg-3);
-    line-height: 1.35;
   }
   .check {
     margin-left: auto;

@@ -160,7 +160,7 @@
   });
 </script>
 
-{#snippet head(title: string, desc: string, status?: string, tone?: Tone)}
+{#snippet head(title: string, status?: string, tone?: Tone)}
   <header class="phead">
     <div class="ptitle">
       <h1>{title}</h1>
@@ -171,7 +171,6 @@
         </span>
       {/if}
     </div>
-    <p>{desc}</p>
   </header>
 {/snippet}
 
@@ -191,12 +190,11 @@
   <div class="sbody" bind:this={scroller}>
     <div class="sinner">
       {#if active === "appearance"}
-        {@render head(m.settings_appearance(), m.settings_appearance_desc())}
+        {@render head(m.settings_appearance())}
         <div class="rows">
           <label class="opt">
             <span>
               {m.settings_language()}
-              <span class="hint">{m.settings_language_hint()}</span>
             </span>
             <select class="select" value={locale.preference} onchange={(e) => locale.set((e.target as HTMLSelectElement).value as LocalePreference)}>
               {#each languages as [id, label] (id)}
@@ -207,7 +205,6 @@
           <div class="opt themeopt">
             <span>
               {m.settings_theme()}
-              <span class="hint">{m.settings_theme_hint()}</span>
             </span>
             <div class="themes" role="radiogroup" aria-label={m.settings_theme()}>
               {#each themes as [id, label] (id)}
@@ -228,7 +225,6 @@
           <div class="opt themeopt">
             <span>
               {m.settings_cursor()}
-              <span class="hint">{m.settings_cursor_hint()}</span>
             </span>
             <div class="cursors" role="radiogroup" aria-label={m.settings_cursor()}>
               {#each cursorOptions as c (c.id)}
@@ -246,7 +242,6 @@
           <div class="opt">
             <span>
               {m.settings_contrast()}
-              <span class="hint">{m.settings_contrast_hint()}</span>
             </span>
             <div class="ctrast">
               <button class="btn sm ghost" class:on={ui.contrastAuto} aria-pressed={ui.contrastAuto} onclick={() => ui.setContrastAuto(!ui.contrastAuto)}>{m.common_auto()}</button>
@@ -281,7 +276,6 @@
           <label class="opt">
             <span>
               {m.settings_tab_icons()}
-              <span class="hint">{m.settings_tab_icons_hint()}</span>
             </span>
             <input class="switch" type="checkbox" role="switch" checked={ui.tabIcons} onchange={(e) => ui.setTabIcons((e.target as HTMLInputElement).checked)} />
           </label>
@@ -294,7 +288,7 @@
           </label>
         </div>
       {:else if active === "numbers"}
-        {@render head(m.settings_numbers(), m.settings_numbers_desc())}
+        {@render head(m.settings_numbers())}
         {#if v}
           <div class="cols">
             <div>
@@ -368,26 +362,23 @@
               </div>
             </div>
           </div>
-          <p class="note">{m.settings_numbers_note()}</p>
         {:else}
           <p class="note">{m.settings_numbers_waiting()}</p>
         {/if}
       {:else if active === "assistant"}
-        {@render head(m.settings_assistant(), m.settings_assistant_desc(), chat.current?.label ?? "", assistantTone)}
+        {@render head(m.settings_assistant(), chat.current?.label ?? "", assistantTone)}
         <AssistantSettings />
         <h2 class="label ghead">{m.assistant_changes()}</h2>
         <div class="rows">
           <label class="opt">
             <span>
               {m.assistant_ask_first()}
-              <span class="hint">{m.assistant_ask_first_hint()}</span>
             </span>
             <input class="switch" type="checkbox" role="switch" checked={chat.askFirst} onchange={(e) => chat.setAskFirst((e.target as HTMLInputElement).checked)} />
           </label>
         </div>
-        <p class="note">{m.provider_intro_agents()}</p>
       {:else if active === "mcp"}
-        {@render head(m.settings_mcp(), m.settings_mcp_desc(), mcpState, mcpTone)}
+        {@render head(m.settings_mcp(), mcpState, mcpTone)}
         <h2 class="label ghead">{m.settings_mcp_server()}</h2>
         <div class="rows">
           <label class="opt">
@@ -441,7 +432,7 @@
           </div>
         {/if}
       {:else if active === "experimental"}
-        {@render head(m.settings_experimental(), m.settings_experimental_desc(), decideState, decideTone)}
+        {@render head(m.settings_experimental(), decideState, decideTone)}
         <div class="rows master" class:live={decider.enabled}>
           <label class="opt">
             <span>
@@ -554,7 +545,6 @@
             <label class="opt">
               <span>
                 {m.experimental_routing()}
-                <span class="hint">{m.experimental_routing_hint()}</span>
               </span>
               <input class="switch" type="checkbox" role="switch" checked={decider.routing} onchange={(e) => decider.setRouting((e.target as HTMLInputElement).checked)} />
             </label>
@@ -566,7 +556,6 @@
           <label class="opt">
             <span>
               {m.voice_enable()}
-              <span class="hint">{m.voice_enable_hint()}</span>
             </span>
             <input class="switch" type="checkbox" role="switch" checked={voice.enabled} onchange={(e) => voice.setEnabled((e.target as HTMLInputElement).checked)} />
           </label>
@@ -611,12 +600,11 @@
           </label>
         </div>
       {:else if active === "updates"}
-        {@render head(m.settings_updates(), m.settings_updates_desc(), version)}
+        {@render head(m.settings_updates(), version)}
         <div class="rows">
           <div class="opt">
             <span>
               {m.settings_version()}
-              <span class="hint">{m.settings_update_hint()}</span>
             </span>
             <div class="row">
               {#if appUpdate.phase === "downloading"}
@@ -645,7 +633,6 @@
             <label class="opt">
               <span>
                 {m.settings_update_auto()}
-                <span class="hint">{m.settings_update_auto_hint()}</span>
               </span>
               <input class="switch" type="checkbox" role="switch" checked={appUpdate.auto} onchange={(e) => appUpdate.setAuto((e.target as HTMLInputElement).checked)} />
             </label>
@@ -657,7 +644,7 @@
         {/if}
         <p class="note">{m.ggg_disclaimer()}</p>
       {:else if active === "overlay"}
-        {@render head(m.settings_overlay(), m.settings_overlay_desc(), overlay.settings?.enabled ? m.status_on() : m.status_off(), overlay.settings?.enabled ? "ok" : "off")}
+        {@render head(m.settings_overlay(), overlay.settings?.enabled ? m.status_on() : m.status_off(), overlay.settings?.enabled ? "ok" : "off")}
         {#if overlay.settings}
           {@const o = overlay.settings}
           <div class="rows">
@@ -666,7 +653,7 @@
               <input class="switch" type="checkbox" role="switch" checked={o.enabled} disabled={overlay.saving} onchange={(e) => overlay.update({ enabled: (e.target as HTMLInputElement).checked })} />
             </label>
             <label class="opt">
-              <span>{m.overlay_toggle_key()}<span class="hint">{m.overlay_key_hint()}</span></span>
+              <span>{m.overlay_toggle_key()}</span>
               <input class="input mono" value={o.toggleKey} disabled={overlay.saving} onchange={(e) => overlay.update({ toggleKey: (e.target as HTMLInputElement).value.trim() })} />
             </label>
             <label class="opt">
@@ -694,9 +681,9 @@
           </div>
           <h2 class="label ghead">{m.overlay_panels()}</h2>
           <div class="rows">
-            {#each [["itemCheck", m.overlay_item_check(), m.overlay_item_check_hint()], ["mapCheck", m.overlay_map_check(), m.overlay_map_check_hint()], ["prices", m.overlay_prices(), m.overlay_prices_hint()], ["priceCheck", m.overlay_price_check(), m.overlay_price_check_hint()]] as const as [key, label, hint] (key)}
+            {#each [["itemCheck", m.overlay_item_check(), ""], ["mapCheck", m.overlay_map_check(), ""], ["prices", m.overlay_prices(), m.overlay_prices_hint()], ["priceCheck", m.overlay_price_check(), ""]] as const as [key, label, hint] (key)}
               <label class="opt">
-                <span>{label}<span class="hint">{hint}</span></span>
+                <span>{label}{#if hint}<span class="hint">{hint}</span>{/if}</span>
                 <input class="switch" type="checkbox" role="switch" checked={o[key]} disabled={overlay.saving} onchange={(e) => overlay.update({ [key]: (e.target as HTMLInputElement).checked })} />
               </label>
             {/each}
@@ -747,7 +734,7 @@
           <div class="opt err mono">{overlay.error}</div>
         {/if}
       {:else if active === "diagnostics"}
-        {@render head(m.settings_diagnostics(), m.settings_diagnostics_desc())}
+        {@render head(m.settings_diagnostics())}
         <div class="rows">
           <div class="opt">
             <span>
@@ -851,12 +838,6 @@
     font-size: var(--fs-xl);
     font-weight: 600;
     color: var(--fg-0);
-  }
-  .phead p {
-    margin: 6px 0 0;
-    font-size: var(--fs-sm);
-    color: var(--fg-2);
-    max-width: 640px;
   }
   .badge {
     display: inline-flex;

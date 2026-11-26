@@ -135,11 +135,9 @@
 <div class="page">
   <div class="body">
     <h1>{m.regex_title()}</h1>
-    <p class="dim small intro">{m.regex_intro()}</p>
 
     <section>
       <h2>{m.regex_highlight()}</h2>
-      <p class="dim small">{m.regex_highlight_hint()}</p>
       <div class="controls small">
         <label>
           <span class="dim">{m.regex_league()}</span>
@@ -244,7 +242,6 @@
   .body { max-width: 820px; margin: 0 auto; padding: 18px 20px 40px; display: flex; flex-direction: column; gap: 18px; }
   h1 { margin: 0; font-family: var(--font-display); font-size: 20px; font-weight: 400; color: var(--fg-0); }
   h2 { margin: 0 0 4px; font-family: var(--font-display); font-size: 15px; font-weight: 400; color: var(--brand); }
-  .intro { margin: -10px 0 0; }
   section { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line-0); }
   section p { margin: 0; }
   .controls, .own, .saveRow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }

@@ -40,7 +40,6 @@
     </div>
     {#if toast.kind === "downloading"}
       <div class="track"><div class="fill" style:width="{toast.total ? ((toast.done ?? 0) / toast.total) * 100 : 0}%"></div></div>
-      <div class="detail">{m.download_once()}</div>
     {:else if toast.kind === "failed"}
       <div class="detail">{toast.detail}</div>
       <div class="actions">

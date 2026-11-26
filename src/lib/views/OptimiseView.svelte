@@ -281,7 +281,6 @@
 </script>
 
 <div class="page">
-  <p class="disclaimer"><strong>{m.opt_disclaimer_title()}</strong> {m.opt_disclaimer()}</p>
   <section class="col review">
     <div class="head">
       <span class="title">{m.opt_review()}</span>
@@ -328,7 +327,6 @@
     <div class="controls">
       <div class="ctl run">
         <button class="btn sm primary" onclick={() => (traderOpen = true)} disabled={!build.loaded}>{m.opt_find_upgrades()}</button>
-        <span class="dim small">{m.opt_find_upgrades_hint()}</span>
       </div>
     </div>
     <details class="ideal" bind:open={idealOpen}>
@@ -439,7 +437,6 @@
       <div class="controls">
         <div class="ctl run">
           <button class="btn sm primary" onclick={findClusters} disabled={clusterRunning || running || !build.loaded} title={m.opt_cluster_run_title()}>{clusterRunning ? m.opt_cluster_running() : m.opt_cluster_run()}</button>
-          <span class="dim small">{m.opt_cluster_hint()}</span>
         </div>
         {#if clusterError}<div class="err small">{clusterError}</div>{/if}
       </div>
@@ -590,23 +587,8 @@
     flex: 1;
     display: grid;
     grid-template-columns: minmax(340px, 440px) minmax(420px, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     min-height: 0;
-  }
-  .disclaimer {
-    grid-column: 1 / -1;
-    margin: 0;
-    padding: 7px 14px;
-    background: color-mix(in oklab, var(--bad) 12%, transparent);
-    border-bottom: 1px solid color-mix(in oklab, var(--bad) 45%, transparent);
-    font-size: var(--fs-xs);
-    line-height: 1.45;
-    color: var(--fg-1);
-  }
-  .disclaimer strong {
-    color: var(--bad);
-    font-weight: 600;
-    margin-right: 4px;
   }
   .col {
     display: flex;

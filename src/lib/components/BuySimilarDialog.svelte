@@ -141,9 +141,7 @@
           </label>
         </div>
 
-        {#if info.unique}
-          <div class="dim small">{m.buy_unique_note({ name: info.name })}</div>
-        {:else}
+        {#if !info.unique}
           <div class="grid">
             <span class="dim small">{m.buy_category()}</span>
             <span class="small">{info.category}</span>

@@ -627,7 +627,7 @@
   <div class="panel dialog trdlg">
     <div class="head">
       <span class="label">{m.trader_title()}</span>
-      <span class="dim small">{ggg.account ? m.trader_signed_in({ name: ggg.account.name }) : m.trader_subtitle()}</span>
+      {#if ggg.account}<span class="dim small">{m.trader_signed_in({ name: ggg.account.name })}</span>{/if}
     </div>
 
     <div class="opts">

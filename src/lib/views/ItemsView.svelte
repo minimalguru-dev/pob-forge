@@ -828,7 +828,7 @@
     <button class="btn sm" onclick={openCraft}>{m.items_craft()}</button>
     <button class="btn sm" onclick={() => openEdit(null)} disabled={previewCommitting}>{m.items_new_from_text()}</button>
     <button class="btn sm" onclick={pasteItem} disabled={previewCommitting} title={m.items_paste_hint()}>{m.items_paste()}</button>
-    <button class="btn sm ghost" title={m.items_trader_title()} onclick={() => openTrader(null)}>{m.items_trader()}</button>
+    <button class="btn sm" title={m.items_trader_title()} onclick={() => openTrader(null)}>{m.items_trader()}</button>
     {#if statDiff !== null}
       <span class="vr"></span>
       <label class="chk small" title={m.items_stat_diff_title()}>
@@ -878,7 +878,6 @@
         {#each squireSlots as s (s.slot)}
           {@render squireRow(s)}
         {/each}
-        <p class="sqnote">{m.squire_equipment_hint()}</p>
         <div class="subhead"><span>{m.squire_stats()}</span></div>
         <p class="sqnote">{m.squire_stats_pending()}</p>
         <p class="sqnote">{m.squire_note()}</p>

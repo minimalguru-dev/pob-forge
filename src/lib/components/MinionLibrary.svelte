@@ -118,8 +118,6 @@
       </section>
     </div>
 
-    <p class="note dim small">{kind === "beast" ? m.minions_note_beast() : m.minions_note_spectre()}</p>
-
     <div class="acts">
       <button class="btn primary" disabled={saving || build.busy > 0} onclick={save}>{m.common_save()}</button>
       <button class="btn ghost" onclick={onclose}>{m.common_cancel()}</button>
@@ -236,9 +234,6 @@
   }
   .pad {
     padding: 8px 10px;
-  }
-  .note {
-    margin: 0;
   }
   .acts {
     display: flex;

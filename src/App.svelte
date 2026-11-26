@@ -165,7 +165,6 @@
         <div class="label">{m.welcome_title()}</div>
         <div class="big">{m.welcome_first_time()}</div>
         <div>{m.welcome_question()}</div>
-        <div class="dim small">{m.welcome_hint()}</div>
         <div class="pick-row">
           {#each GAMES as g (g)}
             <button class="pick-btn" onclick={() => game.choose(g)} disabled={game.switching}>

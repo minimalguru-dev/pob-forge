@@ -49,6 +49,8 @@
 
   const activeSet = $derived(sets.find((s) => s.active));
 
+  /** PoB's section name (PoE1); the grouping uses PoB's own text. */
+  const LAST_SECTION = "Map Modifiers and Player Debuffs";
   const sections = $derived.by(() => {
     const q = filter.trim().toLowerCase();
     const out: { name: string; items: ConfigOption[] }[] = [];
@@ -61,7 +63,9 @@
       if (!s) out.push((s = { name, items: [] }));
       s.items.push(o);
     }
-    return out;
+    // Map mods and player debuffs are set least often, so they come last.
+    const last = out.filter((s) => s.name === LAST_SECTION);
+    return [...out.filter((s) => s.name !== LAST_SECTION), ...last];
   });
 
   const CARD_MIN = 380;

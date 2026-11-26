@@ -248,7 +248,6 @@
               {#if p.download}
                 <span class="hint">{m.assistant_download_note()}</span>
               {:else if p.install_command}
-                <span class="hint">{m.assistant_install_hint()}</span>
                 <div class="cmdrow">
                   <code class="cmd">{p.install_command}</code>
                   <button class="btn sm ghost" onclick={() => copy(`i-${p.id}`, p.install_command!)}>{copied === `i-${p.id}` ? m.common_copied() : m.common_copy()}</button>
