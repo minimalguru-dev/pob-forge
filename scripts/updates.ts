@@ -63,10 +63,10 @@ export function manifest(cdn: string, version: string, notes: string, bundles: B
 
 /**
  * The bundles of a published GitHub release, downloaded into `dir` by `gh` (which runs the gh CLI
- * with these arguments and returns its output). Throws when the release is a draft, is not this
- * checkout's version, or lacks a bundle or its signature.
+ * with these arguments and returns its output). The version is the tag's. Throws when the release
+ * is a draft or lacks the installer or its signature.
  */
-export function fromRelease(tag: string, repo: string, expected: string, gh: (argv: string[]) => string, dir: string) {
+export function fromRelease(tag: string, repo: string, gh: (argv: string[]) => string, dir: string) {
   let view: string;
   try {
     view = gh(["release", "view", tag, "-R", repo, "--json", "assets,body,isDraft,tagName"]);
@@ -76,7 +76,6 @@ export function fromRelease(tag: string, repo: string, expected: string, gh: (ar
   const info = JSON.parse(view) as { assets: { name: string }[]; body: string | null; isDraft: boolean; tagName: string };
   if (info.isDraft) throw new Error(`${tag} is still a draft; publish it on GitHub first`);
   const version = info.tagName.replace(/^v/, "");
-  if (version !== expected) throw new Error(`${tag} is version ${version}, but this checkout's tauri.conf.json says ${expected}; check out the tag`);
   const bundles: Bundle[] = [];
   for (const { suffix, platforms } of BUNDLES) {
     const asset = info.assets.find((a) => a.name.endsWith(suffix));
@@ -92,10 +91,21 @@ export function fromRelease(tag: string, repo: string, expected: string, gh: (ar
   return { version, notes: info.body ?? "", bundles };
 }
 
+/**
+ * The version a manifest offers from the CDN itself. Until the bucket holds a manifest the Worker
+ * forwards the latest GitHub release's, whose files are on GitHub: that one is not on the CDN yet,
+ * and it already names the release being published.
+ */
+export function cdnVersion(manifest: unknown, cdn: string): string | null {
+  const m = manifest as { version?: unknown; platforms?: Record<string, { url?: unknown }> } | null;
+  const url = m?.platforms?.["windows-x86_64"]?.url;
+  return typeof m?.version === "string" && typeof url === "string" && url.startsWith(`${cdn}/`) ? m.version : null;
+}
+
 export async function publishedVersion(cdn: string) {
   try {
     const r = await fetch(`${cdn}/update/latest.json`, { headers: { "Cache-Control": "no-cache" } });
-    return r.ok ? (((await r.json()) as { version?: string }).version ?? null) : null;
+    return r.ok ? cdnVersion(await r.json(), cdn) : null;
   } catch {
     return null;
   }
@@ -114,9 +124,11 @@ export async function upload(cdn: string, version: string, notes: string, bundle
   for (const b of bundles) {
     const key = cdnKey(version, b.name);
     await s3.write(key, b.body, { type: type() });
+    // The bucket's own record of the size: a HEAD through the Worker carries no body length.
+    const { size } = await s3.file(key).stat();
+    if (size !== b.body.length) throw new Error(`${key} is ${size} bytes in the bucket, expected ${b.body.length}; latest.json not changed`);
     const head = await fetch(`${cdn}/${key}`, { method: "HEAD" });
-    const size = Number(head.headers.get("Content-Length"));
-    if (!head.ok || size !== b.body.length) throw new Error(`${cdn}/${key} answers ${head.status} with ${size} bytes, expected ${b.body.length}; latest.json not changed`);
+    if (!head.ok) throw new Error(`${cdn}/${key} answers ${head.status}; latest.json not changed`);
     log(`uploaded ${key}`);
   }
   const installer = bundles.find((b) => b.name.endsWith(".exe"));

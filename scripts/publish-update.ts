@@ -65,7 +65,7 @@ if (release) {
   // ── From a published GitHub release ────────────────────────────────────────
   const repo = process.env.GITHUB_REPOSITORY || "minimalguru-dev/pob-forge";
   try {
-    const r = fromRelease(release, repo, conf.version, (argv) => run("gh", argv), mkdtempSync(join(tmpdir(), "publish-update-")));
+    const r = fromRelease(release, repo, (argv) => run("gh", argv), mkdtempSync(join(tmpdir(), "publish-update-")));
     version = r.version;
     notes = r.notes;
     bundles.push(...r.bundles);

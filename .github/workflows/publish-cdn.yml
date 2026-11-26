@@ -31,9 +31,10 @@ jobs:
     # Uploading needs the R2 secrets; a fork or a repository without them has nothing to publish to.
     if: vars.POB_FORGE_CDN_URL != ''
     steps:
+      # The scripts come from this workflow's own commit, not the tag: a release published before a
+      # fix to them can then be put on the CDN with the fixed ones. Nothing is built here.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.event.release.tag_name }}
           sparse-checkout: |
             scripts
             src-tauri/tauri.conf.json

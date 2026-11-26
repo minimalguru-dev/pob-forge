@@ -2,6 +2,16 @@
 
 Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedostatke, uz ispravak i status provjere. Ne pretvarati pretpostavke u potvrđene uzroke. Datumi/vremena odnose se na Europe/Zagreb.
 
+## 2026-11-26 — Prva objava na CDN: GitHub fallback i HEAD bez duljine
+
+- **Simptom:** nakon objave v0.5.10 `publish-cdn.yml` je odbio objavu ([run 45844527490](https://github.com/minimalguru-dev/pob-forge/actions/runs/45844527490)): "the CDN already offers 0.5.10". Ponovljen s `force` ([run 45844629360](https://github.com/minimalguru-dev/pob-forge/actions/runs/45844629360)) uploadao je installer, a zatim stao: "answers 200 with 0 bytes, expected 53461389; latest.json not changed".
+- **Uzrok 1:** dok bucket nema manifest, Worker prosljeđuje `latest.json` zadnjeg GitHub releasea; čim je release objavljen, to je baš ta verzija, pa je provjera "CDN već nudi ovu verziju" uvijek okidala. Provjera je u testovima gledala samo verziju, ne odakle manifest dolazi.
+- **Uzrok 2:** Worker na HEAD vraća prazno tijelo, pa `Content-Length` kaže 0; provjera veličine preko HEAD-a nikad nije mogla proći. Lokalno nije isprobana jer upload treba R2 ključeve.
+- **Uzrok 3 (otežavajući):** workflow je uzimao skripte s taga, pa ispravak na grani ne bi pomogao već objavljenom releaseu.
+- **Ispravak:** `cdnVersion` broji samo manifest čiji je Windows URL na CDN-u (test s GitHub fallbackom i lažnim hostom `cdn.example.evil`); veličina se provjerava u bucketu (`s3.file(key).stat()`), HEAD samo za status; `fromRelease` uzima verziju s taga; `publish-cdn.yml` uzima skripte iz vlastitog commita. Djelomični upload nije štetio: `latest.json` se piše zadnji pa ništa nije bilo objavljeno napola.
+- **Prevencija:** provjere u skripti koja ide preko mreže testirati na stvarnom odgovoru tog servera (fallback, HEAD), ne samo na izmišljenim objektima; skripte za objavu ne vezati za tag kad se ništa ne gradi.
+- **Validacija:** `bun test scripts` 76 pass; `publish-update.ts --release v0.5.10 --dry-run` nad stvarnim releaseom prolazi bez `--force`. Stvarni upload čeka ponovni run.
+
 ## 2026-11-23 — Apostrof u komentaru unutar `bun -e '…'` u workflowu
 
 - **Simptom:** prvi `release.yml` za `v0.5.9` ([run 45259285118](https://github.com/minimalguru-dev/pob-forge/actions/runs/45259285118)) pao je u koraku "Configure the updater" na Windowsu; macOS otkazan, `updater-manifest` preskočen, draft bez datoteka.

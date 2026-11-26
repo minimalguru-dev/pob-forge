@@ -3,7 +3,7 @@ import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BUNDLES, cdnKey, compareVersions, fromRelease, manifest, signatureProblem } from "./updates";
+import { BUNDLES, cdnKey, cdnVersion, compareVersions, fromRelease, manifest, signatureProblem } from "./updates";
 
 // Minisign files the way `tauri signer` writes them, from a throwaway key.
 function keypair(id: number) {
@@ -64,7 +64,7 @@ describe("fromRelease", () => {
 
   test("downloads the signed installer and keeps the release notes", () => {
     const { gh, downloads } = fakeGh({ tagName: "v0.5.9", isDraft: false, body: "notes", assets: all });
-    const r = fromRelease("v0.5.9", "o/r", "0.5.9", gh, mkdtempSync(join(tmpdir(), "updates-test-")));
+    const r = fromRelease("v0.5.9", "o/r", gh, mkdtempSync(join(tmpdir(), "updates-test-")));
     expect(r.version).toBe("0.5.9");
     expect(r.notes).toBe("notes");
     expect(r.bundles.map((b) => [b.name, b.signature, b.platforms])).toEqual([[win, "c2ln", ["windows-x86_64", "windows-x86_64-nsis"]]]);
@@ -73,20 +73,33 @@ describe("fromRelease", () => {
   });
   test("an empty release body gives empty notes", () => {
     const { gh } = fakeGh({ tagName: "v0.5.9", isDraft: false, body: null, assets: all });
-    expect(fromRelease("v0.5.9", "o/r", "0.5.9", gh, mkdtempSync(join(tmpdir(), "updates-test-"))).notes).toBe("");
+    expect(fromRelease("v0.5.9", "o/r", gh, mkdtempSync(join(tmpdir(), "updates-test-"))).notes).toBe("");
   });
-  test("refuses drafts, other versions, a release without a signed installer, and a missing release", () => {
+  test("refuses drafts, a release without a signed installer, and a missing release", () => {
     const dir = mkdtempSync(join(tmpdir(), "updates-test-"));
     const draft = fakeGh({ tagName: "v0.5.9", isDraft: true, body: "", assets: all }).gh;
-    expect(() => fromRelease("v0.5.9", "o/r", "0.5.9", draft, dir)).toThrow("draft");
-    const other = fakeGh({ tagName: "v0.5.9", isDraft: false, body: "", assets: all }).gh;
-    expect(() => fromRelease("v0.5.9", "o/r", "0.5.8", other, dir)).toThrow("tauri.conf.json says 0.5.8");
+    expect(() => fromRelease("v0.5.9", "o/r", draft, dir)).toThrow("draft");
     const unsigned = fakeGh({ tagName: "v0.5.9", isDraft: false, body: "", assets: [win] }).gh;
-    expect(() => fromRelease("v0.5.9", "o/r", "0.5.9", unsigned, dir)).toThrow("no signed Windows installer");
+    expect(() => fromRelease("v0.5.9", "o/r", unsigned, dir)).toThrow("no signed Windows installer");
     const missing = () => {
       throw new Error("release not found");
     };
-    expect(() => fromRelease("v0.5.9", "o/r", "0.5.9", missing, dir)).toThrow("no release v0.5.9 on o/r");
+    expect(() => fromRelease("v0.5.9", "o/r", missing, dir)).toThrow("no release v0.5.9 on o/r");
+  });
+});
+
+describe("cdnVersion", () => {
+  const cdn = "https://cdn.example";
+  test("counts only a manifest whose installer is on the CDN", () => {
+    const ours = manifest(cdn, "0.5.10", "", [{ name: "PoE Forge_0.5.10_x64-setup.exe", body: new Uint8Array(), signature: "s", platforms: BUNDLES[0]!.platforms }]);
+    expect(cdnVersion(ours, cdn)).toBe("0.5.10");
+    // The Worker's fallback: the latest GitHub release's own latest.json, with GitHub download links.
+    const github = { version: "0.5.10", platforms: { "windows-x86_64": { signature: "s", url: "https://api.github.com/repos/o/r/releases/assets/1" } } };
+    expect(cdnVersion(github, cdn)).toBeNull();
+    // A host that merely starts with the CDN's name is not the CDN.
+    expect(cdnVersion({ version: "1.0.0", platforms: { "windows-x86_64": { url: "https://cdn.example.evil/x.exe" } } }, cdn)).toBeNull();
+    expect(cdnVersion(null, cdn)).toBeNull();
+    expect(cdnVersion({ version: 3 }, cdn)).toBeNull();
   });
 });
 
