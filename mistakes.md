@@ -99,6 +99,7 @@ Ovaj zapis vodi razvojni agent. Dodavati samo opažene greške ili dokazive nedo
 - **Ispravak:** eksplicitni `if/else` za booleane i numeričke vrijednosti. Isto vrijedi za kopiranje boolean statova u JSON.
 - **Prevencija:** ne koristiti Lua `and/or` ternarni obrazac kada je srednja vrijednost `false` ili `nil`.
 - **Validacija:** integration test eksplicitno očekuje `false` za `conditionKilledRecently` i uspoređuje boss rezultate s direktnim PoB izračunom; prošao u Linux runovima `43717329626` i `43718155297`.
+- **Ponovljeno 2026-11-28 (`reference_builds`, prije commita):** komparator `a.builds ~= b.builds and a.builds > b.builds or a.name < b.name` za `table.sort`. Kad je `a.builds < b.builds`, srednja vrijednost je `false` pa izraz pada na usporedbu imena. Test s dva izmišljena builda je prošao (brojevi su slučajno bili poredani); s pet stvarnih PoB test buildova (`../PathOfBuilding/spec/TestBuilds/3.13`) LuaJIT je javio "invalid order function for sorting". Ispravak: `refUtil.byCount` s eksplicitnim `if`. Prevencija vrijedi i za komparatore: sortiranje provjeriti na stvarnim podacima s više različitih brojeva, ne samo na dva retka.
 
 ## 2026-11-15 — Doseg Lua lokalnih varijabli između modula
 

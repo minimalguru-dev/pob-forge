@@ -234,7 +234,7 @@ impl Gate {
         }
 
         let id = format!("{}-{}", self.prefix, self.seq.fetch_add(1, Ordering::Relaxed) + 1);
-        let lookup = def.read_only && def.open_world;
+        let lookup = def.read_only && def.open_world && crate::tools::fetches_web(&name, &args);
         let awaiting = !def.read_only || lookup;
         let rx = awaiting.then(|| {
             let (tx, rx) = oneshot::channel();

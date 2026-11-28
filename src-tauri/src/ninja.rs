@@ -13,6 +13,21 @@ const LIMITED: &str = "poe.ninja is limiting requests. Wait a minute, then try a
 /// for now. The app does not try to get past it.
 pub const BLOCKED: &str = "poe.ninja is refusing automated requests from this computer right now (its Cloudflare protection). This usually passes; until then open poe.ninja in a browser.";
 
+/// Since late November 2026 the league index has no `snapshotVersions` and the
+/// builds page reads `/api/protected/…` behind a Cloudflare challenge, which
+/// this app does not get around.
+pub const SNAPSHOTS_GONE: &str = "poe.ninja no longer lets apps read its ladder or character builds: that data is now behind its bot protection. Open poe.ninja in a browser, press Path of Building on a character's page to copy its code, and paste the code in the chat.";
+
+/// Why the league index could not be read: the new format without ladder snapshots, or something else.
+fn index_error(body: &str) -> String {
+    let v: Option<serde_json::Value> = serde_json::from_str(body).ok();
+    if v.is_some_and(|v| v.get("snapshotVersions").is_none() && v.get("buildLeagues").is_some()) {
+        SNAPSHOTS_GONE.into()
+    } else {
+        "poe.ninja sent a league list this app could not read".into()
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProfileCharacter {
@@ -192,7 +207,7 @@ pub async fn build_code(game: Game, account: &str, character: &str, league_url: 
     const NO_BUILD: &str = "poe.ninja has no build for that character.";
     let client = client()?;
     let index = get(&client, &format!("{HOST}{}/api/data/index-state", game.id())).await?.ok_or("poe.ninja did not return its league list")?;
-    let index: IndexState = serde_json::from_str(&index).map_err(|_| "poe.ninja sent a league list this app could not read".to_string())?;
+    let index: IndexState = serde_json::from_str(&index).map_err(|_| index_error(&index))?;
     // PoE1 leagues have an experience ladder and a delve depth ladder; both hold the same characters
     let snapshot = index
         .snapshot_versions
@@ -442,7 +457,7 @@ async fn ladder_snapshot(client: &reqwest::Client, game: Game, league: Option<&s
             b
         }
     };
-    let index: Index = serde_json::from_str(&body).map_err(|_| "poe.ninja sent a league list this app could not read".to_string())?;
+    let index: Index = serde_json::from_str(&body).map_err(|_| index_error(&body))?;
     let ladders = index.snapshot_versions.into_iter().filter(|s| matches!(s.kind.as_deref(), None | Some("exp")));
     let wanted = league.map(|l| l.trim().to_lowercase()).filter(|l| !l.is_empty());
     let found = match &wanted {
@@ -464,13 +479,22 @@ pub async fn search_builds(
     limit: usize,
 ) -> Result<LadderSearch, String> {
     let client = client()?;
-    let (snapshot, league_name) = ladder_snapshot(&client, game, league).await?;
     let mut filters: Vec<(&str, &str)> = Vec::new();
     for (key, value) in [("class", class), ("skills", skill), ("keypassives", keystone), ("items", item)] {
         if let Some(v) = value.map(str::trim).filter(|v| !v.is_empty()) {
             filters.push((key, v));
         }
     }
+    let (snapshot, league_name) = ladder_snapshot(&client, game, league).await.map_err(|e| {
+        if e != SNAPSHOTS_GONE {
+            return e;
+        }
+        // The user can still open the same search; the page defaults to the current league.
+        match reqwest::Url::parse_with_params(&format!("{HOST}{}/builds", game.id()), &filters) {
+            Ok(page) => format!("{e} The same search: {page}"),
+            Err(_) => e,
+        }
+    })?;
     let mut params: Vec<(&str, &str)> = vec![("overview", snapshot.snapshot_name.as_str()), ("type", "exp")];
     params.extend(filters.iter().copied());
     let api = reqwest::Url::parse_with_params(&format!("{HOST}{}/api/builds/{}/search", game.id(), snapshot.version), &params).map_err(|e| e.to_string())?;
@@ -602,6 +626,14 @@ mod tests {
         assert_eq!(first.class.as_deref(), Some("Slayer"));
         assert!(first.skills.iter().any(|s| s == "Dual Strike of Ambidexterity"), "{:?}", first.skills);
         println!("{} {} of {}: {} ({}) level {:?} dps {:?} keystones {:?}", r.league, r.builds.len(), r.total, first.name, first.account, first.level, first.dps, first.keystones);
+    }
+
+    /// The index as poe.ninja serves it since late November 2026: leagues, no ladder snapshots.
+    #[test]
+    fn index_without_snapshots_says_why() {
+        let now = r#"{"economyLeagues":[{"name":"Covens","url":"covens"}],"buildLeagues":[{"name":"Covens","url":"covens"}],"oldBuildLeagues":[]}"#;
+        assert_eq!(super::index_error(now), super::SNAPSHOTS_GONE);
+        assert_ne!(super::index_error("<html>"), super::SNAPSHOTS_GONE);
     }
 
     #[test]

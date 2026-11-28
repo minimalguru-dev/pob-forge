@@ -1039,6 +1039,13 @@ fn ai_tools(state: State<'_, AppState>) -> Vec<tools::ToolDef> {
     tools::defs(state.game())
 }
 
+/// Keep a PoB code the user pasted into the chat and return its handle number,
+/// which analyze_reference_builds takes as `pasted:N`. `None` once the store is full.
+#[tauri::command]
+fn ai_stash_code(code: String) -> Option<usize> {
+    tools::stash_code(&code)
+}
+
 /// Run one tool against the open build. Goes through `tools::dispatch`, so it
 /// behaves exactly as the same call would over MCP and emits `mcp:changed`.
 #[tauri::command]
@@ -1412,6 +1419,7 @@ pub fn run() {
             ai_log_append,
             ai_log_reveal,
             ai_call_tool,
+            ai_stash_code,
             ai::ai_providers,
             ai::ai_key_set,
             ai::ai_key_clear,

@@ -698,6 +698,22 @@ setting for the whole tree. It applies to nodes allocated from then on, so set i
         rw("set_notes", "Replace the build's notes text.", obj(json!({ "text": prop("string", "Notes text") }), &["text"])).no_output_schema().idempotent(),
         ro("get_loadouts", "The build's loadouts (named tree + items + skills + config combinations) and which one is active.", none()),
         rw("select_loadout", "Activate a loadout by name.", obj(json!({ "name": prop("string", "Loadout name from get_loadouts") }), &["name"])).idempotent(),
+        // Reference builds
+        ro(
+            "analyze_reference_builds",
+            "Read 1 to 10 builds the user brought (ladder characters, guides) with PoB and count what they share, against the open build: supports and other skills, gear by slot (uniques; mod lines rares share), jewels, anoints, keystones, ascendancy, notables, masteries, and each build's DPS, EHP, life and ES. Rows read `name n/N` (n of N builds use it; `*` = the open build has it). `builds` entries: a build link (pobb.in, pob.codes, poe.ninja /pob/, Maxroll, Mobalytics, Pastebin, Rentry), a PoB code, or `pasted:N`, the chat's handle for a code the user pasted. `section` gives one part in full. Changes nothing, Compare included.",
+            obj(
+                json!({
+                    "builds": { "type": "array", "items": { "type": "string" }, "description": "Links, PoB codes or pasted:N handles, 1 to 10" },
+                    "section": { "type": "string", "enum": ["summary", "gear", "tree", "skills", "builds"], "description": "Which part to return in full (default summary)" },
+                    "slots": { "type": "array", "items": { "type": "string" }, "description": "Only these gear slots, e.g. Gloves, Ring 1" },
+                }),
+                &["builds"],
+            ),
+        )
+        .open_world()
+        .idempotent()
+        .slow(),
     ]
 }
 
@@ -789,7 +805,7 @@ fn adapt_for_poe1(defs: &mut Vec<ToolDef>) {
                 "account": prop("string", "Account from search_ninja_builds"),
                 "name": prop("string", "Character name from search_ninja_builds"),
                 "league_url": prop("string", "`leagueUrl` from search_ninja_builds"),
-                "code": prop("string", "Instead: a PoB code the user copied from a poe.ninja character page"),
+                "code": prop("string", "Instead: a PoB code the user copied from a character page, or its pasted:N handle"),
             }),
             &[],
         ),
@@ -1017,6 +1033,11 @@ pub(crate) async fn dispatch(
     if let Some(out) = crate::web::run(ctx.game(), &name, &args).await {
         ctx.calls.fetch_add(1, Ordering::Relaxed);
         return out.map(|v| (v, false));
+    }
+    if name == "analyze_reference_builds" {
+        let (resolved, unresolved) = resolve_reference_builds(&arg_list(&args, "builds")).await?;
+        args.insert("_resolved".into(), Value::Array(resolved));
+        args.insert("_unresolved".into(), Value::Array(unresolved));
     }
     if name == "load_build" {
         let url = args
@@ -1456,7 +1477,13 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
         "compare_ninja_build" => {
             // A PoB code the user copied from poe.ninja works without the API.
             let (code, name, account) = match arg_str(args, "code").filter(|c| !c.trim().is_empty()) {
-                Some(code) => (code, arg_str(args, "name").unwrap_or_else(|| "Ladder build".into()), arg_str(args, "account").unwrap_or_default()),
+                Some(code) => {
+                    let code = match code.trim().strip_prefix("pasted:") {
+                        Some(n) => n.trim().parse().ok().and_then(pasted_code).ok_or_else(|| ToolError::Invalid(format!("{} is not a code pasted in this session", code.trim())))?,
+                        None => code,
+                    };
+                    (code, arg_str(args, "name").unwrap_or_else(|| "Ladder build".into()), arg_str(args, "account").unwrap_or_default())
+                }
                 None => {
                     let (account, name, league_url) = (req_str(args, "account")?, req_str(args, "name")?, req_str(args, "league_url")?);
                     let code = tauri::async_runtime::block_on(crate::ninja::build_code(ctx.game(), &account, &name, &league_url)).map_err(ToolError::Failed)?;
@@ -1465,6 +1492,20 @@ pub(crate) fn run_tool(ctx: &ToolContext, name: &str, args: &JsonObject) -> Resu
             };
             ctx.call("compare_add", json!({ "code": code.trim(), "label": format!("{name} (poe.ninja)") }))?;
             read(ninja_comparison(ctx, &name, &account)?)
+        }
+        "analyze_reference_builds" => {
+            let resolved = arg_list(args, "_resolved");
+            let unresolved = arg_list(args, "_unresolved");
+            if resolved.is_empty() {
+                let why: Vec<String> = unresolved.iter().filter_map(|u| u["error"].as_str().map(str::to_string)).collect();
+                return Err(ToolError::Invalid(if why.is_empty() { "give 1 to 10 builds: links, PoB codes or pasted:N handles".into() } else { why.join(" ") }));
+            }
+            let mut result = ctx.call("reference_builds", json!({ "builds": resolved }))?;
+            if let Some(failed) = result.get_mut("failed").and_then(Value::as_array_mut) {
+                failed.extend(unresolved);
+            }
+            let slots: Vec<String> = arg_list(args, "slots").iter().filter_map(|v| v.as_str().map(str::to_string)).collect();
+            read(reference_view(&result, arg_str(args, "section").as_deref().unwrap_or("summary"), &slots))
         }
         "search_timeless_seeds" => {
             let wanted = arg_list(args, "wanted");
@@ -1790,6 +1831,242 @@ fn ninja_comparison(ctx: &ToolContext, name: &str, account: &str) -> Result<Valu
     }))
 }
 
+// ---------------------------------------------------------------------------
+// Reference builds
+// ---------------------------------------------------------------------------
+
+/// PoB codes the user pasted into the chat. The model sees `pasted:N` in their
+/// place, so a 20 KB code is never retyped into a tool call. Handles stay valid
+/// for the life of the app; nothing is written to disk.
+static PASTED: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+const MAX_PASTED: usize = 200;
+
+/// The handle number for a pasted code, or `None` once the store is full.
+pub(crate) fn stash_code(code: &str) -> Option<usize> {
+    let code: String = code.split_whitespace().collect();
+    let mut list = PASTED.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(i) = list.iter().position(|c| *c == code) {
+        return Some(i + 1);
+    }
+    if list.len() >= MAX_PASTED {
+        return None;
+    }
+    list.push(code);
+    Some(list.len())
+}
+
+/// Whether an open-world tool call goes to the web. Reference builds given only
+/// as pasted codes are read locally, so they need no lookup approval.
+pub(crate) fn fetches_web(name: &str, args: &JsonObject) -> bool {
+    name != "analyze_reference_builds"
+        || arg_list(args, "builds").iter().any(|b| b.as_str().is_some_and(|s| s.trim_start().starts_with("http")))
+}
+
+fn pasted_code(n: usize) -> Option<String> {
+    PASTED.lock().unwrap_or_else(|e| e.into_inner()).get(n.checked_sub(1)?).cloned()
+}
+
+fn looks_like_code(s: &str) -> bool {
+    s.len() >= 100 && s.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'+' | b'/' | b'='))
+}
+
+const NINJA_PAGE: &str = "poe.ninja character and ladder pages cannot be read by the app: poe.ninja blocks automated requests to them. On the character's page, press the Path of Building button to copy its code, then paste it in the chat.";
+
+/// Each entry as `{code, label}`, or `{build, error}` when it cannot be read.
+async fn resolve_reference_builds(entries: &[Value]) -> Result<(Vec<Value>, Vec<Value>), ToolError> {
+    if entries.is_empty() || entries.len() > 10 {
+        return Err(ToolError::Invalid("give 1 to 10 builds: links, PoB codes or pasted:N handles".into()));
+    }
+    let (mut resolved, mut unresolved) = (Vec::new(), Vec::new());
+    for (i, entry) in entries.iter().enumerate() {
+        let raw = entry.as_str().unwrap_or_default().trim();
+        let shown: String = raw.chars().take(60).collect();
+        let fail = |error: String| json!({ "label": shown, "error": error });
+        let handle = raw.strip_prefix("pasted:").or_else(|| raw.strip_prefix('#')).map(str::trim);
+        if let Some(n) = handle {
+            match n.parse::<usize>().ok().and_then(pasted_code) {
+                Some(code) => resolved.push(json!({ "code": code, "label": format!("pasted:{n}") })),
+                None => unresolved.push(fail(format!("{raw} is not a code pasted in this session"))),
+            }
+        } else if raw.starts_with("http://") || raw.starts_with("https://") {
+            let ninja_page = reqwest::Url::parse(raw).ok().is_some_and(|u| {
+                matches!(u.host_str(), Some("poe.ninja" | "www.poe.ninja" | "poe2.ninja")) && !u.path().contains("/pob/")
+            });
+            if ninja_page {
+                unresolved.push(fail(NINJA_PAGE.into()));
+                continue;
+            }
+            match crate::fetch_code(raw).await {
+                Ok(f) => resolved.push(json!({ "code": f.code, "label": format!("{} {}", f.site, raw.rsplit('/').next().unwrap_or_default()) })),
+                Err(e) => unresolved.push(fail(e)),
+            }
+        } else {
+            let code: String = raw.split_whitespace().collect();
+            if looks_like_code(&code) {
+                resolved.push(json!({ "code": code, "label": format!("code {}", i + 1) }));
+            } else {
+                unresolved.push(fail("not a build link, a PoB code or a pasted:N handle".into()));
+            }
+        }
+    }
+    Ok((resolved, unresolved))
+}
+
+/// 37515247 -> "37.5M", 23846 -> "23.8k", 4961 -> "4961".
+fn short_num(n: f64) -> String {
+    let a = n.abs();
+    if a >= 1e9 {
+        format!("{:.1}B", n / 1e9)
+    } else if a >= 1e6 {
+        format!("{:.1}M", n / 1e6)
+    } else if a >= 1e4 {
+        format!("{:.1}k", n / 1e3)
+    } else {
+        format!("{}", n.round())
+    }
+}
+
+/// The engine's reference_builds result, cut to what fits one tool result.
+fn reference_view(r: &Value, section: &str, slots: &[String]) -> Value {
+    let n = r["count"].as_u64().unwrap_or(0);
+    let full = section != "summary";
+    // In the summary, a row only one of three or more builds uses is noise.
+    let min = if !full && n >= 3 { 2 } else { 1 };
+    let rows = |list: &Value, limit: usize| -> Vec<String> {
+        list.as_array()
+            .into_iter()
+            .flatten()
+            .filter(|row| row["builds"].as_u64().unwrap_or(0) >= min)
+            .take(limit)
+            .map(|row| {
+                let star = if row["mine"] == Value::Bool(true) { "*" } else { "" };
+                format!("{} {}/{n}{star}", row["name"].as_str().unwrap_or("?"), row["builds"])
+            })
+            .collect()
+    };
+    let headline = |b: &Value| -> String {
+        let s = &b["stats"];
+        let mut parts = Vec::new();
+        let who = [b["ascendancy"].as_str().or(b["className"].as_str()).unwrap_or("?").to_string(), b["level"].to_string()].join(" ");
+        parts.push(who);
+        if let Some(skill) = b["mainSkill"].as_str() {
+            parts.push(skill.to_string());
+        }
+        for (key, label) in [("CombinedDPS", "DPS"), ("TotalEHP", "EHP"), ("Life", "Life"), ("EnergyShield", "ES")] {
+            if let Some(v) = s[key].as_f64() {
+                parts.push(format!("{label} {}", short_num(v)));
+            }
+        }
+        parts.join(", ")
+    };
+    let median = |key: &str| -> Option<f64> {
+        let mut v: Vec<f64> = r["builds"].as_array()?.iter().filter_map(|b| b["stats"][key].as_f64()).collect();
+        if v.is_empty() {
+            return None;
+        }
+        v.sort_by(|a, b| a.total_cmp(b));
+        Some(v[v.len() / 2])
+    };
+    let medians: Vec<String> = [("CombinedDPS", "DPS"), ("TotalEHP", "EHP"), ("Life", "Life"), ("EnergyShield", "ES")]
+        .iter()
+        .filter_map(|(key, label)| {
+            let m = median(key)?;
+            let mine = r["mine"]["stats"][key].as_f64().map(|v| format!(" (yours {})", short_num(v))).unwrap_or_default();
+            Some(format!("{label} {}{mine}", short_num(m)))
+        })
+        .collect();
+    let c = &r["common"];
+    let (uniques, bases, mods) = if full { (4, 2, 5) } else { (2, 1, 3) };
+    let gear: Vec<String> = c["gear"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|g| slots.is_empty() || slots.iter().any(|s| g["slot"].as_str().is_some_and(|n| n.eq_ignore_ascii_case(s))))
+        .filter_map(|g| {
+            let mut parts = Vec::new();
+            let u = rows(&g["uniques"], uniques).join(", ");
+            if !u.is_empty() {
+                parts.push(u);
+            }
+            let rare = g["rare"].as_u64().unwrap_or(0);
+            if rare >= min {
+                let base = g["rareBases"].as_array().into_iter().flatten().take(bases).filter_map(|b| b["name"].as_str()).collect::<Vec<_>>().join(" / ");
+                let lines: Vec<String> = g["rareMods"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|m| m["builds"].as_u64().unwrap_or(0) >= min)
+                    .take(mods)
+                    .map(|m| format!("{} {}/{rare}", m["name"].as_str().unwrap_or("?"), m["builds"]))
+                    .collect();
+                let mut s = format!("non-unique {rare}/{n}");
+                if !base.is_empty() {
+                    s.push_str(&format!(" ({base})"));
+                }
+                if !lines.is_empty() {
+                    s.push_str(&format!(": {}", lines.join(", ")));
+                }
+                parts.push(s);
+            }
+            if parts.is_empty() {
+                return None;
+            }
+            let mine = g["mine"].as_str().unwrap_or("empty");
+            Some(format!("{} (yours {mine}): {}", g["slot"].as_str().unwrap_or("?"), parts.join("; ")))
+        })
+        .collect();
+    let tree = |k: usize, a: usize, nt: usize, m: usize, an: usize, j: usize| {
+        json!({
+            "keystones": rows(&c["keystones"], k),
+            "ascendancy": rows(&c["ascendancy"], a),
+            "notables": rows(&c["notables"], nt),
+            "masteries": rows(&c["masteries"], m),
+            "anoints": rows(&c["anoints"], an),
+            "jewels": rows(&c["jewels"], j),
+        })
+    };
+    let skills = |s: usize, o: usize| json!({ "main": c["mainSkills"], "supports": rows(&c["supports"], s), "other": rows(&c["otherSkills"], o) });
+    let mut out = json!({
+        "legend": "name n/N: n of the N reference builds use it; * means the open build has it too. Mod lines after non-unique k/N count the k rare or magic items in that slot.",
+        "count": n,
+        "failed": r["failed"],
+        "mine": headline(&r["mine"]),
+        "builds": r["builds"].as_array().into_iter().flatten().map(|b| format!("{}: {}", b["label"].as_str().unwrap_or("?"), headline(b))).collect::<Vec<_>>(),
+        "medians": medians.join(", "),
+    });
+    match section {
+        "gear" => out["gear"] = json!(gear),
+        "tree" => out["tree"] = tree(15, 12, 40, 15, 6, 12),
+        "skills" => out["skills"] = skills(15, 20),
+        "builds" => {
+            out["builds"] = Value::Array(
+                r["builds"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|b| {
+                        json!({
+                            "label": b["label"],
+                            "headline": headline(b),
+                            "supports": b["supports"],
+                            "gear": b["gear"],
+                            "keystones": b["keystones"],
+                            "ascendancyNodes": b["ascendancyNodes"],
+                        })
+                    })
+                    .collect(),
+            )
+        }
+        _ => {
+            out["skills"] = skills(8, 8);
+            out["gear"] = json!(gear);
+            out["tree"] = tree(8, 8, 15, 6, 3, 5);
+            out["more"] = json!("section gear, tree, skills or builds returns that part in full, including rows only one build uses.");
+        }
+    }
+    out
+}
+
 /// The overlay's recent copies, scored against the open build, and the game log's position.
 #[cfg(desktop)]
 fn game_context(ctx: &ToolContext, limit: Option<i64>, evaluate: bool) -> Result<Value, ToolError> {
@@ -1856,7 +2133,7 @@ mod tests {
     #[test]
     fn poe1_registry_speaks_poe1() {
         let d = defs(Game::Poe1);
-        assert_eq!(d.len(), 87, "PoE1 tool count changed");
+        assert_eq!(d.len(), 88, "PoE1 tool count changed");
         for (name, _) in POE1_TEXT {
             assert!(d.iter().any(|t| t.name == *name), "POE1_TEXT names {name}, which is not a tool");
         }
@@ -1874,7 +2151,7 @@ mod tests {
     #[test]
     fn registry_is_stable_and_measured() {
         let d = defs(Game::Poe2);
-        assert_eq!(d.len(), 82, "tool count changed");
+        assert_eq!(d.len(), 83, "tool count changed");
 
         let mut names: Vec<&str> = d.iter().map(|t| t.name).collect();
         names.sort_unstable();
@@ -1896,7 +2173,7 @@ mod tests {
         // the prompt. This is a tripwire for runaway growth, not a budget.
         let bytes = serde_json::to_string(&d).unwrap().len();
         println!("tool registry: {} tools, {} bytes serialized (~{} tokens)", d.len(), bytes, bytes / 4);
-        assert!(bytes < 60_000, "registry grew to {bytes} bytes; check what was added");
+        assert!(bytes < 62_000, "registry grew to {bytes} bytes; check what was added");
     }
 
     #[test]
@@ -1906,5 +2183,67 @@ mod tests {
                 assert!(t.schema["properties"].is_object(), "{game:?} {}: properties is {}", t.name, t.schema["properties"]);
             }
         }
+    }
+
+    fn reference_result() -> serde_json::Value {
+        let tally = |rows: &[(&str, u64, bool)]| serde_json::Value::Array(rows.iter().map(|(n, b, m)| serde_json::json!({ "name": n, "builds": b, "mine": m })).collect());
+        let build = |label: &str, dps: f64| {
+            serde_json::json!({ "label": label, "ascendancy": "Slayer", "level": 95, "mainSkill": "Reave", "supports": ["Brutality"], "stats": { "CombinedDPS": dps, "TotalEHP": 30000.0, "Life": 5200.0 }, "gear": {}, "keystones": [], "ascendancyNodes": [] })
+        };
+        serde_json::json!({
+            "count": 3,
+            "failed": [],
+            "mine": { "ascendancy": "Slayer", "level": 90, "mainSkill": "Reave", "stats": { "CombinedDPS": 1_200_000.0, "Life": 4100.0 } },
+            "builds": [build("a", 2_000_000.0), build("b", 9_000_000.0), build("c", 4_500_000.0)],
+            "common": {
+                "mainSkills": ["Reave"],
+                "supports": tally(&[("Brutality", 3, true), ("Impale", 2, false), ("Fist of War", 1, false)]),
+                "otherSkills": tally(&[]),
+                "gear": [{ "slot": "Gloves", "mine": "Ironscale Gauntlets (rare)", "uniques": tally(&[("Tombfist", 1, false)]), "rare": 2, "rareBases": tally(&[("Spiked Gloves", 2, false)]), "rareMods": tally(&[("+# to maximum Life", 2, false), ("#% increased Attack Speed", 1, false)]), "empty": 0 }],
+                "jewels": tally(&[]), "anoints": tally(&[]), "keystones": tally(&[("Resolute Technique", 2, false)]),
+                "ascendancy": tally(&[]), "notables": tally(&[]), "masteries": tally(&[]),
+            },
+        })
+    }
+
+    #[test]
+    fn reference_summary_drops_single_build_rows_and_marks_the_open_build() {
+        let v = super::reference_view(&reference_result(), "summary", &[]);
+        assert_eq!(v["skills"]["supports"], serde_json::json!(["Brutality 3/3*", "Impale 2/3"]));
+        assert_eq!(v["tree"]["keystones"], serde_json::json!(["Resolute Technique 2/3"]));
+        assert_eq!(v["gear"], serde_json::json!(["Gloves (yours Ironscale Gauntlets (rare)): non-unique 2/3 (Spiked Gloves): +# to maximum Life 2/2"]));
+        assert_eq!(v["medians"], "DPS 4.5M (yours 1.2M), EHP 30.0k, Life 5200 (yours 4100)");
+        assert_eq!(v["builds"][1], "b: Slayer 95, Reave, DPS 9.0M, EHP 30.0k, Life 5200");
+
+        let full = super::reference_view(&reference_result(), "skills", &[]);
+        assert_eq!(full["skills"]["supports"][2], "Fist of War 1/3");
+        assert!(full.get("gear").is_none());
+        let gloves = super::reference_view(&reference_result(), "gear", &["gloves".to_string()]);
+        assert_eq!(gloves["gear"].as_array().unwrap().len(), 1);
+        assert_eq!(super::reference_view(&reference_result(), "gear", &["Boots".to_string()])["gear"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn pasted_codes_get_stable_handles() {
+        let code = "eN".to_string() + &"x".repeat(200);
+        let n = super::stash_code(&code).unwrap();
+        assert_eq!(super::stash_code(&format!("  {code}\n")), Some(n), "the same code keeps its handle");
+        assert_eq!(super::pasted_code(n).as_deref(), Some(code.as_str()));
+        assert!(super::looks_like_code(&code));
+        assert!(!super::looks_like_code("pasted:1"));
+    }
+
+    #[test]
+    fn poe_ninja_character_pages_get_the_copy_instruction() {
+        let (ok, failed) = tauri::async_runtime::block_on(super::resolve_reference_builds(&[
+            serde_json::json!("https://poe.ninja/poe1/builds/covens/character/Someone-1234/Name"),
+            serde_json::json!("pasted:999999"),
+            serde_json::json!("hello"),
+        ]))
+        .unwrap_or_else(|_| panic!("resolve failed"));
+        assert!(ok.is_empty());
+        assert_eq!(failed[0]["error"], super::NINJA_PAGE);
+        assert!(failed[1]["error"].as_str().unwrap().contains("not a code pasted"));
+        assert!(failed[2]["error"].as_str().unwrap().contains("not a build link"));
     }
 }

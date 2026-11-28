@@ -191,7 +191,7 @@ local GAME = (tostring(APP_NAME or ""):find("PoE2", 1, true) or tostring(liveTar
 local IS_POE2 = GAME == "poe2"
 
 -- Tables, not locals: the main chunk is at LuaJIT's 200-local limit.
-local nodeUtil, gemUtil, itemUtil, jewelUtil, gearUtil, cmpUtil, timelessUtil = {}, {}, {}, {}, {}, {}, {}
+local nodeUtil, gemUtil, itemUtil, jewelUtil, gearUtil, cmpUtil, timelessUtil, refUtil = {}, {}, {}, {}, {}, {}, {}, {}
 
 -- CalcSetup's addExtraSupports sets fromItem on the shared data.skills support, so it leaks into
 -- every later build; PoB resets its caches through wipeGlobalCache, so restore the shipped flags there.
@@ -10109,6 +10109,335 @@ M.compare_copy_tree = function()
 	build.modFlag = true
 	refresh()
 	return { ok = true, index = #build.treeTab.specList, title = spec.title }
+end
+
+-- ---------------------------------------------------------------------------
+-- Reference builds: several builds the user brought (ladder characters, guide
+-- codes), each loaded as a CompareEntry that never joins the Compare list, and
+-- read side by side with the open build. Counting what they share is the
+-- whole job; every number still comes from PoB's own calculator.
+-- ---------------------------------------------------------------------------
+
+refUtil.STATS = {
+	"CombinedDPS", "FullDPS", "TotalEHP", "Life", "EnergyShield", "Mana", "Ward", "Armour", "Evasion",
+	"FireResist", "ColdResist", "LightningResist", "ChaosResist", "EffectiveSpellSuppressionChance",
+	"BlockChance", "SpellBlockChance", "Str", "Dex", "Int",
+}
+
+--- A mod line with its numbers replaced, so rolls of one mod count together.
+function refUtil.modKey(line)
+	return (tostring(line):gsub("%(%-?[%d%.]+%-%-?[%d%.]+%)", "#"):gsub("%-?%d+%.?%d*", "#"))
+end
+
+function refUtil.itemLines(item, key)
+	local out = {}
+	for _, ml in ipairs(item[key] or {}) do
+		if ml.line and ml.line ~= "" and (not item.CheckModLineVariant or item:CheckModLineVariant(ml)) then
+			out[#out + 1] = ml.line
+		end
+	end
+	return out
+end
+
+function refUtil.itemRow(item)
+	if not item then return nil end
+	local rarity = item.rarity or "NORMAL"
+	return {
+		name = (rarity == "UNIQUE" or rarity == "RELIC") and (item.title or item.name) or nil,
+		base = item.baseName,
+		rarity = rarity,
+		mods = refUtil.itemLines(item, "explicitModLines"),
+		enchants = refUtil.itemLines(item, "enchantModLines"),
+	}
+end
+
+--- What one build uses, read the same way from the open build and from a CompareEntry.
+function refUtil.extract(b, output, slots)
+	local spec = b.treeTab and b.treeTab.specList and b.treeTab.specList[b.treeTab.activeSpec] or b.spec
+	local out = { gear = {}, jewels = {}, keystones = {}, notables = {}, ascendancy = {}, masteries = {}, anoints = {}, supports = {}, skills = {} }
+
+	out.className = spec and spec.curClassName or nil
+	out.ascendClass = spec and spec.curAscendClassName ~= "None" and spec.curAscendClassName or nil
+	out.level = b.characterLevel
+
+	local stats = {}
+	for _, k in ipairs(refUtil.STATS) do
+		local v = output and output[k]
+		if type(v) == "number" then stats[k] = v end
+	end
+	out.stats = stats
+
+	-- Gear by slot, then the jewels the tree sockets.
+	for _, slotName in ipairs(slots) do
+		local slot = b.itemsTab.slots[slotName]
+		local item = slot and slot.selItemId and slot.selItemId ~= 0 and b.itemsTab.items[slot.selItemId] or nil
+		out.gear[slotName] = refUtil.itemRow(item)
+		if item and slotName == "Amulet" then
+			for _, line in ipairs(out.gear[slotName].enchants) do
+				local name = line:match("^Allocates (.+)$")
+				if name then out.anoints[name] = true end
+			end
+		end
+	end
+	if spec then
+		for nodeId, itemId in pairs(spec.jewels or {}) do
+			local item = itemId and itemId ~= 0 and spec.allocNodes and spec.allocNodes[nodeId] and b.itemsTab.items[itemId]
+			if item then
+				local row = refUtil.itemRow(item)
+				out.jewels[#out.jewels + 1] = row.name or ((item.baseName or "Jewel") .. " (" .. string.lower(row.rarity) .. ")")
+			end
+		end
+		table.sort(out.jewels)
+
+		for id, node in pairs(spec.allocNodes or {}) do
+			if node.dn then
+				if node.ascendancyName then
+					if node.type == "Notable" or node.isNotable then out.ascendancy[node.dn] = true end
+				elseif node.type == "Keystone" then
+					out.keystones[node.dn] = true
+				elseif node.type == "Notable" then
+					out.notables[node.dn] = true
+				elseif node.type == "Mastery" and spec.masterySelections and spec.masterySelections[id] then
+					local effect = spec.tree.masteryEffects and spec.tree.masteryEffects[spec.masterySelections[id]]
+					local text = effect and effect.sd and table.concat(effect.sd, " / ")
+					if text then out.masteries[node.dn .. ": " .. text] = true end
+				end
+			end
+		end
+	end
+
+	-- The main skill and its supports, then every other skill the build uses.
+	local env = b.calcsTab and b.calcsTab.mainEnv
+	local mainSkill = env and env.player and env.player.mainSkill
+	out.mainSkill = mainSkill and mainSkill.activeEffect and mainSkill.activeEffect.grantedEffect and mainSkill.activeEffect.grantedEffect.name or nil
+	local groups = b.skillsTab and b.skillsTab.socketGroupList or {}
+	local mainGroup = groups[b.mainSocketGroup or 1]
+	for gi, group in ipairs(groups) do
+		if group.enabled ~= false then
+			for _, gem in ipairs(group.gemList or {}) do
+				local gd = gem.gemData
+				-- A gem PoB cannot resolve (an old or misspelt name) is not in the game.
+				local name = gd and gd.name
+				if gem.enabled ~= false and name and name ~= "" then
+					if gd and gd.grantedEffect and gd.grantedEffect.support then
+						if group == mainGroup then out.supports[name] = true end
+					elseif gi ~= (b.mainSocketGroup or 1) or name ~= out.mainSkill then
+						out.skills[name] = true
+					end
+				end
+			end
+		end
+	end
+	if mainGroup and not out.mainSkill then
+		for _, gem in ipairs(mainGroup.gemList or {}) do
+			local gd = gem.gemData
+			if gem.enabled ~= false and gd and gd.grantedEffect and not gd.grantedEffect.support then
+				out.mainSkill = gd.name
+				break
+			end
+		end
+	end
+	return out
+end
+
+--- Most builds first, then by name. Not and/or: a false comparison must not fall through to the name.
+function refUtil.byCount(a, b)
+	if a.builds ~= b.builds then return a.builds > b.builds end
+	return a.name < b.name
+end
+
+function refUtil.setNames(set)
+	local names = strArray({})
+	for k in pairs(set) do names[#names + 1] = k end
+	table.sort(names)
+	return names
+end
+
+--- How many of the builds use each name, most used first; `mine` marks the open build's.
+function refUtil.tally(builds, field, mineSet, limit, minCount)
+	local counts = {}
+	for _, r in ipairs(builds) do
+		for name in pairs(r[field]) do counts[name] = (counts[name] or 0) + 1 end
+	end
+	local rows = {}
+	for name, n in pairs(counts) do
+		if n >= (minCount or 1) then rows[#rows + 1] = { name = name, builds = n, mine = mineSet[name] == true } end
+	end
+	table.sort(rows, refUtil.byCount)
+	local out = array({})
+	for i = 1, math.min(#rows, limit or #rows) do out[i] = rows[i] end
+	return out, #rows
+end
+
+--- Gear by slot: the uniques, the rare bases and the mod lines rares in that slot share.
+function refUtil.gearTally(builds, mine, slots)
+	local out = array({})
+	for _, slotName in ipairs(slots) do
+		local uniques, rares, bases, mods, empty = {}, 0, {}, {}, 0
+		for _, r in ipairs(builds) do
+			local g = r.gear[slotName]
+			if not g then
+				empty = empty + 1
+			elseif g.name then
+				uniques[g.name] = (uniques[g.name] or 0) + 1
+			else
+				rares = rares + 1
+				if g.base then bases[g.base] = (bases[g.base] or 0) + 1 end
+				local seen = {}
+				for _, line in ipairs(g.mods) do
+					local k = refUtil.modKey(line)
+					if not seen[k] then
+						seen[k] = true
+						mods[k] = (mods[k] or 0) + 1
+					end
+				end
+			end
+		end
+		if empty < #builds then
+			local function sorted(t, limit)
+				local rows = {}
+				for name, n in pairs(t) do rows[#rows + 1] = { name = name, builds = n } end
+				table.sort(rows, refUtil.byCount)
+				local list = array({})
+				for i = 1, math.min(#rows, limit) do list[i] = rows[i] end
+				return list
+			end
+			local m = mine.gear[slotName]
+			out[#out + 1] = {
+				slot = slotName,
+				mine = m and (m.name or ((m.base or "?") .. " (" .. string.lower(m.rarity) .. ")")) or null,
+				uniques = sorted(uniques, 5),
+				rare = rares,
+				rareBases = sorted(bases, 3),
+				rareMods = sorted(mods, 8),
+				empty = empty,
+			}
+		end
+	end
+	return out
+end
+
+M.reference_builds = function(p)
+	ensureBuild()
+	p = p or {}
+	local list = p.builds
+	if type(list) ~= "table" or #list == 0 then error("params.builds needs at least one build", 0) end
+	if #list > 10 then error("at most 10 builds at a time", 0) end
+	local root = IS_POE2 and "PathOfBuilding2" or "PathOfBuilding"
+
+	local slots = {}
+	for _, slot in ipairs(build.itemsTab.orderedSlots) do
+		if not slot.nodeId and not slot.slotName:find("Swap") then slots[#slots + 1] = slot.slotName end
+	end
+
+	-- The open build first: a CompareEntry wipes the shared calc cache.
+	local mine = refUtil.extract(build, build.calcsTab.mainOutput, slots)
+
+	local builds, failed = {}, array({})
+	for i, ref in ipairs(list) do
+		local label = tostring(ref.label or ("Build " .. i))
+		local xml = ref.xml
+		local ok, err = true, nil
+		if not xml and ref.code then
+			ok, xml = pcall(decodeCode, ref.code)
+			if not ok then err = tostring(xml) end
+		end
+		if ok and (type(xml) ~= "string" or not xml:find("<" .. root .. "[%s>]")) then
+			ok, err = false, "not a " .. (IS_POE2 and "Path of Exile 2" or "Path of Exile 1") .. " build"
+		end
+		local entry
+		if ok then
+			ok, entry = pcall(function() return new("CompareEntry"):CompareEntry(xml, label) end)
+			if not ok or not entry or not entry.calcsTab then
+				ok, err = false, "could not load: " .. tostring(ok and "no calculation" or entry)
+			end
+		end
+		if ok then
+			local got, r = pcall(refUtil.extract, entry, entry:GetOutput(), slots)
+			if got then
+				r.label = label
+				builds[#builds + 1] = r
+			else
+				failed[#failed + 1] = { label = label, error = tostring(r) }
+			end
+		else
+			failed[#failed + 1] = { label = label, error = err }
+		end
+	end
+	if #builds == 0 then
+		local why = failed[1] and failed[1].error or "nothing loaded"
+		error("none of those builds could be read: " .. why, 0)
+	end
+
+	local function statsRow(stats)
+		local row = {}
+		for _, k in ipairs(refUtil.STATS) do if stats[k] then row[k] = stats[k] end end
+		return row
+	end
+	local each = array({})
+	for _, r in ipairs(builds) do
+		local gear = {}
+		for _, slotName in ipairs(slots) do
+			local g = r.gear[slotName]
+			if g then gear[slotName] = g.name or ((g.base or "?") .. " (" .. string.lower(g.rarity) .. ")") end
+		end
+		each[#each + 1] = {
+			label = r.label,
+			className = opt(r.className),
+			ascendancy = opt(r.ascendClass),
+			level = r.level,
+			mainSkill = opt(r.mainSkill),
+			supports = refUtil.setNames(r.supports),
+			stats = statsRow(r.stats),
+			gear = gear,
+			keystones = refUtil.setNames(r.keystones),
+			ascendancyNodes = refUtil.setNames(r.ascendancy),
+		}
+	end
+
+	local maxNotables = tonumber(p.notables) or 40
+	local notables, notableCount = refUtil.tally(builds, "notables", mine.notables, maxNotables, #builds > 2 and 2 or 1)
+	local supports = refUtil.tally(builds, "supports", mine.supports, 15)
+	local skills = refUtil.tally(builds, "skills", mine.skills, 20)
+	for _, r in ipairs(builds) do
+		local set = {}
+		for _, j in ipairs(r.jewels) do set[j] = true end
+		r.jewelSet = set
+	end
+	local mineJewels = {}
+	for _, j in ipairs(mine.jewels) do mineJewels[j] = true end
+
+	return {
+		count = #builds,
+		failed = failed,
+		mine = {
+			className = opt(mine.className),
+			ascendancy = opt(mine.ascendClass),
+			level = mine.level,
+			mainSkill = opt(mine.mainSkill),
+			supports = refUtil.setNames(mine.supports),
+			stats = statsRow(mine.stats),
+		},
+		builds = each,
+		common = {
+			mainSkills = (function()
+				local t = {}
+				for _, r in ipairs(builds) do if r.mainSkill then t[r.mainSkill] = true end end
+				return refUtil.setNames(t)
+			end)(),
+			supports = supports,
+			otherSkills = skills,
+			gear = refUtil.gearTally(builds, mine, slots),
+			jewels = refUtil.tally(builds, "jewelSet", mineJewels, 12),
+			anoints = refUtil.tally(builds, "anoints", mine.anoints, 6),
+			keystones = refUtil.tally(builds, "keystones", mine.keystones, 15),
+			ascendancy = refUtil.tally(builds, "ascendancy", mine.ascendancy, 12),
+			notables = notables,
+			notablesShown = math.min(notableCount, maxNotables),
+			notablesTotal = notableCount,
+			masteries = refUtil.tally(builds, "masteries", mine.masteries, 15),
+		},
+	}
 end
 
 M.get_party = function()

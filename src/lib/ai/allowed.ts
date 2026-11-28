@@ -56,6 +56,9 @@ export const ALLOWED = new Set([
   // poe.ninja's ladder, and one of its builds loaded into Compare beside the open one (PoE1).
   "search_ninja_builds",
   "compare_ninja_build",
+  // Several builds the user brought (pasted PoB codes, pobb.in, Maxroll…),
+  // read with PoB and counted against the open build. Asks only before a link.
+  "analyze_reference_builds",
   // write, approval-gated
   "alloc_node",
   "alloc_path",

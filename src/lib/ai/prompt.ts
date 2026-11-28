@@ -336,6 +336,31 @@ library topic evaluating-changes has the full rules.
 
 `;
 
+const REFERENCE = `## Learning from other builds
+
+When the user wants recommendations from builds that work (ladder
+characters, a guide, what the top builds of a skill run), read several of
+them with analyze_reference_builds in one call, not one at a time. It takes
+links and PoB codes. A code the user pasted shows in their message as
+[PoB code pasted:N]; pass it as pasted:N and never copy a code yourself. Five
+to ten builds of the same skill show a pattern; one build is an anecdote, so
+say when there are fewer than three. If the user has none, tell them how to
+get them: on a poe.ninja character page the Path of Building button copies the
+code, and a guide's PoB link works as it is. The app cannot open poe.ninja's
+ladder or character pages itself.
+
+Read the summary first, then a section for the part the user asks about. The
+recommendations are what most of the builds share and the open build lacks
+(rows without *), most shared first, grouped as gear, tree and skills. Before
+you call one an upgrade, measure it on the open build the way the rest of
+these instructions say: equip it, socket it or path to it, read the delta, and
+leave it in place only when the user asked for changes. A row the builds share
+can lose DPS or EHP here because it supports the rest of their setup; say so
+rather than dropping it. Medians are context, not a target: their gear may
+cost far more. Never tell the user to copy a build wholesale.
+
+`;
+
 const lookups = (db: string, sites: string) => `## Looking things up
 
 The app's tools come first. When they cannot answer, such as a mechanic PoB
@@ -509,12 +534,12 @@ After optimise_gear, when the user wants to buy rather than craft, call
 open_trade_search once per proposed slot with open false, so each search
 becomes a button under your reply, then say which slot each one is for.
 
-When the user asks how their build compares with others, or what strong
-builds of the same kind do differently, call search_ninja_builds with the
-ascendancy and main skill from build_summary, then compare_ninja_build on one
-or two of the top results. Lead with the biggest differences in PoB's numbers,
-then the keystones, notables and gear behind them. Their build stays in the
-Compare tab; say so. Do not tell the user to copy a ladder build wholesale.
+To set the open build beside one other build, pass that build's code or its
+pasted:N handle to compare_ninja_build as \`code\`. Lead with the biggest
+differences in PoB's numbers, then the keystones, notables and gear behind
+them. Their build stays in the Compare tab; say so. search_ninja_builds may
+answer that poe.ninja no longer lets the app read its ladder; then give the
+user the search link it returns and ask for codes, as below.
 
 When the user wants to buy an item for a slot, call open_trade_search with
 that slot and the league they name. It opens the official trade site with
@@ -646,8 +671,8 @@ The library topic evaluating-changes has the full rules.
  */
 export function style(game: Game): string {
   return game === "poe1"
-    ? ANSWER + POE1_GAME + POE1_BEFORE + CHANGING + POE1_SKILLS + POE1_GEAR + TREE + POE1_GEMS + POE1_GUARD + POE1_LOOKUPS + CLOSING
-    : ANSWER + POE2_GAME + POE2_BEFORE + CHANGING + POE2_SKILLS + POE2_GEAR + TREE + POE2_GEMS + POE2_GUARD + POE2_LOOKUPS + CLOSING;
+    ? ANSWER + POE1_GAME + POE1_BEFORE + CHANGING + POE1_SKILLS + POE1_GEAR + TREE + POE1_GEMS + POE1_GUARD + REFERENCE + POE1_LOOKUPS + CLOSING
+    : ANSWER + POE2_GAME + POE2_BEFORE + CHANGING + POE2_SKILLS + POE2_GEAR + TREE + POE2_GEMS + POE2_GUARD + REFERENCE + POE2_LOOKUPS + CLOSING;
 }
 
 /** For the panel's own loop, which starts with part of the registry. */

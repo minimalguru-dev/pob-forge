@@ -15,6 +15,7 @@ import {
   type ProviderStatus,
 } from "$lib/ai/providers";
 import { proxyFetch } from "$lib/ai/transport";
+import { referenceLinks, withHandles } from "$lib/ai/pasted";
 import { routeTools } from "$lib/ai/decide";
 import { decider } from "$lib/state/decide.svelte";
 import { LOADING, style } from "$lib/ai/prompt";
@@ -222,8 +223,20 @@ const WIKI: Record<Game, string> = { poe2: "poe2wiki.net", poe1: "poewiki.net" }
 const DB: Record<Game, string> = { poe2: "poe2db.tw", poe1: "poedb.tw" };
 
 /** The site a web lookup reads. Approving it for the thread covers that site. */
+const REFERENCE_TOOL = "analyze_reference_builds";
+
 export function lookupSite(turn: Pick<ToolTurn, "name" | "args">): string {
   if (turn.name === "search_wiki") return WIKI[game.current];
+  if (turn.name === REFERENCE_TOOL) {
+    const hosts = referenceLinks(turn.args).map((u) => {
+      try {
+        return new URL(u).hostname.replace(/^www\./, "");
+      } catch {
+        return "";
+      }
+    });
+    return [...new Set(hosts.filter(Boolean))].sort().join(", ");
+  }
   if (turn.name === "search_poedb") return DB[game.current];
   try {
     return new URL(String((turn.args as { url?: unknown } | null)?.url ?? "")).hostname.replace(/^www\./, "");
@@ -1151,8 +1164,13 @@ class ChatStore {
   }
 
   async send() {
-    const text = this.input.trim();
-    if (!text || this.busy) return;
+    const typed = this.input.trim();
+    if (!typed || this.busy) return;
+    // Pasted PoB codes become pasted:N handles before the model sees them.
+    const text = await withHandles(typed, (code) => invoke<number | null>("ai_stash_code", { code }));
+    if (this.busy) return;
+    // A message carrying builds is about them; load the tools that read them.
+    if (text !== typed) for (const name of ["analyze_reference_builds", "compare_ninja_build"]) this.active.add(name);
     // A send during warm-up waits for it; the composer button is disabled
     // meanwhile, but a boot-time message must not be lost.
     if (this.warming) await this.warming;
@@ -1532,7 +1550,7 @@ class ChatStore {
             name: call.toolName,
             args: call.input,
             readOnly: readOnly.get(call.toolName) ?? false,
-            lookup: lookups.has(call.toolName),
+            lookup: lookups.has(call.toolName) && (call.toolName !== REFERENCE_TOOL || referenceLinks(call.input).length > 0),
             status: "running",
           };
           if (this.asks(turn)) turn.status = "awaiting";
