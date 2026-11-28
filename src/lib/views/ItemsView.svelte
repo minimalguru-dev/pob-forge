@@ -1002,8 +1002,8 @@
       {:else if selectedItem != null && detail?.itemId === selectedItem}
         <div class="panel-head">
           <span class="label">{m.items_item()}</span>
-          <button class="btn sm ghost" onclick={() => (buySimilarFor = selectedItem)} title={m.items_buy_similar_title()}>{m.items_buy_similar()}</button>
-          <button class="btn sm ghost" onclick={() => selectItem(null)} disabled={itemTransitionBusy}>{m.items_back_to_database()}</button>
+          <button class="btn sm" onclick={() => (buySimilarFor = selectedItem)} title={m.items_buy_similar_title()}>{m.items_buy_similar()}</button>
+          <button class="btn sm" onclick={() => selectItem(null)} disabled={itemTransitionBusy}>{m.items_back_to_database()}</button>
         </div>
         <div class="scroll detailpane" bind:this={detailPane} onscroll={followDetailScroll}>
           <div class="detailcontent">
